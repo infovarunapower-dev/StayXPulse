@@ -31,7 +31,7 @@ router.post('/login',
 
       let { data: user } = await supabase
         .from('users')
-        .select('*, hotels(*)')
+        .select('*')
         .eq('email', email.toLowerCase().trim())
         .maybeSingle();
 
