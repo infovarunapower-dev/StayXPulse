@@ -17,20 +17,29 @@ app.use('/api/hotel', require('./routes/hotel'));
 app.use('/api/payments', require('./routes/payment'));
 app.use('/api/email', require('./routes/email'));
 
+// Seed on first request
+let seeded = false;
+app.use(async (req, res, next) => {
+  if (!seeded) {
+    try {
+      const { seedSuperAdmin } = require('./utils/seed');
+      await seedSuperAdmin();
+      seeded = true;
+    } catch (e) {
+      console.error('Seed error:', e.message);
+    }
+  }
+  next();
+});
+
 const PORT = process.env.PORT || 5000;
 
-const startServer = async () => {
-  try {
-    const { seedSuperAdmin } = require('./utils/seed');
-    await seedSuperAdmin();
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 StayXPulse API running on http://localhost:${PORT}`);
+  });
+}
 
-    app.listen(PORT, () => {
-      console.log(`🚀 StayXPulse API running on http://localhost:${PORT}`);
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-};
-
-startServer();
+// Export for Vercel
+module.exports = app;
