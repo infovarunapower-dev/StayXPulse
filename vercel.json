@@ -19,8 +19,7 @@
       "dest": "backend/server.js"
     },
     {
-      "src": "/static/(.*)",
-      "dest": "frontend/build/static/$1"
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
