@@ -1,16 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 
-const { User, Hotel } = require('../models');
-const { protect } = require('../middleware/auth');
-const upload = require('../middleware/upload');
+const supabase = require('../utils/supabase');
 const generateToken = require('../utils/token');
 const { generateUserId, generatePassword } = require('../utils/credentials');
 const { sendWelcomeEmail, sendForgotPasswordEmail } = require('../utils/email');
 
-// ─── Validation helpers ───────────────────────────────────────────────────────
 const validate = (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -19,9 +17,7 @@ const validate = (req, res) => {
   return null;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/login
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── POST /api/auth/login ─────────────────────────────────────────────────────
 router.post(
   '/login',
   [
@@ -34,61 +30,82 @@ router.post(
     try {
       const { email, password, rememberMe = false } = req.body;
 
-      // Find user — allow login by email OR userId (for hotel admins)
-      let user = await User.findOne({ email }).populate('hotel');
+      // Find user by email
+      let { data: user } = await supabase
+        .from('users')
+        .select('*, hotels(*)')
+        .eq('email', email.toLowerCase().trim())
+        .single();
+
+      // If not found by email, try userId on hotels table
       if (!user) {
-        // Try matching by userId on the Hotel model
-        const hotel = await Hotel.findOne({ userId: email });
-        if (hotel) user = await User.findOne({ hotel: hotel._id }).populate('hotel');
+        const { data: hotel } = await supabase
+          .from('hotels')
+          .select('*')
+          .eq('user_id', email)
+          .single();
+
+        if (hotel) {
+          const { data: hotelUser } = await supabase
+            .from('users')
+            .select('*, hotels(*)')
+            .eq('hotel_id', hotel.id)
+            .single();
+          user = hotelUser;
+        }
       }
 
       if (!user) {
         return res.status(401).json({ success: false, message: 'Invalid email or password.' });
       }
-      if (!user.isActive) {
+      if (!user.is_active) {
         return res.status(403).json({ success: false, message: 'Your account is disabled. Contact support.' });
       }
 
-      const match = await user.matchPassword(password);
+      const match = await bcrypt.compare(password, user.password);
       if (!match) {
         return res.status(401).json({ success: false, message: 'Invalid email or password.' });
       }
 
-      // For hotel admins — check hotel subscription status
-      if (user.role === 'hoteladmin' && user.hotel) {
-        const hotel = user.hotel;
-        // Auto-expire trial
-        if (hotel.subscriptionStatus === 'trial' && new Date() > hotel.trialEndDate) {
-          hotel.subscriptionStatus = 'expired';
-          await hotel.save();
+      // Auto-expire trial for hotel admins
+      if (user.role === 'hoteladmin' && user.hotels) {
+        const hotel = user.hotels;
+        if (hotel.subscription_status === 'trial' && new Date() > new Date(hotel.trial_end_date)) {
+          await supabase
+            .from('hotels')
+            .update({ subscription_status: 'expired' })
+            .eq('id', hotel.id);
+          hotel.subscription_status = 'expired';
         }
       }
 
-      user.lastLogin = new Date();
-      await user.save({ validateBeforeSave: false });
+      // Update last login
+      await supabase
+        .from('users')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', user.id);
 
-      const token = generateToken(user._id, rememberMe);
+      const token = generateToken(user.id, rememberMe);
+      const hotel = user.hotels;
 
       res.json({
         success: true,
         token,
         user: {
-          id:       user._id,
-          name:     user.name,
-          email:    user.email,
-          role:     user.role,
-          hotel:    user.hotel
-            ? {
-                id:                 user.hotel._id,
-                hotelName:          user.hotel.hotelName,
-                logoUrl:            user.hotel.logoUrl,
-                gstNumber:          user.hotel.gstNumber,
-                phone:              user.hotel.phone,
-                subscriptionStatus: user.hotel.subscriptionStatus,
-                trialEndDate:       user.hotel.trialEndDate,
-                planValidTo:        user.hotel.planValidTo,
-              }
-            : null,
+          id:    user.id,
+          name:  user.name,
+          email: user.email,
+          role:  user.role,
+          hotel: hotel ? {
+            id:                 hotel.id,
+            hotelName:          hotel.hotel_name,
+            logoUrl:            hotel.logo_url,
+            gstNumber:          hotel.gst_number,
+            phone:              hotel.phone,
+            subscriptionStatus: hotel.subscription_status,
+            trialEndDate:       hotel.trial_end_date,
+            planValidTo:        hotel.plan_valid_to,
+          } : null,
         },
       });
     } catch (err) {
@@ -98,93 +115,85 @@ router.post(
   }
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/register   (public — hotel self-registration)
-// ─────────────────────────────────────────────────────────────────────────────
-router.post(
-  '/register',
-  upload.single('logo'),
-  async (req, res) => {
+// ─── POST /api/auth/register ──────────────────────────────────────────────────
+router.post('/register', async (req, res) => {
+  try {
+    const { hotelName, phone, email, address, gstNumber } = req.body;
+
+    if (!hotelName?.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
+    if (!phone?.trim())     return res.status(400).json({ success: false, message: 'Phone number is required.' });
+    if (!email?.trim())     return res.status(400).json({ success: false, message: 'Email address is required.' });
+    if (!address?.trim())   return res.status(400).json({ success: false, message: 'Address is required.' });
+    if (!gstNumber?.trim()) return res.status(400).json({ success: false, message: 'GST number is required.' });
+
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Check duplicates
+    const { data: existingHotel } = await supabase.from('hotels').select('id').eq('email', cleanEmail).single();
+    if (existingHotel) return res.status(409).json({ success: false, message: 'This email is already registered.' });
+
+    const { data: existingUser } = await supabase.from('users').select('id').eq('email', cleanEmail).single();
+    if (existingUser) return res.status(409).json({ success: false, message: 'This email is already in use.' });
+
+    const userId   = await generateUserId();
+    const password = generatePassword();
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + 14);
+
+    // Create hotel
+    const { data: hotel, error: hotelError } = await supabase
+      .from('hotels')
+      .insert({
+        hotel_name:          hotelName.trim(),
+        phone:               phone.trim(),
+        email:               cleanEmail,
+        address:             address.trim(),
+        gst_number:          gstNumber.trim().toUpperCase(),
+        user_id:             userId,
+        is_active:           true,
+        subscription_status: 'trial',
+        trial_end_date:      trialEndDate.toISOString(),
+      })
+      .select()
+      .single();
+
+    if (hotelError) throw hotelError;
+
+    // Create hotel admin user
+    const { error: userError } = await supabase
+      .from('users')
+      .insert({
+        name:      hotelName.trim(),
+        email:     cleanEmail,
+        password:  hashedPassword,
+        role:      'hoteladmin',
+        hotel_id:  hotel.id,
+        is_active: true,
+      });
+
+    if (userError) throw userError;
+
+    // Send welcome email
     try {
-      const { hotelName, phone, email, address, gstNumber } = req.body;
-
-      // Basic validation
-      if (!hotelName || !hotelName.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
-      if (!phone     || !phone.trim())     return res.status(400).json({ success: false, message: 'Phone number is required.' });
-      if (!email     || !email.trim())     return res.status(400).json({ success: false, message: 'Email address is required.' });
-      if (!address   || !address.trim())   return res.status(400).json({ success: false, message: 'Address is required.' });
-      if (!gstNumber || !gstNumber.trim()) return res.status(400).json({ success: false, message: 'GST number is required.' });
-
-      const cleanEmail = email.toLowerCase().trim();
-
-      // Check duplicates
-      const existingHotel = await Hotel.findOne({ email: cleanEmail });
-      if (existingHotel) return res.status(409).json({ success: false, message: 'This email is already registered.' });
-
-      const existingUser = await User.findOne({ email: cleanEmail });
-      if (existingUser) return res.status(409).json({ success: false, message: 'This email is already in use.' });
-
-      // Generate credentials
-      const userId   = await generateUserId();
-      const password = generatePassword();
-
-      // Logo URL
-      const logoUrl = req.file ? `/uploads/logos/${req.file.filename}` : null;
-
-      // Create hotel
-      const hotel = await Hotel.create({
-        hotelName:          hotelName.trim(),
-        phone:              phone.trim(),
-        email:              cleanEmail,
-        address:            address.trim(),
-        gstNumber:          gstNumber.trim().toUpperCase(),
-        logoUrl,
-        userId,
-        isActive:           true,
-        subscriptionStatus: 'trial',
-      });
-
-      // Create hotel admin user
-      await User.create({
-        name:     hotelName.trim(),
-        email:    cleanEmail,
-        password,
-        role:     'hoteladmin',
-        hotel:    hotel._id,
-        isActive: true,
-      });
-
-      // Send welcome email — never blocks registration
-      try {
-        await sendWelcomeEmail({ hotelName: hotelName.trim(), email: cleanEmail, userId, password, trialEndDate: hotel.trialEndDate });
-      } catch (emailErr) {
-        console.error('Welcome email failed (registration succeeded):', emailErr.message);
-      }
-
-      console.log(`✅ Hotel registered: ${hotelName} (${cleanEmail}) — UserID: ${userId}`);
-
-      res.status(201).json({
-        success: true,
-        message: 'Hotel registered successfully! Check your email for login credentials.',
-        data: { hotelId: hotel._id, hotelName: hotel.hotelName, userId, trialEndDate: hotel.trialEndDate },
-      });
-    } catch (err) {
-      console.error('Register error:', err.message, 'Code:', err.code);
-      if (err.code === 11000) {
-        const field = Object.keys(err.keyPattern || {})[0] || '';
-        const msg = field.includes('email') ? 'This email is already registered.' :
-                    field.includes('userId') ? 'Please try again.' :
-                    'A hotel with these details already exists.';
-        return res.status(409).json({ success: false, message: msg });
-      }
-      res.status(500).json({ success: false, message: err.message || 'Server error. Please try again.' });
+      await sendWelcomeEmail({ hotelName: hotelName.trim(), email: cleanEmail, userId, password, trialEndDate });
+    } catch (emailErr) {
+      console.error('Welcome email failed:', emailErr.message);
     }
-  }
-);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/forgot-password
-// ─────────────────────────────────────────────────────────────────────────────
+    res.status(201).json({
+      success: true,
+      message: 'Hotel registered successfully! Check your email for login credentials.',
+      data: { hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate },
+    });
+  } catch (err) {
+    console.error('Register error:', err.message);
+    res.status(500).json({ success: false, message: err.message || 'Server error. Please try again.' });
+  }
+});
+
+// ─── POST /api/auth/forgot-password ──────────────────────────────────────────
 router.post(
   '/forgot-password',
   [body('email').isEmail().withMessage('Valid email is required').normalizeEmail()],
@@ -192,20 +201,24 @@ router.post(
     const err = validate(req, res); if (err) return;
 
     try {
-      const user = await User.findOne({ email: req.body.email });
+      const { data: user } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .eq('email', req.body.email)
+        .single();
 
-      // Always return success to prevent user enumeration
       if (!user) {
         return res.json({ success: true, message: 'If that email exists, a reset link has been sent.' });
       }
 
-      // Generate reset token
       const rawToken  = crypto.randomBytes(32).toString('hex');
       const hashToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expiry    = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-      user.resetPasswordToken  = hashToken;
-      user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 min
-      await user.save({ validateBeforeSave: false });
+      await supabase.from('users').update({
+        reset_password_token:  hashToken,
+        reset_password_expire: expiry,
+      }).eq('id', user.id);
 
       const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
 
@@ -223,9 +236,7 @@ router.post(
   }
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/reset-password/:token
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── POST /api/auth/reset-password/:token ────────────────────────────────────
 router.post(
   '/reset-password/:token',
   [
@@ -238,24 +249,25 @@ router.post(
     const err = validate(req, res); if (err) return;
 
     try {
-      const hashToken = crypto
-        .createHash('sha256')
-        .update(req.params.token)
-        .digest('hex');
+      const hashToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
 
-      const user = await User.findOne({
-        resetPasswordToken:  hashToken,
-        resetPasswordExpire: { $gt: Date.now() },
-      });
+      const { data: user } = await supabase
+        .from('users')
+        .select('id, reset_password_expire')
+        .eq('reset_password_token', hashToken)
+        .single();
 
-      if (!user) {
+      if (!user || new Date(user.reset_password_expire) < new Date()) {
         return res.status(400).json({ success: false, message: 'Reset link is invalid or has expired.' });
       }
 
-      user.password = req.body.password;
-      user.resetPasswordToken  = undefined;
-      user.resetPasswordExpire = undefined;
-      await user.save();
+      const hashedPassword = await bcrypt.hash(req.body.password, 12);
+
+      await supabase.from('users').update({
+        password:              hashedPassword,
+        reset_password_token:  null,
+        reset_password_expire: null,
+      }).eq('id', user.id);
 
       res.json({ success: true, message: 'Password reset successful. You can now log in.' });
     } catch (err) {
@@ -265,11 +277,29 @@ router.post(
   }
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/auth/me   (protected)
-// ─────────────────────────────────────────────────────────────────────────────
-router.get('/me', protect, async (req, res) => {
-  res.json({ success: true, user: req.user });
+// ─── GET /api/auth/me ─────────────────────────────────────────────────────────
+router.get('/me', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Not authorized.' });
+    }
+    const token = authHeader.split(' ')[1];
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('*, hotels(*)')
+      .eq('id', decoded.id)
+      .single();
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(401).json({ success: false, message: 'Not authorized.' });
+  }
 });
 
 module.exports = router;
