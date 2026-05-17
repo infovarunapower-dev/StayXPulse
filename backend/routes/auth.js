@@ -28,6 +28,7 @@ router.post('/login',
     const err = validate(req, res); if (err) return;
     try {
       const { email, password, rememberMe = false } = req.body;
+      console.log("LOGIN ATTEMPT:", email, "PWD LENGTH:", password?.length);
 
       let { data: user } = await supabase
         .from('users')
@@ -51,6 +52,7 @@ router.post('/login',
         }
       }
 
+      console.log("USER FOUND:", user ? user.email : "NULL", "ACTIVE:", user?.is_active);
       if (!user) return res.status(401).json({ success: false, message: 'Invalid email or password.' });
       if (!user.is_active) return res.status(403).json({ success: false, message: 'Your account is disabled. Contact support.' });
 
