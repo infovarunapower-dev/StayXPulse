@@ -1,12 +1,17 @@
 const { createClient } = require('@supabase/supabase-js');
-const { fetch } = require('undici');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY,
   {
     auth: { persistSession: false },
-    global: { fetch }
+    global: {
+      fetch: (url, options) => {
+        const https = require('https');
+        const agent = new https.Agent({ family: 4 });
+        return require('node-fetch')(url, { ...options, agent });
+      }
+    }
   }
 );
 
