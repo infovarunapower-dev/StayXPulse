@@ -3,12 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev:backend":  "cd backend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm start",
-    "install:all":  "cd backend && npm install && cd ../frontend && npm install",
-    "build":        "cd frontend && npm run build"
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0"
   }
 }
