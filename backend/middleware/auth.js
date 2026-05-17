@@ -1,28 +1,29 @@
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const supabase = require('../utils/supabase');
 
 const protect = async (req, res, next) => {
   let token;
-
   if (req.headers.authorization?.startsWith('Bearer ')) {
     token = req.headers.authorization.split(' ')[1];
   }
-
   if (!token) {
     return res.status(401).json({ success: false, message: 'Not authorised. No token provided.' });
   }
-
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select('-password').populate('hotel');
+    const { data: user } = await supabase
+      .from('users')
+      .select('*, hotels(*)')
+      .eq('id', decoded.id)
+      .maybeSingle();
 
-    if (!req.user) {
+    if (!user) {
       return res.status(401).json({ success: false, message: 'User no longer exists.' });
     }
-    if (!req.user.isActive) {
+    if (!user.is_active) {
       return res.status(403).json({ success: false, message: 'Account is disabled. Contact support.' });
     }
-
+    req.user = user;
     next();
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
