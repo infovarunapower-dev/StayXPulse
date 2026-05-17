@@ -3,8 +3,15 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const { Pool } = require('pg');
 
-// Create supabase client inline to avoid any import issues
+// Direct PostgreSQL connection - bypasses Supabase fetch issues
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Fallback: Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY,
@@ -15,31 +22,45 @@ const supabase = createClient(
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email and password are required.' });
     }
 
-    console.log('Login attempt for:', email);
+    const cleanEmail = email.toLowerCase().trim();
+    console.log('Login attempt:', cleanEmail);
 
-    // Query user directly
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email.toLowerCase().trim());
+    let user = null;
 
-    console.log('Query result - users:', users?.length, 'error:', error?.message);
+    // Try direct pg connection first (more reliable on Vercel)
+    try {
+      const result = await pool.query(
+        'SELECT * FROM users WHERE email = $1 LIMIT 1',
+        [cleanEmail]
+      );
+      if (result.rows.length > 0) {
+        user = result.rows[0];
+        console.log('User found via pg direct');
+      }
+    } catch (pgErr) {
+      console.log('pg direct failed, trying supabase:', pgErr.message);
+      // Fallback to supabase
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', cleanEmail);
 
-    if (error) {
-      console.error('Supabase error:', error);
-      return res.status(500).json({ success: false, message: 'Database error.' });
+      if (error) {
+        console.error('Supabase error:', error);
+        return res.status(500).json({ success: false, message: 'Database error: ' + error.message });
+      }
+      if (users && users.length > 0) user = users[0];
     }
 
-    if (!users || users.length === 0) {
+    if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
 
-    const user = users[0];
     console.log('User found:', user.email, 'active:', user.is_active);
 
     if (!user.is_active) {
@@ -62,12 +83,16 @@ router.post('/login', async (req, res) => {
     // Get hotel if exists
     let hotel = null;
     if (user.hotel_id) {
-      const { data: hotelData } = await supabase
-        .from('hotels')
-        .select('*')
-        .eq('id', user.hotel_id)
-        .single();
-      hotel = hotelData;
+      try {
+        const hotelResult = await pool.query(
+          'SELECT * FROM hotels WHERE id = $1 LIMIT 1',
+          [user.hotel_id]
+        );
+        if (hotelResult.rows.length > 0) hotel = hotelResult.rows[0];
+      } catch (e) {
+        const { data } = await supabase.from('hotels').select('*').eq('id', user.hotel_id).single();
+        hotel = data;
+      }
     }
 
     res.json({
@@ -113,7 +138,6 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ success: false, message: 'This email is already in use.' });
     }
 
-    const bcrypt = require('bcryptjs');
     const { generateUserId, generatePassword } = require('../utils/credentials');
     const { sendWelcomeEmail } = require('../utils/email');
 
@@ -189,9 +213,18 @@ router.get('/me', async (req, res) => {
     }
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const { data: users } = await supabase.from('users').select('*').eq('id', decoded.id);
-    if (!users || users.length === 0) return res.status(404).json({ success: false, message: 'User not found.' });
-    res.json({ success: true, user: users[0] });
+
+    let user = null;
+    try {
+      const result = await pool.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [decoded.id]);
+      if (result.rows.length > 0) user = result.rows[0];
+    } catch (e) {
+      const { data: users } = await supabase.from('users').select('*').eq('id', decoded.id);
+      if (users && users.length > 0) user = users[0];
+    }
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+    res.json({ success: true, user });
   } catch (err) {
     res.status(401).json({ success: false, message: 'Not authorized.' });
   }
