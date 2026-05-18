@@ -11,7 +11,7 @@ const protect = async (req, res, next) => {
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
@@ -27,9 +27,23 @@ const protect = async (req, res, next) => {
       console.error('User not found for id:', decoded.id);
       return res.status(401).json({ success: false, message: 'User no longer exists.' });
     }
+
     if (!user.is_active) {
       return res.status(403).json({ success: false, message: 'Account is disabled. Contact support.' });
     }
+
+    // Fetch hotel separately if user has a hotel_id
+    if (user.hotel_id) {
+      const { data: hotel } = await supabase
+        .from('hotels')
+        .select('*')
+        .eq('id', user.hotel_id)
+        .maybeSingle();
+      user.hotel = hotel || null;
+    } else {
+      user.hotel = null;
+    }
+
     req.user = user;
     next();
   } catch (err) {
