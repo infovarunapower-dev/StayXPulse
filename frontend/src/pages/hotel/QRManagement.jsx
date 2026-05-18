@@ -13,12 +13,12 @@ const QRCard = ({ room, hotel, onDelete }) => {
   const [qrDataUrl, setQrDataUrl] = useState('');
 
   useEffect(() => {
-    const url = `${CLIENT_URL}/guest/${room.qrToken}`;
+    const url = `${CLIENT_URL}/guest/${room.qr_token}`;
     QRCode.toDataURL(url, {
       width: 200, margin: 1,
       color: { dark: '#1A4D8F', light: '#FFFFFF' },
     }).then(setQrDataUrl).catch(console.error);
-  }, [room.qrToken]);
+  }, [room.qr_token]);
 
   const downloadQR = async () => {
     if (!qrDataUrl) return;
@@ -83,7 +83,7 @@ const QRCard = ({ room, hotel, onDelete }) => {
       <div style={{display:'flex',gap:8,justifyContent:'center',marginTop:12}}>
         <button className="btn btn-sm btn-brand" onClick={downloadQR} disabled={!qrDataUrl}>⬇ Download</button>
         <button className="btn btn-sm btn-outline"
-          onClick={() => window.open(`/guest/${room.qrToken}`, '_blank')}>Preview</button>
+          onClick={() => window.open(`/guest/${room.qr_token}`, '_blank')}>Preview</button>
         <button className="btn btn-sm" style={{background:'var(--danger-light)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}
           onClick={() => onDelete(room)}>🗑</button>
       </div>
