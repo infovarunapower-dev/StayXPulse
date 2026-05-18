@@ -51,9 +51,9 @@ const GuestLanding = () => {
   // Cart helpers
   const addToCart = (item) => {
     setCart(prev => {
-      const ex = prev.find(c => c.foodItem === item._id);
-      if (ex) return prev.map(c => c.foodItem===item._id ? {...c,quantity:c.quantity+1} : c);
-      return [...prev, { foodItem:item._id, name:item.name, price:item.price, quantity:1 }];
+      const ex = prev.find(c => c.foodItem === item.id);
+      if (ex) return prev.map(c => c.foodItem===item.id ? {...c,quantity:c.quantity+1} : c);
+      return [...prev, { foodItem:item.id, name:item.name, price:item.price, quantity:1 }];
     });
   };
   const removeFromCart = (id) => setCart(prev => prev.filter(c=>c.foodItem!==id));
@@ -167,15 +167,15 @@ const GuestLanding = () => {
                 <div key={cat} className="gl-menu-cat">
                   <div className="gl-cat-title">{cat}</div>
                   {items.map(item => {
-                    const qty = getQty(item._id);
+                    const qty = getQty(item.id);
                     return (
-                      <div key={item._id} className="gl-menu-item">
+                      <div key={item.id} className="gl-menu-item">
                         <div style={{display:'flex',alignItems:'center',gap:12,flex:1}}>
-                          <span style={{fontSize:28,flexShrink:0}}>{item.imageEmoji}</span>
+                          <span style={{fontSize:28,flexShrink:0}}>{item.image_emoji}</span>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{display:'flex',alignItems:'center',gap:6}}>
                               <span className="gl-item-name">{item.name}</span>
-                              <span style={{fontSize:10,color:item.isVeg?'#10B981':'#EF4444',fontWeight:700}}>{item.isVeg?'●':'●'}</span>
+                              <span style={{fontSize:10,color:item.is_veg?'#10B981':'#EF4444',fontWeight:700}}>{item.is_veg?'●':'●'}</span>
                             </div>
                             {item.description && <div className="gl-item-desc">{item.description}</div>}
                             <div className="gl-item-price">{fmtCur(item.price)}</div>
@@ -185,9 +185,9 @@ const GuestLanding = () => {
                           {qty === 0
                             ? <button className="gl-add-btn" onClick={()=>addToCart(item)}>Add</button>
                             : <div className="gl-stepper">
-                                <button onClick={()=>qty===1?removeFromCart(item._id):changeQty(item._id,-1)}>−</button>
+                                <button onClick={()=>qty===1?removeFromCart(item.id):changeQty(item.id,-1)}>−</button>
                                 <span>{qty}</span>
-                                <button onClick={()=>changeQty(item._id,1)}>+</button>
+                                <button onClick={()=>changeQty(item.id,1)}>+</button>
                               </div>
                           }
                         </div>
@@ -209,9 +209,9 @@ const GuestLanding = () => {
             {orders.orders.length===0
               ? <div className="gl-empty-small">No food orders yet</div>
               : orders.orders.map(o => (
-                <div key={o._id} className="gl-order-card">
+                <div key={o.id} className="gl-order-card">
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                    <code style={{fontSize:12,color:'var(--gray-500)',fontFamily:'monospace'}}>{o.orderRef}</code>
+                    <code style={{fontSize:12,color:'var(--gray-500)',fontFamily:'monospace'}}>{o.id}</code>
                     <span style={{fontSize:12,fontWeight:700,color:STATUS_COLOR[o.status]||'#374151',textTransform:'capitalize',padding:'2px 10px',background:'#F3F4F6',borderRadius:20}}>
                       {o.status}
                     </span>
@@ -223,9 +223,9 @@ const GuestLanding = () => {
                     </div>
                   ))}
                   <div style={{borderTop:'1px solid #E5E7EB',marginTop:8,paddingTop:8,display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:700}}>
-                    <span>Total</span><span style={{color:'#1A4D8F'}}>₹{o.totalAmount}</span>
+                    <span>Total</span><span style={{color:'#1A4D8F'}}>₹{o.total_amount}</span>
                   </div>
-                  <div style={{fontSize:11,color:'#9CA3AF',marginTop:4}}>{fmtTime(o.createdAt)}</div>
+                  <div style={{fontSize:11,color:'#9CA3AF',marginTop:4}}>{fmtTime(o.created_at)}</div>
                 </div>
               ))
             }
@@ -234,11 +234,11 @@ const GuestLanding = () => {
             {orders.requests.length===0
               ? <div className="gl-empty-small">No service requests yet</div>
               : orders.requests.map(r => (
-                <div key={r._id} className="gl-order-card">
+                <div key={r.id} className="gl-order-card">
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
                       <div style={{fontWeight:600,fontSize:14}}>{r.type}</div>
-                      <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{fmtTime(r.createdAt)}</div>
+                      <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{fmtTime(r.created_at)}</div>
                     </div>
                     <span style={{fontSize:12,fontWeight:700,color:STATUS_COLOR[r.status]||'#374151',textTransform:'capitalize',padding:'2px 10px',background:'#F3F4F6',borderRadius:20}}>
                       {r.status}
