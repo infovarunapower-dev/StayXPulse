@@ -55,19 +55,19 @@ export const ServiceRequests = () => {
   };
 
   const columns = [
-    { label:'Ref',     render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.requestRef}</code> },
-    { label:'Room',    render: r => <strong>Room {r.roomNumber}</strong> },
+    { label:'Ref',     render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.id}</code> },
+    { label:'Room',    render: r => <strong>Room {r.room_number}</strong> },
     { label:'Request', render: r => <div><div style={{fontWeight:600}}>{r.type}</div>{r.note&&<div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{r.note}</div>}</div> },
-    { label:'Time',    render: r => <div style={{fontSize:12}}><div>{fmtDate(r.createdAt)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.createdAt)}</div></div> },
+    { label:'Time',    render: r => <div style={{fontSize:12}}><div>{fmtDate(r.created_at)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.created_at)}</div></div> },
     { label:'Status',  render: r => <Badge status={r.status} /> },
     { label:'Action',  render: r => (
       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
         {r.status === 'pending' && <>
-          <button className="btn btn-sm btn-outline" style={{borderColor:'var(--brand)',color:'var(--brand)'}} onClick={()=>updateStatus(r._id,'in-progress')}>In Progress</button>
-          <button className="btn btn-sm btn-success" onClick={()=>updateStatus(r._id,'completed')}>✓ Done</button>
+          <button className="btn btn-sm btn-outline" style={{borderColor:'var(--brand)',color:'var(--brand)'}} onClick={()=>updateStatus(r.id,'in-progress')}>In Progress</button>
+          <button className="btn btn-sm btn-success" onClick={()=>updateStatus(r.id,'completed')}>✓ Done</button>
         </>}
-        {r.status === 'in-progress' && <button className="btn btn-sm btn-success" onClick={()=>updateStatus(r._id,'completed')}>✓ Complete</button>}
-        {r.status === 'completed' && <span style={{fontSize:12,color:'var(--gray-400)'}}>Completed {r.completedAt ? fmtTime(r.completedAt) : ''}</span>}
+        {r.status === 'in-progress' && <button className="btn btn-sm btn-success" onClick={()=>updateStatus(r.id,'completed')}>✓ Complete</button>}
+        {r.status === 'completed' && <span style={{fontSize:12,color:'var(--gray-400)'}}>Completed {r.completed_at ? fmtTime(r.completed_at) : ''}</span>}
       </div>
     )},
   ];
@@ -133,12 +133,12 @@ export const FoodOrders = () => {
   const fmtCur = n => `₹${Number(n||0).toLocaleString('en-IN')}`;
 
   const columns = [
-    { label:'Order Ref', render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4,cursor:'pointer'}} onClick={()=>setExpanded(expanded===r._id?null:r._id)}>{r.orderRef} {expanded===r._id?'▲':'▼'}</code> },
-    { label:'Room',    render: r => <strong>Room {r.roomNumber}</strong> },
+    { label:'Order Ref', render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4,cursor:'pointer'}} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>{r.id} {expanded===r.id?'▲':'▼'}</code> },
+    { label:'Room',    render: r => <strong>Room {r.room_number}</strong> },
     { label:'Items',   render: r => (
       <div>
         <div style={{fontSize:13}}>{r.items?.slice(0,2).map(i=>`${i.name} ×${i.quantity}`).join(', ')}{r.items?.length>2?` +${r.items.length-2} more`:''}</div>
-        {expanded===r._id && (
+        {expanded===r.id && (
           <div style={{marginTop:8,background:'var(--gray-50)',borderRadius:8,padding:10}}>
             {r.items?.map((i,idx)=>(
               <div key={idx} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'3px 0',borderBottom:idx<r.items.length-1?'1px solid var(--border)':'none'}}>
@@ -146,17 +146,17 @@ export const FoodOrders = () => {
                 <span style={{fontWeight:600}}>{fmtCur(i.price*i.quantity)}</span>
               </div>
             ))}
-            {r.guestNote && <div style={{marginTop:8,fontSize:12,color:'var(--gray-500)'}}>Note: {r.guestNote}</div>}
+            {r.guest_note && <div style={{marginTop:8,fontSize:12,color:'var(--gray-500)'}}>Note: {r.guest_note}</div>}
           </div>
         )}
       </div>
     )},
-    { label:'Amount',  render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.totalAmount)}</strong> },
-    { label:'Time',    render: r => <div style={{fontSize:12}}><div>{fmtDate(r.createdAt)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.createdAt)}</div></div> },
+    { label:'Amount',  render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.total_amount)}</strong> },
+    { label:'Time',    render: r => <div style={{fontSize:12}}><div>{fmtDate(r.created_at)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.created_at)}</div></div> },
     { label:'Status',  render: r => <Badge status={r.status} /> },
     { label:'Action',  render: r => (
       <select className="form-control" style={{padding:'5px 8px',fontSize:12,width:120}} value={r.status}
-        onChange={e=>updateStatus(r._id,e.target.value)}>
+        onChange={e=>updateStatus(r.id,e.target.value)}>
         {STATUS_OPTS.map(s=><option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
       </select>
     )},
