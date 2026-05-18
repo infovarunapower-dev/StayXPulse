@@ -2,122 +2,47 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { createClient } = require('@supabase/supabase-js');
-const { Pool } = require('pg');
 const multer = require('multer');
 const upload = multer();
-
-// Direct PostgreSQL connection - bypasses Supabase fetch issues
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-// Fallback: Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = require('../utils/supabase');
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required.' });
-    }
+    if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password are required.' });
 
     const cleanEmail = email.toLowerCase().trim();
-    console.log('Login attempt:', cleanEmail);
+    const { data: users, error } = await supabase.from('users').select('*').eq('email', cleanEmail);
+    if (error) return res.status(500).json({ success: false, message: 'Database error: ' + error.message });
+    if (!users || users.length === 0) return res.status(401).json({ success: false, message: 'Invalid email or password.' });
 
-    let user = null;
-
-    // Try direct pg connection first (more reliable on Vercel)
-    try {
-      const result = await pool.query(
-        'SELECT * FROM users WHERE email = $1 LIMIT 1',
-        [cleanEmail]
-      );
-      if (result.rows.length > 0) {
-        user = result.rows[0];
-        console.log('User found via pg direct');
-      }
-    } catch (pgErr) {
-      console.log('pg direct failed, trying supabase:', pgErr.message);
-      // Fallback to supabase
-      const { data: users, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', cleanEmail);
-
-      if (error) {
-        console.error('Supabase error:', error);
-        return res.status(500).json({ success: false, message: 'Database error: ' + error.message });
-      }
-      if (users && users.length > 0) user = users[0];
-    }
-
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
-    }
-
-    console.log('User found:', user.email, 'active:', user.is_active);
-
-    if (!user.is_active) {
-      return res.status(403).json({ success: false, message: 'Account is disabled.' });
-    }
+    const user = users[0];
+    if (!user.is_active) return res.status(403).json({ success: false, message: 'Account is disabled.' });
 
     const match = await bcrypt.compare(password, user.password_hash);
-    console.log('Password match:', match);
+    if (!match) return res.status(401).json({ success: false, message: 'Invalid email or password.' });
 
-    if (!match) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
-    }
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    const token = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Get hotel if exists
     let hotel = null;
     if (user.hotel_id) {
-      try {
-        const hotelResult = await pool.query(
-          'SELECT * FROM hotels WHERE id = $1 LIMIT 1',
-          [user.hotel_id]
-        );
-        if (hotelResult.rows.length > 0) hotel = hotelResult.rows[0];
-      } catch (e) {
-        const { data } = await supabase.from('hotels').select('*').eq('id', user.hotel_id).single();
-        hotel = data;
-      }
+      const { data } = await supabase.from('hotels').select('*').eq('id', user.hotel_id).single();
+      hotel = data;
     }
 
     res.json({
-      success: true,
-      token,
+      success: true, token,
       user: {
-        id:    user.id,
-        name:  user.name,
-        email: user.email,
-        role:  user.role,
+        id: user.id, name: user.name, email: user.email, role: user.role,
         hotel: hotel ? {
-          id:                 hotel.id,
-          hotelName:          hotel.hotel_name,
-          logoUrl:            hotel.logo_url,
+          id: hotel.id, hotelName: hotel.hotel_name, logoUrl: hotel.logo_url,
           subscriptionStatus: hotel.subscription_status,
-          trialEndDate:       hotel.trial_end_date,
-          planValidTo:        hotel.plan_valid_to,
+          trialEndDate: hotel.trial_end_date, planValidTo: hotel.plan_valid_to,
         } : null,
       },
     });
-
   } catch (err) {
-    console.error('Login error:', err);
     res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
 });
@@ -126,19 +51,15 @@ router.post('/login', async (req, res) => {
 router.post('/register', upload.single('logo'), async (req, res) => {
   try {
     const { hotelName, phone, email, address, gstNumber } = req.body;
-
     if (!hotelName?.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
-    if (!phone?.trim())     return res.status(400).json({ success: false, message: 'Phone number is required.' });
-    if (!email?.trim())     return res.status(400).json({ success: false, message: 'Email address is required.' });
-    if (!address?.trim())   return res.status(400).json({ success: false, message: 'Address is required.' });
+    if (!phone?.trim()) return res.status(400).json({ success: false, message: 'Phone number is required.' });
+    if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email address is required.' });
+    if (!address?.trim()) return res.status(400).json({ success: false, message: 'Address is required.' });
     if (!gstNumber?.trim()) return res.status(400).json({ success: false, message: 'GST number is required.' });
 
     const cleanEmail = email.toLowerCase().trim();
-
-    const { data: existingUsers } = await supabase.from('users').select('id').eq('email', cleanEmail);
-    if (existingUsers && existingUsers.length > 0) {
-      return res.status(409).json({ success: false, message: 'This email is already in use.' });
-    }
+    const { data: existing } = await supabase.from('users').select('id').eq('email', cleanEmail);
+    if (existing && existing.length > 0) return res.status(409).json({ success: false, message: 'This email is already in use.' });
 
     const { generateUserId, generatePassword } = require('../utils/credentials');
     const { sendWelcomeEmail } = require('../utils/email');
@@ -146,44 +67,25 @@ router.post('/register', upload.single('logo'), async (req, res) => {
     const userId = await generateUserId();
     const password = generatePassword();
     const hashedPassword = await bcrypt.hash(password, 12);
-
     const trialEndDate = new Date();
     trialEndDate.setDate(trialEndDate.getDate() + 14);
 
-    const { data: hotel, error: hotelError } = await supabase
-      .from('hotels')
-      .insert({
-        hotel_name: hotelName.trim(),
-        phone: phone.trim(),
-        email: cleanEmail,
-        address: address.trim(),
-        gst_number: gstNumber.trim().toUpperCase(),
-        user_id: userId,
-        is_active: true,
-        subscription_status: 'trial',
-        trial_end_date: trialEndDate.toISOString(),
-      })
-      .select()
-      .single();
-
+    const { data: hotel, error: hotelError } = await supabase.from('hotels').insert({
+      hotel_name: hotelName.trim(), phone: phone.trim(), email: cleanEmail,
+      address: address.trim(), gst_number: gstNumber.trim().toUpperCase(),
+      user_id: userId, is_active: true, subscription_status: 'trial',
+      trial_end_date: trialEndDate.toISOString(),
+    }).select().single();
     if (hotelError) throw hotelError;
 
     const { error: userError } = await supabase.from('users').insert({
-      name: hotelName.trim(),
-      email: cleanEmail,
-      password_hash: hashedPassword,
-      role: 'hoteladmin',
-      hotel_id: hotel.id,
-      is_active: true,
+      name: hotelName.trim(), email: cleanEmail, password_hash: hashedPassword,
+      role: 'hoteladmin', hotel_id: hotel.id, is_active: true,
     });
-
     if (userError) throw userError;
 
-    try {
-      await sendWelcomeEmail({ hotelName: hotelName.trim(), email: cleanEmail, userId, password, trialEndDate });
-    } catch (e) {
-      console.error('Email error:', e.message);
-    }
+    try { await sendWelcomeEmail({ hotelName: hotelName.trim(), email: cleanEmail, userId, password, trialEndDate }); }
+    catch (e) { console.error('Email error:', e.message); }
 
     res.status(201).json({
       success: true,
@@ -191,7 +93,6 @@ router.post('/register', upload.single('logo'), async (req, res) => {
       data: { hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate },
     });
   } catch (err) {
-    console.error('Register error:', err.message);
     res.status(500).json({ success: false, message: err.message || 'Server error.' });
   }
 });
@@ -210,23 +111,12 @@ router.post('/reset-password/:token', async (req, res) => {
 router.get('/me', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, message: 'Not authorized.' });
-    }
+    if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ success: false, message: 'Not authorized.' });
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    let user = null;
-    try {
-      const result = await pool.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [decoded.id]);
-      if (result.rows.length > 0) user = result.rows[0];
-    } catch (e) {
-      const { data: users } = await supabase.from('users').select('*').eq('id', decoded.id);
-      if (users && users.length > 0) user = users[0];
-    }
-
-    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
-    res.json({ success: true, user });
+    const { data: users } = await supabase.from('users').select('*').eq('id', decoded.id);
+    if (!users || users.length === 0) return res.status(404).json({ success: false, message: 'User not found.' });
+    res.json({ success: true, user: users[0] });
   } catch (err) {
     res.status(401).json({ success: false, message: 'Not authorized.' });
   }
