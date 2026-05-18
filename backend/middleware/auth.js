@@ -11,13 +11,20 @@ const protect = async (req, res, next) => {
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const { data: user } = await supabase
+    
+    const { data: user, error } = await supabase
       .from('users')
-      .select('*, hotels(*)')
+      .select('*')
       .eq('id', decoded.id)
       .maybeSingle();
 
+    if (error) {
+      console.error('Auth middleware Supabase error:', error);
+      return res.status(401).json({ success: false, message: 'Auth error: ' + error.message });
+    }
+
     if (!user) {
+      console.error('User not found for id:', decoded.id);
       return res.status(401).json({ success: false, message: 'User no longer exists.' });
     }
     if (!user.is_active) {
@@ -26,6 +33,7 @@ const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
+    console.error('Auth middleware error:', err.message);
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
   }
 };
