@@ -14,6 +14,22 @@ const validate = (req, res) => {
   return null;
 };
 
+// Helper to map hotel snake_case to camelCase for frontend
+const mapHotel = (h) => ({
+  ...h,
+  _id: h.id,
+  hotelName: h.hotel_name,
+  userId: h.user_id,
+  subscriptionStatus: h.subscription_status,
+  trialEndDate: h.trial_end_date,
+  planValidTo: h.plan_valid_to,
+  planValidFrom: h.plan_valid_from,
+  currentPlan: h.plans || null,
+  logoUrl: h.logo_url,
+  gstNumber: h.gst_number,
+  isActive: h.is_active,
+});
+
 // ─── DASHBOARD SUMMARY ────────────────────────────────────────────────────────
 router.get('/summary', SA, async (req, res) => {
   try {
@@ -47,8 +63,16 @@ router.get('/summary', SA, async (req, res) => {
       data: {
         stats: { totalHotels, activeHotels, trialHotels, expiredHotels, totalRevenue },
         monthlyRevenue: [],
-        recentPayments: recentPayments || [],
-        expiringSoon: expiringSoon || [],
+        recentPayments: (recentPayments || []).map(p => ({
+          ...p,
+          hotel: p.hotels ? { hotelName: p.hotels.hotel_name, email: p.hotels.email } : null,
+          plan: p.plans ? { name: p.plans.name } : null,
+        })),
+        expiringSoon: (expiringSoon || []).map(h => ({
+          ...h,
+          hotelName: h.hotel_name,
+          planValidTo: h.plan_valid_to,
+        })),
       },
     });
   } catch (err) {
@@ -72,7 +96,7 @@ router.get('/hotels', SA, async (req, res) => {
     if (error) throw error;
 
     res.json({
-      success: true, data: hotels || [], total: count,
+      success: true, data: (hotels || []).map(mapHotel), total: count,
       page: Number(page), pages: Math.ceil(count / limit),
     });
   } catch (err) {
@@ -87,7 +111,7 @@ router.get('/hotels/:id', SA, async (req, res) => {
     if (error || !hotel) return res.status(404).json({ success: false, message: 'Hotel not found' });
     const { data: users } = await supabase.from('users').select('email, last_login, is_active').eq('hotel_id', hotel.id);
     const user = users && users.length > 0 ? users[0] : null;
-    res.json({ success: true, data: { hotel, user } });
+    res.json({ success: true, data: { hotel: mapHotel(hotel), user } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -151,7 +175,7 @@ router.get('/paid-hotels', SA, async (req, res) => {
       .in('subscription_status', ['active', 'expired'])
       .order('plan_valid_to', { ascending: true });
     if (error) throw error;
-    res.json({ success: true, data: hotels || [] });
+    res.json({ success: true, data: (hotels || []).map(mapHotel) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -170,8 +194,14 @@ router.get('/payments', SA, async (req, res) => {
     const { data: allPayments } = await supabase.from('payments').select('amount');
     const totalRevenue = (allPayments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
 
+    const mapped = (payments || []).map(p => ({
+      ...p,
+      hotel: p.hotels ? { hotelName: p.hotels.hotel_name, email: p.hotels.email } : null,
+      plan: p.plans ? { name: p.plans.name } : null,
+    }));
+
     res.json({
-      success: true, data: payments || [], total: count, totalRevenue,
+      success: true, data: mapped, total: count, totalRevenue,
       page: Number(page), pages: Math.ceil(count / limit),
     });
   } catch (err) {
@@ -184,7 +214,14 @@ router.get('/plans', SA, async (req, res) => {
   try {
     const { data: plans, error } = await supabase.from('plans').select('*').order('price', { ascending: true });
     if (error) throw error;
-    res.json({ success: true, data: plans || [] });
+    const mapped = (plans || []).map(p => ({
+      ...p,
+      _id: p.id,
+      durationDays: p.duration_days,
+      maxRooms: p.max_rooms,
+      isActive: p.is_active,
+    }));
+    res.json({ success: true, data: mapped });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -205,7 +242,7 @@ router.post('/plans', [...SA,
       is_active: true,
     }).select().single();
     if (error) throw error;
-    res.status(201).json({ success: true, data: plan });
+    res.status(201).json({ success: true, data: { ...plan, _id: plan.id, durationDays: plan.duration_days, maxRooms: plan.max_rooms } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -223,7 +260,7 @@ router.put('/plans/:id', SA, async (req, res) => {
     }).eq('id', req.params.id).select().single();
     if (error) throw error;
     if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
-    res.json({ success: true, data: plan });
+    res.json({ success: true, data: { ...plan, _id: plan.id, durationDays: plan.duration_days, maxRooms: plan.max_rooms } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -265,7 +302,7 @@ router.get('/hotels/:id/credentials', SA, async (req, res) => {
   try {
     const { data: hotel, error } = await supabase.from('hotels').select('*').eq('id', req.params.id).single();
     if (error || !hotel) return res.status(404).json({ success: false, message: 'Hotel not found' });
-    res.json({ success: true, data: { hotelName: hotel.hotel_name, email: hotel.email, password: '(hidden — click Reset Password to generate a new one)' } });
+    res.json({ success: true, data: { hotelName: hotel.hotel_name, userId: hotel.user_id, email: hotel.email, password: '(hidden — click Reset Password to generate a new one)' } });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -283,7 +320,7 @@ router.post('/hotels/:id/reset-credentials', SA, async (req, res) => {
     await supabase.from('users').update({ password_hash: hashedPassword }).eq('id', users[0].id);
 
     await sendPasswordResetByAdminEmail({ hotelName: hotel.hotel_name, email: hotel.email, newPassword });
-    res.json({ success: true, data: { hotelName: hotel.hotel_name, email: hotel.email, password: newPassword } });
+    res.json({ success: true, data: { hotelName: hotel.hotel_name, userId: hotel.user_id, email: hotel.email, password: newPassword } });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -300,7 +337,7 @@ router.post('/hotels/:id/reset-password', SA, async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 12);
     await supabase.from('users').update({ password_hash: hashedPassword }).eq('id', users[0].id);
 
-    res.json({ success: true, data: { hotelName: hotel.hotel_name, email: hotel.email, password: newPassword } });
+    res.json({ success: true, data: { hotelName: hotel.hotel_name, userId: hotel.user_id, email: hotel.email, password: newPassword } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
