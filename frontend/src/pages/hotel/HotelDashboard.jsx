@@ -11,19 +11,19 @@ const fmtTime = d => d ? new Date(d).toLocaleTimeString('en-IN',{hour:'2-digit',
 const TrialBanner = ({ hotel }) => {
   const navigate = useNavigate();
   if (!hotel) return null;
-  if (hotel.subscriptionStatus === 'active') {
-    const days = hotel.planValidTo ? Math.ceil((new Date(hotel.planValidTo)-Date.now())/86400000) : 0;
+  if (hotel.subscription_status === 'active') {
+    const days = hotel.plan_valid_to ? Math.ceil((new Date(hotel.plan_valid_to)-Date.now())/86400000) : 0;
     if (days > 7) return null;
     return (
       <div className="trial-banner">
         <span style={{fontSize:20}}>⚠️</span>
-        <div className="trial-banner-text">Your plan expires in <strong>{days} day(s)</strong> on {fmtDate(hotel.planValidTo)}. Renew now to avoid interruption.</div>
+        <div className="trial-banner-text">Your plan expires in <strong>{days} day(s)</strong> on {fmtDate(hotel.plan_valid_to)}. Renew now to avoid interruption.</div>
         <button className="btn btn-sm btn-brand" style={{whiteSpace:'nowrap'}} onClick={() => navigate('/hotel/upgrade')}>Renew Plan</button>
       </div>
     );
   }
-  if (hotel.subscriptionStatus === 'trial') {
-    const days = Math.max(0,Math.ceil((new Date(hotel.trialEndDate)-Date.now())/86400000));
+  if (hotel.subscription_status === 'trial') {
+    const days = Math.max(0,Math.ceil((new Date(hotel.trial_end_date)-Date.now())/86400000));
     return (
       <div className="trial-banner">
         <span style={{fontSize:20}}>⏰</span>
@@ -32,7 +32,7 @@ const TrialBanner = ({ hotel }) => {
       </div>
     );
   }
-  if (hotel.subscriptionStatus === 'expired') {
+  if (hotel.subscription_status === 'expired') {
     return (
       <div className="trial-banner" style={{background:'var(--danger-light)',borderColor:'var(--danger)'}}>
         <span style={{fontSize:20}}>🔒</span>
@@ -62,7 +62,7 @@ const HotelDashboard = () => {
       <div style={{display:'flex',alignItems:'center',gap:16,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:16,padding:20,marginBottom:24}}>
         <div style={{width:60,height:60,background:'var(--brand)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0}}>
           {hotel?.logoUrl
-            ? <img src={`http://localhost:5000${hotel.logoUrl}`} alt="logo" style={{width:60,height:60,borderRadius:14,objectFit:'cover'}} />
+            ? <img src={`http://localhost:5000${hotel.logo_url}`} alt="logo" style={{width:60,height:60,borderRadius:14,objectFit:'cover'}} />
             : '🏨'}
         </div>
         <div style={{flex:1}}>
@@ -84,10 +84,10 @@ const HotelDashboard = () => {
           <CardHeader title="Recent Food Orders" action={<button className="btn btn-sm btn-outline" onClick={() => navigate('/hotel/food-orders')}>View All</button>} />
           <Table
             columns={[
-              { label:'Ref',    render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.orderRef}</code> },
-              { label:'Room',   render: r => <strong>Room {r.roomNumber}</strong> },
-              { label:'Amount', render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.totalAmount)}</strong> },
-              { label:'Time',   render: r => fmtTime(r.createdAt) },
+              { label:'Ref',    render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.id}</code> },
+              { label:'Room',   render: r => <strong>Room {r.room_number}</strong> },
+              { label:'Amount', render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.total_amount)}</strong> },
+              { label:'Time',   render: r => fmtTime(r.created_at) },
               { label:'Status', render: r => <Badge status={r.status} /> },
             ]}
             data={ro}
