@@ -19,7 +19,7 @@ const Dashboard = () => {
 
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const chartData = monthly.map(m => ({
-    label:  MONTHS[m._id.month - 1],
+    label:  MONTHS[m.month - 1],
     label2: `₹${Math.round(m.revenue / 1000)}k`,
     value:  m.revenue,
   }));
@@ -55,13 +55,13 @@ const Dashboard = () => {
           {expiring.length === 0
             ? <div style={{textAlign:'center',padding:'30px 0',color:'var(--gray-400)',fontSize:13}}>🎉 No hotels expiring in 7 days</div>
             : expiring.map(h => (
-              <div key={h._id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+              <div key={h.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
                 <div>
-                  <div style={{fontWeight:600,fontSize:14}}>{h.hotelName}</div>
+                  <div style={{fontWeight:600,fontSize:14}}>{h.hotel_name}</div>
                   <div style={{fontSize:12,color:'var(--gray-400)'}}>{h.email}</div>
                 </div>
                 <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:12,fontWeight:600,color:'var(--danger)'}}>Expires {fmtDate(h.planValidTo)}</div>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--danger)'}}>Expires {fmtDate(h.plan_valid_to)}</div>
                   <button className="btn btn-sm btn-brand" style={{marginTop:4}}
                     onClick={() => navigate(`/admin/hotels`)}>Remind</button>
                 </div>
@@ -78,11 +78,11 @@ const Dashboard = () => {
         }/>
         <Table
           columns={[
-            { label: 'Hotel',    render: r => <strong>{r.hotel?.hotelName}</strong> },
+            { label: 'Hotel',    render: r => <strong>{r.hotel?.hotel_name}</strong> },
             { label: 'Plan',     render: r => <Badge status="active" label={r.plan?.name} /> },
             { label: 'Amount',   render: r => <strong>{fmtCurrency(r.amount)}</strong> },
-            { label: 'Valid To', render: r => fmtDate(r.validTo) },
-            { label: 'Invoice',  render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:12,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.invoiceNumber}</code> },
+            { label: 'Valid To', render: r => fmtDate(r.valid_to) },
+            { label: 'Invoice',  render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:12,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.invoice_number}</code> },
           ]}
           data={recent}
           emptyMessage="No payments yet"

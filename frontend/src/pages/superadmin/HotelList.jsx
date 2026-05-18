@@ -18,7 +18,7 @@ const CredentialsModal = ({ hotel, open, onClose }) => {
     if (!open || !hotel) return;
     setCreds(null);
     setLoading(true);
-    api.get(`/superadmin/hotels/${hotel._id}/credentials`)
+    api.get(`/superadmin/hotels/${hotel.id}/credentials`)
       .then(r => setCreds(r.data.data))
       .catch(() => toast.error('Failed to load credentials'))
       .finally(() => setLoading(false));
@@ -28,7 +28,7 @@ const CredentialsModal = ({ hotel, open, onClose }) => {
     if (!window.confirm('Reset password for this hotel? The old password will stop working immediately.')) return;
     setReset(true);
     try {
-      const r = await api.post(`/superadmin/hotels/${hotel._id}/reset-credentials`);
+      const r = await api.post(`/superadmin/hotels/${hotel.id}/reset-credentials`);
       setCreds(r.data.data);
       toast.success('Password reset! New credentials shown below.');
     } catch { toast.error('Failed to reset'); }
@@ -107,7 +107,7 @@ const ActivatePlanModal = ({ hotel, plans, open, onClose, onSuccess }) => {
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
   const handlePlanChange = (e) => {
-    const plan = plans.find(p => p._id === e.target.value);
+    const plan = plans.find(p => p.id === e.target.value);
     if (plan) {
       const from = form.validFrom ? new Date(form.validFrom) : new Date();
       const to   = new Date(from); to.setDate(to.getDate() + plan.durationDays);
@@ -123,7 +123,7 @@ const ActivatePlanModal = ({ hotel, plans, open, onClose, onSuccess }) => {
     }
     setSub(true);
     try {
-      await api.post(`/superadmin/hotels/${hotel._id}/activate`, form);
+      await api.post(`/superadmin/hotels/${hotel.id}/activate`, form);
       toast.success('Plan activated!'); onSuccess(); onClose();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to activate'); }
     finally { setSub(false); }
@@ -136,7 +136,7 @@ const ActivatePlanModal = ({ hotel, plans, open, onClose, onSuccess }) => {
           <label className="form-label">Select Plan *</label>
           <select className="form-control" value={form.planId} onChange={handlePlanChange} required>
             <option value="">— Choose a plan —</option>
-            {plans.map(p => <option key={p._id} value={p._id}>{p.name} — ₹{p.price}/mo</option>)}
+            {plans.map(p => <option key={p.id} value={p.id}>{p.name} — ₹{p.price}/mo</option>)}
           </select>
         </div>
         <div className="form-row">
@@ -176,7 +176,7 @@ const HotelList = () => {
   }, []);
 
   const sendReminder = async (hotel) => {
-    try { await api.post(`/superadmin/reminders/${hotel._id}`); toast.success(`Reminder sent to ${hotel.email}`); }
+    try { await api.post(`/superadmin/reminders/${hotel.id}`); toast.success(`Reminder sent to ${hotel.email}`); }
     catch { toast.error('Failed to send reminder'); }
   };
 
@@ -192,29 +192,29 @@ const HotelList = () => {
   const columns = [
     { label:'User ID',  render: r => (
       <code style={{ fontFamily:'var(--font-mono)', fontSize:12, background:'var(--brand-light)', color:'var(--brand)', padding:'3px 8px', borderRadius:6, fontWeight:700 }}>
-        {r.userId || '—'}
+        {r.user_id || '—'}
       </code>
     )},
     { label:'Hotel', render: r => (
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-        {r.logoUrl
-          ? <img src={`http://localhost:5000${r.logoUrl}`} alt="" style={{ width:28, height:28, borderRadius:6, objectFit:'contain', border:'1px solid var(--border)' }} />
+        {r.logo_url
+          ? <img src={`http://localhost:5000${r.logo_url}`} alt="" style={{ width:28, height:28, borderRadius:6, objectFit:'contain', border:'1px solid var(--border)' }} />
           : <div style={{ width:28, height:28, borderRadius:6, background:'var(--brand-light)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>🏨</div>
         }
         <div>
-          <div style={{ fontWeight:700 }}>{r.hotelName}</div>
+          <div style={{ fontWeight:700 }}>{r.hotel_name}</div>
           <div style={{ fontSize:12, color:'var(--gray-400)' }}>{r.email}</div>
         </div>
       </div>
     )},
     { label:'Phone',  render: r => r.phone },
-    { label:'Status', render: r => <Badge status={r.subscriptionStatus} label={
-      r.subscriptionStatus === 'trial'
-        ? `Trial (${Math.max(0, Math.ceil((new Date(r.trialEndDate) - Date.now()) / 86400000))}d left)`
-        : r.subscriptionStatus
+    { label:'Status', render: r => <Badge status={r.subscription_status} label={
+      r.subscription_status === 'trial'
+        ? `Trial (${Math.max(0, Math.ceil((new Date(r.trial_end_date) - Date.now()) / 86400000))}d left)`
+        : r.subscription_status
     } /> },
-    { label:'Plan',   render: r => r.currentPlan ? <Badge status="active" label={r.currentPlan.name} /> : <span style={{ color:'var(--gray-300)' }}>—</span> },
-    { label:'Registered', render: r => new Date(r.createdAt).toLocaleDateString('en-IN') },
+    { label:'Plan',   render: r => r.current_plan ? <Badge status="active" label={r.current_plan.name} /> : <span style={{ color:'var(--gray-300)' }}>—</span> },
+    { label:'Registered', render: r => new Date(r.created_at).toLocaleDateString('en-IN') },
     { label:'Actions', render: r => (
       <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
         <button className="btn btn-sm" style={{ background:'var(--brand-light)', color:'var(--brand)', border:'1px solid var(--brand)', borderRadius:7, padding:'5px 10px', fontSize:12, fontWeight:700, cursor:'pointer' }}

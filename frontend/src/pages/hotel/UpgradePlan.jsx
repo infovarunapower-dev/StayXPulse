@@ -59,18 +59,18 @@ const MyPayments = () => {
             ))}
           </tr></thead>
           <tbody>{payments.map(p=>(
-            <tr key={p._id} style={{ borderBottom:'1px solid var(--border)' }}>
-              <td style={{ padding:'12px 14px' }}><code style={{ fontFamily:'var(--font-mono)', fontSize:12, background:'var(--gray-100)', padding:'2px 6px', borderRadius:4 }}>{p.invoiceNumber}</code></td>
+            <tr key={p.id} style={{ borderBottom:'1px solid var(--border)' }}>
+              <td style={{ padding:'12px 14px' }}><code style={{ fontFamily:'var(--font-mono)', fontSize:12, background:'var(--gray-100)', padding:'2px 6px', borderRadius:4 }}>{p.invoice_number}</code></td>
               <td style={{ padding:'12px 14px', fontWeight:600 }}>{p.plan?.name}</td>
               <td style={{ padding:'12px 14px', fontWeight:700, color:'var(--success)' }}>₹{p.amount?.toLocaleString('en-IN')}</td>
-              <td style={{ padding:'12px 14px' }}>{fmtDate(p.validFrom)}</td>
-              <td style={{ padding:'12px 14px' }}>{fmtDate(p.validTo)}</td>
+              <td style={{ padding:'12px 14px' }}>{fmtDate(p.valid_from)}</td>
+              <td style={{ padding:'12px 14px' }}>{fmtDate(p.valid_to)}</td>
               <td style={{ padding:'12px 14px' }}>
                 <button className="btn btn-sm btn-outline" onClick={async()=>{
                   try {
-                    const res = await api.get(`/payment/invoice/${p.paymentId}`,{responseType:'blob'});
+                    const res = await api.get(`/payment/invoice/${p.payment_id}`,{responseType:'blob'});
                     const url = URL.createObjectURL(new Blob([res.data],{type:'application/pdf'}));
-                    const a   = document.createElement('a'); a.href=url; a.download=`Invoice_${p.invoiceNumber}.pdf`; a.click(); URL.revokeObjectURL(url);
+                    const a   = document.createElement('a'); a.href=url; a.download=`Invoice_${p.invoice_number}.pdf`; a.click(); URL.revokeObjectURL(url);
                   } catch { toast.error('Download failed'); }
                 }}>⬇ PDF</button>
               </td>
@@ -99,9 +99,9 @@ const UpgradePlan = () => {
   const hotel = user?.hotel;
 
   const handlePay = async (plan) => {
-    setPaying(plan._id);
+    setPaying(plan.id);
     try {
-      const { data } = await api.post('/payment/create-order', { planId: plan._id, cycle });
+      const { data } = await api.post('/payment/create-order', { planId: plan.id, cycle });
       await openRazorpay({
         orderId: data.data.orderId, amount: data.data.amount, keyId: data.data.keyId,
         description: `${data.data.planName} — ${cycle}`,
@@ -131,7 +131,7 @@ const UpgradePlan = () => {
       {hotel?.subscriptionStatus === 'active' && (
         <div className="current-banner">
           <span>✅</span>
-          <div>Active subscription · Valid until <strong>{new Date(hotel.planValidTo).toDateString()}</strong> · Renewing extends from your current expiry.</div>
+          <div>Active subscription · Valid until <strong>{new Date(hotel.plan_valid_to).toDateString()}</strong> · Renewing extends from your current expiry.</div>
         </div>
       )}
       {hotel?.subscriptionStatus === 'expired' && (
@@ -140,7 +140,7 @@ const UpgradePlan = () => {
       {hotel?.subscriptionStatus === 'trial' && (
         <div className="current-banner trial">
           <span>⏰</span>
-          <div>Free trial · <strong>{Math.max(0,Math.ceil((new Date(hotel.trialEndDate)-Date.now())/86400000))} days left</strong>. Upgrade to keep all your data.</div>
+          <div>Free trial · <strong>{Math.max(0,Math.ceil((new Date(hotel.trial_end_date)-Date.now())/86400000))} days left</strong>. Upgrade to keep all your data.</div>
         </div>
       )}
 
@@ -160,10 +160,10 @@ const UpgradePlan = () => {
       <div className="plans-grid">
         {plans.map(plan => {
           const pricing = plan.pricing[cycle];
-          const isBusy  = paying === plan._id;
+          const isBusy  = paying === plan.id;
           return (
-            <div key={plan._id} className={`plan-card ${plan.isPopular?'popular':''}`}>
-              {plan.isPopular && <div className="popular-badge">MOST POPULAR</div>}
+            <div key={plan.id} className={`plan-card ${plan.is_popular?'popular':''}`}>
+              {plan.is_popular && <div className="popular-badge">MOST POPULAR</div>}
               <div className="plan-name">{plan.name}</div>
               <div className="plan-price">
                 {fmtCur(pricing.amount)}<span className="plan-cycle">{pricing.label}</span>
@@ -171,11 +171,11 @@ const UpgradePlan = () => {
               {cycle !== 'monthly' && (
                 <div className="plan-savings">Save {pricing.discount}% vs monthly · {pricing.days} days</div>
               )}
-              <div className="plan-rooms">Up to {plan.maxRooms >= 999999 ? 'unlimited' : plan.maxRooms} rooms</div>
+              <div className="plan-rooms">Up to {plan.max_rooms >= 999999 ? 'unlimited' : plan.max_rooms} rooms</div>
               <ul className="plan-features">
                 {plan.features?.map((f,i) => <li key={i}><span className="feat-check">✓</span> {f}</li>)}
               </ul>
-              <button className={`plan-btn ${plan.isPopular?'plan-btn-popular':''}`} onClick={()=>handlePay(plan)} disabled={!!paying}>
+              <button className={`plan-btn ${plan.is_popular?'plan-btn-popular':''}`} onClick={()=>handlePay(plan)} disabled={!!paying}>
                 {isBusy ? <><span className="spinner-sm"/> Processing…</> : `Get ${plan.name} →`}
               </button>
               <div className="plan-note">Secured by Razorpay · Instant activation</div>
