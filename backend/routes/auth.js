@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const { Pool } = require('pg');
+const multer = require('multer');
+const upload = multer();
 
 // Direct PostgreSQL connection - bypasses Supabase fetch issues
 const pool = new Pool({
@@ -121,7 +123,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/register
-router.post('/register', async (req, res) => {
+router.post('/register', upload.single('logo'), async (req, res) => {
   try {
     const { hotelName, phone, email, address, gstNumber } = req.body;
 

@@ -1,17 +1,18 @@
-const { User } = require('../models');
+const supabase = require('./supabase');
 
-// Generates UIDs like HTL001, HTL002 ...
 const generateUserId = async () => {
-  const count = await User.countDocuments({ role: 'hoteladmin' });
-  const num = String(count + 1).padStart(3, '0');
+  const { count } = await supabase
+    .from('users')
+    .select('*', { count: 'exact', head: true })
+    .eq('role', 'hoteladmin');
+  const num = String((count || 0) + 1).padStart(3, '0');
   return `HTL${num}`;
 };
 
-// Generates a strong random password
 const generatePassword = () => {
-  const upper  = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower  = 'abcdefghjkmnpqrstuvwxyz';
-  const digits = '23456789';
+  const upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower   = 'abcdefghjkmnpqrstuvwxyz';
+  const digits  = '23456789';
   const special = '@#$!';
   const all = upper + lower + digits + special;
   let pwd = [
