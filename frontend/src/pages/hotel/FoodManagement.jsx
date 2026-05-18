@@ -8,11 +8,11 @@ const EMOJIS = ['🍽','🥘','🍜','🍛','🥗','🍱','🥞','🍚','🍖','
 const BLANK = { name:'', description:'', price:'', category:'', isVeg:true, imageEmoji:'🍽' };
 
 const FoodCard = ({ item, onEdit, onToggle, onDelete }) => (
-  <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:16,opacity:item.isAvailable?1:0.6,transition:'opacity 0.2s'}}>
-    <div style={{fontSize:36,textAlign:'center',marginBottom:10,background:'var(--gray-50)',borderRadius:10,padding:'12px 0'}}>{item.imageEmoji}</div>
+  <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:16,opacity:item.is_available?1:0.6,transition:'opacity 0.2s'}}>
+    <div style={{fontSize:36,textAlign:'center',marginBottom:10,background:'var(--gray-50)',borderRadius:10,padding:'12px 0'}}>{item.image_emoji}</div>
     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
       <div style={{fontWeight:700,fontSize:14,color:'var(--gray-900)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.name}</div>
-      <span style={{fontSize:11,color:item.isVeg?'#10B981':'#EF4444',fontWeight:700}}>{item.isVeg?'●VEG':'●NV'}</span>
+      <span style={{fontSize:11,color:item.is_veg?'#10B981':'#EF4444',fontWeight:700}}>{item.is_veg?'●VEG':'●NV'}</span>
     </div>
     <div style={{fontSize:11,color:'var(--gray-400)',marginBottom:4}}>{item.category}</div>
     {item.description && <div style={{fontSize:12,color:'var(--gray-500)',marginBottom:8,lineHeight:1.4,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{item.description}</div>}
@@ -20,12 +20,12 @@ const FoodCard = ({ item, onEdit, onToggle, onDelete }) => (
     <div style={{borderTop:'1px solid var(--border)',paddingTop:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
       <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'var(--gray-500)',fontWeight:500}}>
         <div style={{position:'relative',width:36,height:20}}>
-          <input type="checkbox" checked={item.isAvailable} onChange={e=>onToggle(item._id,e.target.checked)} style={{opacity:0,width:0,height:0,position:'absolute'}} />
-          <div onClick={()=>onToggle(item._id,!item.isAvailable)} style={{position:'absolute',inset:0,background:item.isAvailable?'var(--success)':'var(--gray-300)',borderRadius:10,transition:'background 0.2s',cursor:'pointer'}}>
-            <div style={{position:'absolute',width:16,height:16,background:'#fff',borderRadius:'50%',top:2,left:item.isAvailable?18:2,transition:'left 0.2s'}}/>
+          <input type="checkbox" checked={item.is_available} onChange={e=>onToggle(item.id,e.target.checked)} style={{opacity:0,width:0,height:0,position:'absolute'}} />
+          <div onClick={()=>onToggle(item.id,!item.is_available)} style={{position:'absolute',inset:0,background:item.is_available?'var(--success)':'var(--gray-300)',borderRadius:10,transition:'background 0.2s',cursor:'pointer'}}>
+            <div style={{position:'absolute',width:16,height:16,background:'#fff',borderRadius:'50%',top:2,left:item.is_available?18:2,transition:'left 0.2s'}}/>
           </div>
         </div>
-        {item.isAvailable ? 'Available' : 'Unavailable'}
+        {item.is_available ? 'Available' : 'Unavailable'}
       </label>
       <div style={{display:'flex',gap:6}}>
         <button className="btn btn-sm btn-outline" onClick={()=>onEdit(item)} style={{padding:'4px 10px'}}>Edit</button>
@@ -66,14 +66,14 @@ const FoodManagement = () => {
   });
 
   const openAdd  = () => { setEditing(null); setForm(BLANK); setShowForm(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ name:item.name, description:item.description, price:item.price, category:item.category, isVeg:item.isVeg, imageEmoji:item.imageEmoji }); setShowForm(true); };
+  const openEdit = (item) => { setEditing(item); setForm({ name:item.name, description:item.description, price:item.price, category:item.category, isVeg:item.is_veg, imageEmoji:item.image_emoji }); setShowForm(true); };
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name || !form.price || !form.category) { toast.error('Name, price and category are required'); return; }
     setSaving(true);
     try {
-      if (editing) await api.put(`/hotel/food/${editing._id}`, { ...form, price:Number(form.price) });
+      if (editing) await api.put(`/hotel/food/${editing.id}`, { ...form, price:Number(form.price) });
       else         await api.post('/hotel/food', { ...form, price:Number(form.price) });
       toast.success(editing ? 'Item updated!' : 'Item added to menu!');
       setShowForm(false); load();
@@ -84,12 +84,12 @@ const FoodManagement = () => {
   const handleToggle = async (id, val) => {
     try {
       await api.patch(`/hotel/food/${id}/availability`, { isAvailable:val });
-      setItems(prev => prev.map(i => i._id===id ? {...i,isAvailable:val} : i));
+      setItems(prev => prev.map(i => i.id===id ? {...i,isAvailable:val} : i));
     } catch { toast.error('Failed to update'); }
   };
 
   const handleDelete = async () => {
-    try { await api.delete(`/hotel/food/${delItem._id}`); toast.success('Item removed'); setDelItem(null); load(); }
+    try { await api.delete(`/hotel/food/${delItem.id}`); toast.success('Item removed'); setDelItem(null); load(); }
     catch { toast.error('Failed to delete'); }
   };
 
@@ -129,10 +129,10 @@ const FoodManagement = () => {
 
       <div style={{display:'flex',gap:12,marginBottom:16}}>
         <div style={{padding:'6px 14px',background:'var(--success-light)',color:'#065F46',borderRadius:20,fontSize:13,fontWeight:600}}>
-          ● {items.filter(i=>i.isAvailable).length} Available
+          ● {items.filter(i=>i.is_available).length} Available
         </div>
         <div style={{padding:'6px 14px',background:'var(--gray-100)',color:'var(--gray-500)',borderRadius:20,fontSize:13,fontWeight:600}}>
-          ○ {items.filter(i=>!i.isAvailable).length} Unavailable
+          ○ {items.filter(i=>!i.is_available).length} Unavailable
         </div>
       </div>
 
@@ -146,7 +146,7 @@ const FoodManagement = () => {
         </div>
       ) : (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))',gap:16}}>
-          {visible.map(item => <FoodCard key={item._id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={setDelItem} />)}
+          {visible.map(item => <FoodCard key={item.id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={setDelItem} />)}
         </div>
       )}
 
