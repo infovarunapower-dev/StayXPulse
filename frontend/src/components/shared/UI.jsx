@@ -129,11 +129,68 @@ export const Spinner = ({ size = 40 }) => (
 );
 
 // ── Empty State ───────────────────────────────────────────────────────────────
-export const EmptyState = ({ icon = '📭', title, subtitle }) => (
+export const EmptyState = ({ icon = '📭', title, subtitle, action }) => (
   <div className="empty-state">
     <div className="empty-icon">{icon}</div>
     <div className="empty-title">{title}</div>
     {subtitle && <div className="empty-sub">{subtitle}</div>}
+    {action && <div className="empty-action">{action}</div>}
+  </div>
+);
+
+// ── Skeletons (shimmer loading placeholders) ───────────────────────────────────
+export const Skeleton = ({ w = '100%', h = 14, r = 6, style }) => (
+  <span className="skeleton" style={{ width: w, height: h, borderRadius: r, ...style }} />
+);
+
+export const TableSkeleton = ({ cols = 4, rows = 5 }) => (
+  <div className="table-wrap">
+    <table>
+      <thead>
+        <tr>{Array.from({ length: cols }).map((_, i) => <th key={i}><Skeleton w="55%" h={10} /></th>)}</tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rows }).map((_, r) => (
+          <tr key={r}>
+            {Array.from({ length: cols }).map((_, c) => (
+              <td key={c}><Skeleton w={c === 0 ? '75%' : '50%'} /></td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
+export const StatsSkeleton = ({ count = 4 }) => (
+  <div className="stats-grid">
+    {Array.from({ length: count }).map((_, i) => (
+      <div className="stat-card" key={i}>
+        <Skeleton w={48} h={48} r={14} style={{ marginBottom: 16 }} />
+        <Skeleton w="55%" h={10} style={{ marginBottom: 10 }} />
+        <Skeleton w="42%" h={24} />
+      </div>
+    ))}
+  </div>
+);
+
+export const CardSkeleton = ({ lines = 4 }) => (
+  <div className="card">
+    <Skeleton w="35%" h={16} style={{ marginBottom: 18 }} />
+    {Array.from({ length: lines }).map((_, i) => (
+      <Skeleton key={i} w={`${90 - i * 8}%`} style={{ display: 'block', marginBottom: 12 }} />
+    ))}
+  </div>
+);
+
+// Dashboard-shaped skeleton: stat row + two content cards
+export const PageSkeleton = () => (
+  <div>
+    <StatsSkeleton />
+    <div className="skeleton-two-col">
+      <CardSkeleton />
+      <CardSkeleton />
+    </div>
   </div>
 );
 

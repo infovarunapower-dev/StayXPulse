@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useFetch } from '../../utils/hooks';
-import { PageHeader, StatCard, Card, CardHeader, Badge, Spinner, Table } from '../../components/shared/UI';
+import { StatCard, Card, CardHeader, Badge, PageSkeleton, Table } from '../../components/shared/UI';
 
 const fmtCur  = n => `₹${Number(n||0).toLocaleString('en-IN')}`;
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
@@ -50,7 +50,7 @@ const HotelDashboard = () => {
   const navigate           = useNavigate();
   const hotel              = user?.hotel;
 
-  if (loading) return <Spinner />;
+  if (loading) return <PageSkeleton />;
   const s  = data?.data?.stats       || {};
   const ro = data?.data?.recentOrders || [];
 

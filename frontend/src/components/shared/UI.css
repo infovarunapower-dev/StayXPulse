@@ -252,10 +252,26 @@ tbody tr:hover { background: var(--brand-light); }
 .bar-x     { font-size: 11px; color: var(--gray-400); text-align: center; }
 
 /* ── Empty State ────────────────────────────────────────────────── */
-.empty-state { text-align: center; padding: 60px 20px; }
-.empty-icon  { font-size: 48px; margin-bottom: 12px; }
-.empty-title { font-size: 16px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
-.empty-sub   { font-size: 14px; color: var(--gray-400); }
+.empty-state { text-align: center; padding: 56px 20px; }
+.empty-icon  { font-size: 46px; margin-bottom: 12px; opacity: 0.9; }
+.empty-title { font-size: 16px; font-weight: 700; color: var(--gray-700); margin-bottom: 4px; }
+.empty-sub   { font-size: 14px; color: var(--gray-400); max-width: 340px; margin: 0 auto; line-height: 1.5; }
+.empty-action { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+
+/* ── Skeleton loaders ───────────────────────────────────────────── */
+.skeleton {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 37%, var(--gray-100) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+@keyframes skeleton-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+.skeleton-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 900px) { .skeleton-two-col { grid-template-columns: 1fr; } }
 
 /* ── Spinner SM ─────────────────────────────────────────────────── */
 .spinner-sm {

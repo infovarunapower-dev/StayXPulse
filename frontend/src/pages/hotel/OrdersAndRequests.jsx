@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
-import { PageHeader, Badge, Card, Table, FilterBar, Spinner } from '../../components/shared/UI';
+import { PageHeader, Badge, Card, Table, FilterBar, TableSkeleton } from '../../components/shared/UI';
 
 const fmtTime = d => d ? new Date(d).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—';
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—';
@@ -87,7 +87,7 @@ export const ServiceRequests = () => {
           <input type="date" className="form-control" style={{width:140,padding:'6px 10px',fontSize:13}} value={customTo} onChange={e=>{setTo(e.target.value);setDateF('custom');}} />
         </div>
       </div>
-      <Card>{loading ? <Spinner /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} requests found</div><Table columns={columns} data={data} emptyMessage="No service requests found" /></>}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} requests found</div><Table columns={columns} data={data} emptyMessage="No service requests found" /></>}</Card>
     </div>
   );
 };
@@ -177,7 +177,7 @@ export const FoodOrders = () => {
           <input type="date" className="form-control" style={{width:140,padding:'6px 10px',fontSize:13}} value={customTo} onChange={e=>{setTo(e.target.value);setDateF('custom');}} />
         </div>
       </div>
-      <Card>{loading ? <Spinner /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} orders found</div><Table columns={columns} data={data} emptyMessage="No food orders found" /></>}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} orders found</div><Table columns={columns} data={data} emptyMessage="No food orders found" /></>}</Card>
     </div>
   );
 };

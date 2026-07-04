@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFetch } from '../../utils/hooks';
-import { PageHeader, StatCard, Card, CardHeader, Badge, BarChart, Spinner, Table } from '../../components/shared/UI';
+import { PageHeader, StatCard, Card, CardHeader, Badge, BarChart, PageSkeleton, Table } from '../../components/shared/UI';
 import '../../components/shared/UI.css';
 
 const fmtCurrency = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
@@ -11,7 +11,7 @@ const Dashboard = () => {
   const { data, loading } = useFetch('/superadmin/summary');
   const navigate = useNavigate();
 
-  if (loading) return <Spinner />;
+  if (loading) return <PageSkeleton />;
   const s = data?.data?.stats || {};
   const monthly = data?.data?.monthlyRevenue || [];
   const recent  = data?.data?.recentPayments || [];

@@ -128,7 +128,7 @@ const FoodManagement = () => {
       </div>
 
       <div style={{display:'flex',gap:12,marginBottom:16}}>
-        <div style={{padding:'6px 14px',background:'var(--success-light)',color:'#065F46',borderRadius:20,fontSize:13,fontWeight:600}}>
+        <div style={{padding:'6px 14px',background:'var(--success-light)',color:'var(--success)',borderRadius:20,fontSize:13,fontWeight:700}}>
           ● {items.filter(i=>i.is_available).length} Available
         </div>
         <div style={{padding:'6px 14px',background:'var(--gray-100)',color:'var(--gray-500)',borderRadius:20,fontSize:13,fontWeight:600}}>

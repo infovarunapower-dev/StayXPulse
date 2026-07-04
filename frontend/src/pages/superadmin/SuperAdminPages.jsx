@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { useFetch } from '../../utils/hooks';
-import { PageHeader, Badge, Card, Table, Spinner, StatCard, BarChart } from '../../components/shared/UI';
+import { PageHeader, Badge, Card, Table, Spinner, TableSkeleton, StatCard, BarChart } from '../../components/shared/UI';
 import '../../components/shared/UI.css';
 
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
@@ -37,7 +37,7 @@ export const PaidHotels = () => {
   return (
     <div>
       <PageHeader title="Paid Hotels" subtitle="Hotels with active or expired subscription plans" />
-      <Card>{loading ? <Spinner /> : <Table columns={columns} data={hotels} emptyMessage="No paid hotels yet" />}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <Table columns={columns} data={hotels} emptyMessage="No paid hotels yet" />}</Card>
     </div>
   );
 };
@@ -70,7 +70,7 @@ export const PaymentHistory = () => {
         <StatCard icon="🧾" label="Total Invoices"    value={data?.total || 0}           color="blue" />
         <StatCard icon="📅" label="This Month"        value={fmtCur(payments.filter(p=>new Date(p.paidAt).getMonth()===new Date().getMonth()).reduce((a,p)=>a+p.amount,0))} color="amber" />
       </div>
-      <Card>{loading ? <Spinner /> : <Table columns={columns} data={payments} emptyMessage="No payments yet" />}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <Table columns={columns} data={payments} emptyMessage="No payments yet" />}</Card>
     </div>
   );
 };

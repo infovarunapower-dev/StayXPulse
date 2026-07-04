@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { useFetch } from '../../utils/hooks';
-import { PageHeader, Badge, Card, Table, FilterBar, Spinner, Modal } from '../../components/shared/UI';
+import { PageHeader, Badge, Card, Table, FilterBar, Spinner, TableSkeleton, Modal } from '../../components/shared/UI';
 import '../../components/shared/UI.css';
 
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
@@ -241,7 +241,7 @@ const HotelList = () => {
       </div>
 
       <Card>
-        {loading ? <Spinner /> : (
+        {loading ? <TableSkeleton cols={columns.length} /> : (
           <>
             <div style={{ fontSize:13, color:'var(--gray-400)', marginBottom:12 }}>{data?.total || 0} hotels found</div>
             <Table columns={columns} data={hotels} emptyMessage="No hotels found" />
