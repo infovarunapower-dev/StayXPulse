@@ -58,18 +58,22 @@ const HotelDashboard = () => {
     <div>
       <TrialBanner hotel={hotel} />
 
-      {/* Hotel Info Card */}
-      <div style={{display:'flex',alignItems:'center',gap:16,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:16,padding:20,marginBottom:24}}>
-        <div style={{width:60,height:60,background:'var(--brand)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0}}>
-          {hotel?.logoUrl
-            ? <img src={`http://localhost:5000${hotel.logo_url}`} alt="logo" style={{width:60,height:60,borderRadius:14,objectFit:'cover'}} />
-            : '🏨'}
+      {/* Hotel Hero Banner */}
+      <div className="dash-hero">
+        <div className="dash-hero-logo">
+          {hotel?.logo_url ? <img src={hotel.logo_url} alt="" /> : '🏨'}
         </div>
-        <div style={{flex:1}}>
-          <div style={{fontSize:20,fontWeight:800,color:'var(--gray-900)'}}>{hotel?.hotelName}</div>
-          <div style={{fontSize:13,color:'var(--gray-500)',marginTop:2}}>GST: {hotel?.gstNumber} &nbsp;·&nbsp; {hotel?.phone}</div>
+        <div className="dash-hero-body">
+          <div className="dash-hero-eyebrow">Welcome back 👋</div>
+          <div className="dash-hero-name">{hotel?.hotelName || 'Your Hotel'}</div>
+          <div className="dash-hero-meta">
+            {hotel?.gstNumber && <>GST {hotel.gstNumber}&nbsp;&nbsp;·&nbsp;&nbsp;</>}
+            {hotel?.phone || '—'}
+          </div>
         </div>
-        <Badge status={hotel?.subscriptionStatus} label={hotel?.subscriptionStatus} />
+        <div className="dash-hero-side">
+          <Badge status={hotel?.subscriptionStatus} label={hotel?.subscriptionStatus} />
+        </div>
       </div>
 
       <div className="stats-grid">
@@ -99,17 +103,15 @@ const HotelDashboard = () => {
           <CardHeader title="Quick Actions" />
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             {[
-              { icon:'📱', label:'Add New Room & QR',    to:'/hotel/qr',              color:'var(--brand-light)',    tc:'var(--brand)' },
-              { icon:'🍽', label:'Manage Food Menu',     to:'/hotel/food',             color:'var(--success-light)', tc:'#065F46' },
-              { icon:'🛎', label:'View Service Requests',to:'/hotel/service-requests', color:'var(--accent-light)',  tc:'#92400E' },
-              { icon:'📈', label:'View Analytics',       to:'/hotel/analytics',        color:'var(--gray-100)',       tc:'var(--gray-700)' },
+              { icon:'📱', label:'Add New Room & QR',    to:'/hotel/qr',               bg:'var(--brand-light)'   },
+              { icon:'🍽', label:'Manage Food Menu',     to:'/hotel/food',             bg:'var(--success-light)' },
+              { icon:'🛎', label:'View Service Requests',to:'/hotel/service-requests', bg:'var(--accent-light)'  },
+              { icon:'📈', label:'View Analytics',       to:'/hotel/analytics',        bg:'var(--gray-100)'      },
             ].map(a => (
-              <button key={a.to} onClick={() => navigate(a.to)}
-                style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:a.color,border:'none',borderRadius:10,cursor:'pointer',textAlign:'left',transition:'opacity 0.2s'}}
-                onMouseEnter={e=>e.currentTarget.style.opacity='0.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-                <span style={{fontSize:20}}>{a.icon}</span>
-                <span style={{fontFamily:'var(--font)',fontSize:14,fontWeight:600,color:a.tc}}>{a.label}</span>
-                <span style={{marginLeft:'auto',color:a.tc,opacity:0.5}}>›</span>
+              <button key={a.to} className="qa-row" onClick={() => navigate(a.to)}>
+                <span className="qa-icon" style={{background:a.bg}}>{a.icon}</span>
+                <span className="qa-label">{a.label}</span>
+                <span className="qa-chevron">›</span>
               </button>
             ))}
           </div>
