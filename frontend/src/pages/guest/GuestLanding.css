@@ -19,7 +19,7 @@
 .gl-spinner {
   width: 36px; height: 36px;
   border: 3px solid #E5E7EB;
-  border-top-color: #1A4D8F;
+  border-top-color: #0D9488;
   border-radius: 50%;
   animation: gl-spin 0.7s linear infinite;
   margin-bottom: 12px;
@@ -28,7 +28,7 @@
 
 /* Header */
 .gl-header {
-  background: linear-gradient(135deg, #0F2952 0%, #1A4D8F 100%);
+  background: linear-gradient(135deg, #082B27 0%, #0D9488 100%);
   padding: 22px 20px 18px;
   color: #fff;
   position: relative;
@@ -66,8 +66,8 @@
   border-bottom: 3px solid transparent; transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
   display: flex; align-items: center; justify-content: center; gap: 5px;
 }
-.gl-tab:active { color: #1A4D8F; }
-.gl-tab.active { color: #1A4D8F; border-bottom-color: #1A4D8F; }
+.gl-tab:active { color: #0D9488; }
+.gl-tab.active { color: #0D9488; border-bottom-color: #0D9488; }
 
 /* Body */
 .gl-body { padding: 16px; }
@@ -83,8 +83,8 @@
   transition: border-color 0.15s var(--ease), background 0.15s var(--ease), transform 0.12s var(--ease), box-shadow 0.15s var(--ease);
   box-shadow: 0 1px 2px rgba(16,42,82,0.04);
 }
-.gl-service-btn:hover { border-color: #1A4D8F; background: #EBF2FF; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(26,77,143,0.12); }
-.gl-service-btn:active { transform: translateY(0) scale(0.98); border-color: #1A4D8F; background: #EBF2FF; }
+.gl-service-btn:hover { border-color: #0D9488; background: #D6F3EE; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(13,148,136,0.12); }
+.gl-service-btn:active { transform: translateY(0) scale(0.98); border-color: #0D9488; background: #D6F3EE; }
 .gl-service-icon  { font-size: 22px; flex-shrink: 0; }
 .gl-service-label { font-size: 13px; font-weight: 600; color: #374151; line-height: 1.3; }
 
@@ -95,17 +95,17 @@
 .gl-menu-item:last-child { border-bottom: none; }
 .gl-item-name      { font-size: 14px; font-weight: 600; color: #1F2937; }
 .gl-item-desc      { font-size: 12px; color: #9CA3AF; margin-top: 2px; line-height: 1.4; }
-.gl-item-price     { font-size: 15px; font-weight: 700; color: #1A4D8F; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.gl-item-price     { font-size: 15px; font-weight: 700; color: #0D9488; margin-top: 4px; font-variant-numeric: tabular-nums; }
 
 /* Qty controls */
 .gl-qty-control { flex-shrink: 0; margin-left: 10px; }
-.gl-add-btn     { background: #1A4D8F; color: #fff; border: none; border-radius: 20px; padding: 7px 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform 0.12s var(--ease), background 0.15s var(--ease); box-shadow: 0 2px 6px rgba(26,77,143,0.25); }
-.gl-add-btn:hover  { background: #163F75; }
-.gl-add-btn:active { background: #163F75; transform: scale(0.94); }
-.gl-stepper     { display: flex; align-items: center; gap: 0; border: 2px solid #1A4D8F; border-radius: 20px; overflow: hidden; }
-.gl-stepper button { width: 32px; height: 32px; background: #1A4D8F; color: #fff; border: none; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.gl-stepper button:active { background: #163F75; }
-.gl-stepper span   { width: 32px; text-align: center; font-size: 14px; font-weight: 700; color: #1A4D8F; }
+.gl-add-btn     { background: #0D9488; color: #fff; border: none; border-radius: 20px; padding: 7px 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform 0.12s var(--ease), background 0.15s var(--ease); box-shadow: 0 2px 6px rgba(13,148,136,0.25); }
+.gl-add-btn:hover  { background: #0F766E; }
+.gl-add-btn:active { background: #0F766E; transform: scale(0.94); }
+.gl-stepper     { display: flex; align-items: center; gap: 0; border: 2px solid #0D9488; border-radius: 20px; overflow: hidden; }
+.gl-stepper button { width: 32px; height: 32px; background: #0D9488; color: #fff; border: none; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.gl-stepper button:active { background: #0F766E; }
+.gl-stepper span   { width: 32px; text-align: center; font-size: 14px; font-weight: 700; color: #0D9488; }
 
 /* Orders tab */
 .gl-refresh-btn { background: none; border: 1.5px solid #E5E7EB; border-radius: 8px; padding: 6px 16px; font-size: 13px; font-weight: 600; color: #6B7280; cursor: pointer; margin-bottom: 4px; }
@@ -117,15 +117,15 @@
 .gl-cart-float {
   position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
   width: min(440px, 92vw);
-  background: #1A4D8F; color: #fff;
+  background: #0D9488; color: #fff;
   border: none; border-radius: 50px;
   padding: 14px 24px; font-size: 14px; font-weight: 700;
-  box-shadow: 0 8px 24px rgba(26,77,143,0.35);
+  box-shadow: 0 8px 24px rgba(13,148,136,0.35);
   cursor: pointer; z-index: 200;
   animation: gl-popIn 0.25s ease;
 }
 @keyframes gl-popIn { from { transform: translateX(-50%) scale(0.9); opacity:0; } to { transform: translateX(-50%) scale(1); opacity:1; } }
-.gl-cart-float:active { background: #163F75; }
+.gl-cart-float:active { background: #0F766E; }
 
 /* Cart sheet */
 .gl-cart-overlay {
@@ -143,7 +143,7 @@
 .gl-cart-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0 12px; border-bottom: 1px solid #E5E7EB; margin-bottom: 4px; position: sticky; top: 0; background: #fff; }
 .gl-cart-close  { background: none; border: none; font-size: 20px; cursor: pointer; color: #9CA3AF; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
 .gl-cart-close:hover { background: #F3F4F6; }
-.gl-place-btn   { width: 100%; padding: 15px; background: linear-gradient(135deg, #1A4D8F 0%, #2E6FCB 100%); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 0.12s var(--ease), box-shadow 0.2s var(--ease); box-shadow: 0 4px 14px rgba(26,77,143,0.3); }
-.gl-place-btn:hover   { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(26,77,143,0.36); }
+.gl-place-btn   { width: 100%; padding: 15px; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 0.12s var(--ease), box-shadow 0.2s var(--ease); box-shadow: 0 4px 14px rgba(13,148,136,0.3); }
+.gl-place-btn:hover   { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(13,148,136,0.36); }
 .gl-place-btn:active  { transform: translateY(0) scale(0.99); }
 .gl-place-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }

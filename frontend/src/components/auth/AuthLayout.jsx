@@ -1,4 +1,5 @@
 import React from 'react';
+import ThemeToggle from '../common/ThemeToggle';
 import './AuthLayout.css';
 
 const AuthLayout = ({ children }) => (
@@ -39,6 +40,7 @@ const AuthLayout = ({ children }) => (
 
     {/* Right form area */}
     <div className="auth-form-area">
+      <div className="auth-toggle"><ThemeToggle /></div>
       <div className="auth-card">{children}</div>
     </div>
   </div>

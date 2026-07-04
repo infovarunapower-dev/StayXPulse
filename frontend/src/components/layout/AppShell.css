@@ -19,9 +19,9 @@
   position: fixed;
   top: 0; left: 0; bottom: 0;
   z-index: 200;
-  transition: transform 0.25s var(--ease);
+  transition: transform 0.25s var(--ease), background-color 0.3s var(--ease), border-color 0.3s var(--ease);
   overflow-y: auto;
-  box-shadow: 1px 0 0 rgba(16,42,82,0.02), 4px 0 24px rgba(16,42,82,0.03);
+  box-shadow: 1px 0 0 rgba(6,44,38,0.02), 4px 0 24px rgba(6,44,38,0.03);
 }
 
 .shell-logo {
@@ -38,7 +38,7 @@
   border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-weight: 800; font-size: 16px;
-  box-shadow: 0 3px 8px rgba(26,77,143,0.28);
+  box-shadow: 0 3px 8px rgba(13,148,136,0.28);
 }
 .shell-logo-text { font-size: 17px; font-weight: 800; color: var(--gray-900); letter-spacing: -0.02em; }
 
@@ -98,7 +98,7 @@
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 700;
   flex-shrink: 0; cursor: default;
-  box-shadow: 0 2px 6px rgba(26,77,143,0.25);
+  box-shadow: 0 2px 6px rgba(13,148,136,0.25);
 }
 .shell-avatar-sm { width: 32px; height: 32px; font-size: 12px; }
 
@@ -122,7 +122,7 @@
 
 .shell-header {
   height: var(--header-h);
-  background: rgba(255,255,255,0.82);
+  background: var(--surface-blur);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
   backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--border);
@@ -164,13 +164,13 @@
 .shell-header-right { display: flex; align-items: center; gap: 10px; }
 .shell-upgrade-btn {
   padding: 7px 16px;
-  background: linear-gradient(135deg, #F59E0B 0%, #F97316 100%); color: #fff;
+  background: linear-gradient(135deg, #A9781F 0%, #D4A94E 100%); color: #fff;
   border: none; border-radius: 8px;
   font-family: var(--font); font-size: 13px; font-weight: 700;
   cursor: pointer; transition: transform 0.15s var(--ease), box-shadow 0.2s var(--ease);
-  box-shadow: 0 2px 8px rgba(245,158,11,0.3);
+  box-shadow: 0 2px 8px rgba(169,120,31,0.35);
 }
-.shell-upgrade-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(245,158,11,0.38); }
+.shell-upgrade-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(169,120,31,0.42); }
 .shell-upgrade-btn:active { transform: translateY(0) scale(0.97); }
 
 .shell-content {

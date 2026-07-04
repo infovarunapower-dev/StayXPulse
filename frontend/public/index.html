@@ -3,10 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#1A4D8F" />
+    <meta name="theme-color" content="#0D9488" />
     <meta name="description" content="StayXPulse — Smart Hotel Management Platform" />
     <title>StayXPulse — Smart Hotel Management</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏨</text></svg>" />
+    <script>
+      /* Apply the saved theme before first paint to avoid a flash of the wrong theme */
+      (function () {
+        try {
+          var t = localStorage.getItem('sxp-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run StayXPulse.</noscript>

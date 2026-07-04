@@ -33,7 +33,7 @@
 .stat-card::after {
   content: ''; position: absolute; top: -30px; right: -30px;
   width: 110px; height: 110px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(59,125,216,0.05), transparent 70%);
+  background: radial-gradient(circle, var(--bg-glow), transparent 70%);
   pointer-events: none;
 }
 .stat-card:hover {
@@ -48,7 +48,7 @@
   margin-bottom: 16px;
 }
 /* Saturated gradient tiles — a bolder, more modern signal than pale washes */
-.icon-blue   { background: linear-gradient(135deg, #1A4D8F, #3B7DD8); box-shadow: 0 6px 14px rgba(26,77,143,0.32); }
+.icon-blue   { background: linear-gradient(135deg, #0D9488, #14B8A6); box-shadow: 0 6px 14px rgba(13,148,136,0.32); }
 .icon-green  { background: linear-gradient(135deg, #059669, #34D399); box-shadow: 0 6px 14px rgba(16,185,129,0.30); }
 .icon-amber  { background: linear-gradient(135deg, #D97706, #FBBF24); box-shadow: 0 6px 14px rgba(245,158,11,0.30); }
 .icon-red    { background: linear-gradient(135deg, #DC2626, #F87171); box-shadow: 0 6px 14px rgba(239,68,68,0.28); }
@@ -62,14 +62,14 @@
 /* ── Dashboard Hero Banner ──────────────────────────────────────── */
 .dash-hero {
   display: flex; align-items: center; gap: 18px;
-  background: linear-gradient(120deg, #0F2952 0%, #1A4D8F 52%, #2E6FCB 100%);
+  background: linear-gradient(120deg, #0A3B34 0%, #0F766E 52%, #14B8A6 100%);
   border-radius: 20px;
   padding: 26px 28px;
   margin-bottom: 24px;
   color: #fff;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 14px 34px rgba(16,42,82,0.28);
+  box-shadow: 0 14px 34px rgba(6,44,38,0.30);
 }
 .dash-hero::before {
   content: ''; position: absolute; top: -80px; right: -40px;
@@ -150,11 +150,17 @@
   content: ''; width: 6px; height: 6px; border-radius: 50%;
   background: currentColor; flex-shrink: 0; opacity: 0.85;
 }
-.badge-success { background: var(--success-light); color: #047857; border-color: #A7F3D0; }
+.badge-success { background: var(--success-light); color: #15803D; border-color: #BBF7D0; }
 .badge-danger  { background: var(--danger-light);  color: #B91C1C; border-color: #FECACA; }
-.badge-warning { background: var(--accent-light);  color: #B45309; border-color: #FDE68A; }
-.badge-blue    { background: var(--brand-light);   color: #1E3A6E; border-color: #C7DBF8; }
+.badge-warning { background: var(--accent-light);  color: #92600E; border-color: #EAD9B6; }
+.badge-blue    { background: var(--brand-light);   color: var(--brand-dark); border-color: #B7E6DE; }
 .badge-gray    { background: var(--gray-100);      color: var(--gray-600); border-color: var(--gray-200); }
+
+/* Dark-theme badge text/borders (backgrounds already flip via tokens) */
+:root[data-theme="dark"] .badge-success { color: #6EE7B7; border-color: #1C4634; }
+:root[data-theme="dark"] .badge-danger  { color: #FCA5A5; border-color: #4C2526; }
+:root[data-theme="dark"] .badge-warning { color: #F5CE7A; border-color: #4A3B18; }
+:root[data-theme="dark"] .badge-blue    { color: var(--brand);  border-color: #1E463E; }
 
 /* ── Table ──────────────────────────────────────────────────────── */
 .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-xs); }
@@ -222,12 +228,12 @@ tbody tr:hover { background: var(--brand-light); }
   font-family: var(--font); font-size: 13px; font-weight: 500;
   cursor: pointer; transition: all 0.15s;
 }
-.filter-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); box-shadow: 0 2px 8px rgba(26,77,143,0.25); }
+.filter-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); box-shadow: 0 2px 8px rgba(13,148,136,0.25); }
 .filter-btn:hover:not(.active) { background: var(--gray-50); border-color: var(--gray-300); }
 
 /* ── Buttons ────────────────────────────────────────────────────── */
-.btn-brand   { background: var(--brand-gradient); color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(26,77,143,0.2); }
-.btn-brand:hover:not(:disabled)   { box-shadow: 0 6px 16px rgba(26,77,143,0.3); transform: translateY(-1px); }
+.btn-brand   { background: var(--brand-gradient); color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(13,148,136,0.2); }
+.btn-brand:hover:not(:disabled)   { box-shadow: 0 6px 16px rgba(13,148,136,0.3); transform: translateY(-1px); }
 .btn-outline { background: var(--surface); color: var(--gray-700); border-color: var(--border); }
 .btn-outline:hover { background: var(--gray-50); border-color: var(--gray-300); }
 .btn-danger  { background: var(--danger);  color: #fff; border-color: var(--danger); box-shadow: 0 2px 8px rgba(239,68,68,0.2); }
@@ -264,12 +270,12 @@ tbody tr:hover { background: var(--brand-light); }
 /* ── Trial Banner ───────────────────────────────────────────────── */
 .trial-banner {
   display: flex; align-items: center; gap: 12px;
-  background: linear-gradient(90deg, var(--accent-light), #FFF7ED);
+  background: var(--accent-light);
   border: 1.5px solid var(--accent);
   border-radius: 10px; padding: 14px 20px;
   margin-bottom: 24px;
 }
-.trial-banner-text { font-size: 14px; color: #92400E; font-weight: 500; flex: 1; }
+.trial-banner-text { font-size: 14px; color: var(--accent-strong); font-weight: 600; flex: 1; }
 
 /* ── Search Input ───────────────────────────────────────────────── */
 .search-input-wrap { position: relative; }

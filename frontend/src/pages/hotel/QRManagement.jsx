@@ -16,7 +16,7 @@ const QRCard = ({ room, hotel, onDelete }) => {
     const url = `${CLIENT_URL}/guest/${room.qr_token}`;
     QRCode.toDataURL(url, {
       width: 200, margin: 1,
-      color: { dark: '#1A4D8F', light: '#FFFFFF' },
+      color: { dark: '#0F766E', light: '#FFFFFF' },
     }).then(setQrDataUrl).catch(console.error);
   }, [room.qr_token]);
 
@@ -34,7 +34,7 @@ const QRCard = ({ room, hotel, onDelete }) => {
     ctx.fillRect(0, 0, W, H);
 
     // Header bar
-    ctx.fillStyle = '#1A4D8F';
+    ctx.fillStyle = '#0F766E';
     ctx.fillRect(0, 0, W, 56);
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 18px Arial';
@@ -51,7 +51,7 @@ const QRCard = ({ room, hotel, onDelete }) => {
       // Footer
       ctx.fillStyle = '#F0F4F8';
       ctx.fillRect(0, 280, W, H-280);
-      ctx.fillStyle = '#1A4D8F';
+      ctx.fillStyle = '#0F766E';
       ctx.font = 'bold 15px Arial';
       ctx.textAlign = 'center';
       ctx.fillText('Scan to Order & Request Services', W/2, 310);

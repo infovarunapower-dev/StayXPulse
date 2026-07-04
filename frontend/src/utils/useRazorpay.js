@@ -36,7 +36,7 @@ const useRazorpay = () => {
       description,
       order_id:    orderId,
       prefill:     { email, contact: phone },
-      theme:       { color: '#1A4D8F' },
+      theme:       { color: '#0D9488' },
       modal: {
         ondismiss: () => onFailure?.('Payment cancelled by user.'),
       },

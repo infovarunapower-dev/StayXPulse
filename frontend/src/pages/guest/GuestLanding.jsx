@@ -223,7 +223,7 @@ const GuestLanding = () => {
                     </div>
                   ))}
                   <div style={{borderTop:'1px solid #E5E7EB',marginTop:8,paddingTop:8,display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:700}}>
-                    <span>Total</span><span style={{color:'#1A4D8F'}}>₹{o.total_amount}</span>
+                    <span>Total</span><span style={{color:'#0D9488'}}>₹{o.total_amount}</span>
                   </div>
                   <div style={{fontSize:11,color:'#9CA3AF',marginTop:4}}>{fmtTime(o.created_at)}</div>
                 </div>
@@ -277,7 +277,7 @@ const GuestLanding = () => {
                   <span>{c.quantity}</span>
                   <button onClick={()=>changeQty(c.foodItem,1)}>+</button>
                 </div>
-                <div style={{fontWeight:700,fontSize:14,color:'#1A4D8F',minWidth:56,textAlign:'right'}}>₹{c.price*c.quantity}</div>
+                <div style={{fontWeight:700,fontSize:14,color:'#0D9488',minWidth:56,textAlign:'right'}}>₹{c.price*c.quantity}</div>
               </div>
             ))}
             <div style={{padding:'12px 0'}}>
@@ -287,7 +287,7 @@ const GuestLanding = () => {
             </div>
             <div style={{borderTop:'2px solid #E5E7EB',paddingTop:14}}>
               <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:16,marginBottom:14}}>
-                <span>Total</span><span style={{color:'#1A4D8F'}}>{fmtCur(cartTotal)}</span>
+                <span>Total</span><span style={{color:'#0D9488'}}>{fmtCur(cartTotal)}</span>
               </div>
               <button className="gl-place-btn" onClick={placeOrder} disabled={placing}>
                 {placing ? 'Placing Order…' : `Place Order · ${fmtCur(cartTotal)}`}

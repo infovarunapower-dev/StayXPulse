@@ -30,7 +30,7 @@ const PaymentSuccess = ({ result, onDone }) => (
         { label:'Valid From',  value:new Date(result.validFrom).toDateString() },
         { label:'Valid To',    value:new Date(result.validTo).toDateString() },
       ].map(r => (
-        <div key={r.label} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid rgba(26,77,143,0.1)', fontSize:14 }}>
+        <div key={r.label} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid rgba(13,148,136,0.1)', fontSize:14 }}>
           <span style={{ color:'var(--brand)', fontWeight:600 }}>{r.label}</span>
           <span style={{ fontWeight:700, fontFamily:r.mono?'var(--font-mono)':'inherit', color:'var(--gray-900)' }}>{r.value}</span>
         </div>

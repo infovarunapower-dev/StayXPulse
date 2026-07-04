@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import ThemeToggle from '../common/ThemeToggle';
 import './AppShell.css';
 
 const SuperAdminMenu = [
@@ -106,6 +107,7 @@ const AppShell = ({ children }) => {
                 ⬆ Upgrade Plan
               </button>
             )}
+            <ThemeToggle />
             <div className="shell-avatar shell-avatar-sm">{initials}</div>
           </div>
         </header>

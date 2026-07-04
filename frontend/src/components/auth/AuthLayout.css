@@ -7,7 +7,7 @@
 .auth-panel {
   width: 420px;
   flex-shrink: 0;
-  background: linear-gradient(160deg, #0F2952 0%, #1A4D8F 55%, #2563EB 100%);
+  background: linear-gradient(160deg, #082B27 0%, #0F766E 55%, #14B8A6 100%);
   padding: 48px 40px;
   display: flex;
   flex-direction: column;
@@ -88,7 +88,9 @@
   padding: 40px 24px;
   background: var(--bg);
   overflow-y: auto;
+  position: relative;
 }
+.auth-toggle { position: absolute; top: 20px; right: 20px; z-index: 3; }
 
 .auth-card {
   background: var(--surface);
