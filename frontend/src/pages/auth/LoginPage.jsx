@@ -66,7 +66,7 @@ const LoginPage = () => {
             type="text"
             placeholder="admin@hotel.com  or  HTL001"
             value={form.email}
-            onChange={e => { setForm(f => ({ ...f, email: e.target.value })); clearError(); }}
+            onChange={e => { setForm(f => ({ ...f, email: e.target.value })); clearError(); setFieldErrors(fe => (fe.email ? { ...fe, email: undefined } : fe)); }}
             autoComplete="username"
             autoFocus
           />
@@ -83,7 +83,7 @@ const LoginPage = () => {
           type="password"
           placeholder="Enter your password"
           value={form.password}
-          onChange={e => { setForm(f => ({ ...f, password: e.target.value })); clearError(); }}
+          onChange={e => { setForm(f => ({ ...f, password: e.target.value })); clearError(); setFieldErrors(fe => (fe.password ? { ...fe, password: undefined } : fe)); }}
           error={fieldErrors.password}
           autoComplete="current-password"
         />

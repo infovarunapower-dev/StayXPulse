@@ -21,7 +21,11 @@ const RegisterPage = () => {
     hotelName: '', phone: '', email: '', address: '', gstNumber: '', logo: null,
   });
 
-  const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+  const set = (field) => (e) => {
+    const v = e.target.value;
+    setForm(f => ({ ...f, [field]: v }));
+    setErrors(errs => (errs[field] ? { ...errs, [field]: undefined } : errs));
+  };
 
   const handleLogo = (e) => {
     const file = e.target.files[0];
@@ -152,7 +156,7 @@ const RegisterPage = () => {
               <label className="form-label">GST Number *</label>
               <input className={`form-control${errors.gstNumber ? ' error' : ''}`}
                 placeholder="29ABCDE1234F1Z5" value={form.gstNumber}
-                onChange={e => setForm(f => ({ ...f, gstNumber: e.target.value.toUpperCase() }))}
+                onChange={e => { const v = e.target.value.toUpperCase(); setForm(f => ({ ...f, gstNumber: v })); setErrors(errs => (errs.gstNumber ? { ...errs, gstNumber: undefined } : errs)); }}
                 maxLength={20} style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px' }} />
               {errors.gstNumber && <div className="form-error">⚠ {errors.gstNumber}</div>}
             </div>

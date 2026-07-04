@@ -11,6 +11,23 @@ const rules = [
   { test: (p) => /[0-9]/.test(p),      label: 'One number' },
 ];
 
+// 0–4 score → strength meter
+const strength = (p) => {
+  if (!p) return { pct: 0, label: '', color: 'var(--gray-300)' };
+  let s = 0;
+  if (p.length >= 8) s++;
+  if (/[A-Z]/.test(p)) s++;
+  if (/[0-9]/.test(p)) s++;
+  if (/[^A-Za-z0-9]/.test(p) || p.length >= 12) s++;
+  const levels = [
+    { pct: 25,  label: 'Weak',   color: 'var(--danger)' },
+    { pct: 55,  label: 'Fair',   color: '#F59E0B' },
+    { pct: 80,  label: 'Good',   color: 'var(--brand)' },
+    { pct: 100, label: 'Strong', color: 'var(--success)' },
+  ];
+  return levels[Math.max(0, s - 1)];
+};
+
 const ResetPasswordPage = () => {
   const { token }    = useParams();
   const navigate     = useNavigate();
@@ -48,6 +65,8 @@ const ResetPasswordPage = () => {
     }
   };
 
+  const st = strength(form.password);
+
   if (done) {
     return (
       <AuthLayout>
@@ -78,8 +97,18 @@ const ResetPasswordPage = () => {
           autoFocus
         />
 
+        {/* Strength meter */}
+        {form.password && (
+          <div style={{ marginTop: '-12px', marginBottom: '12px' }}>
+            <div style={{ height: '6px', background: 'var(--gray-200)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${st.pct}%`, background: st.color, borderRadius: '4px', transition: 'width 0.25s var(--ease), background 0.25s var(--ease)' }} />
+            </div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: st.color, marginTop: '5px' }}>{st.label} password</div>
+          </div>
+        )}
+
         {/* Password strength rules */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '20px', marginTop: '-12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '20px', marginTop: '4px' }}>
           {rules.map(r => (
             <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px',
               color: r.test(form.password) ? 'var(--success)' : 'var(--gray-400)' }}>
@@ -96,6 +125,12 @@ const ResetPasswordPage = () => {
           onChange={e => setF(f => ({ ...f, confirm: e.target.value }))}
           error={errors.confirm}
         />
+
+        {form.confirm && form.password === form.confirm && !errors.confirm && (
+          <div style={{ fontSize: '12px', color: 'var(--success)', fontWeight: 700, marginTop: '-12px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            ✓ Passwords match
+          </div>
+        )}
 
         <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? <><span className="spinner" /> Resetting…</> : 'Reset Password →'}
