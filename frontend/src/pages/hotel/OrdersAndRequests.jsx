@@ -56,10 +56,10 @@ export const ServiceRequests = () => {
 
   const columns = [
     { label:'Ref',     render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.id}</code> },
-    { label:'Room',    render: r => <strong>Room {r.room_number}</strong> },
-    { label:'Request', render: r => <div><div style={{fontWeight:600}}>{r.type}</div>{r.note&&<div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{r.note}</div>}</div> },
-    { label:'Time',    render: r => <div style={{fontSize:12}}><div>{fmtDate(r.created_at)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.created_at)}</div></div> },
-    { label:'Status',  render: r => <Badge status={r.status} /> },
+    { label:'Room',    sort: r => r.room_number, render: r => <strong>Room {r.room_number}</strong> },
+    { label:'Request', sort: r => r.type, render: r => <div><div style={{fontWeight:600}}>{r.type}</div>{r.note&&<div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{r.note}</div>}</div> },
+    { label:'Time',    sort: r => new Date(r.created_at).getTime(), render: r => <div style={{fontSize:12}}><div>{fmtDate(r.created_at)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.created_at)}</div></div> },
+    { label:'Status',  sort: r => r.status, render: r => <Badge status={r.status} /> },
     { label:'Action',  render: r => (
       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
         {r.status === 'pending' && <>
@@ -87,7 +87,7 @@ export const ServiceRequests = () => {
           <input type="date" className="form-control" style={{width:140,padding:'6px 10px',fontSize:13}} value={customTo} onChange={e=>{setTo(e.target.value);setDateF('custom');}} />
         </div>
       </div>
-      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} requests found</div><Table columns={columns} data={data} emptyMessage="No service requests found" /></>}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} requests found</div><Table columns={columns} data={data} emptyMessage="No service requests found" pageSize={10} /></>}</Card>
     </div>
   );
 };
@@ -134,7 +134,7 @@ export const FoodOrders = () => {
 
   const columns = [
     { label:'Order Ref', render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4,cursor:'pointer'}} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>{r.id} {expanded===r.id?'▲':'▼'}</code> },
-    { label:'Room',    render: r => <strong>Room {r.room_number}</strong> },
+    { label:'Room',    sort: r => r.room_number, render: r => <strong>Room {r.room_number}</strong> },
     { label:'Items',   render: r => (
       <div>
         <div style={{fontSize:13}}>{r.items?.slice(0,2).map(i=>`${i.name} ×${i.quantity}`).join(', ')}{r.items?.length>2?` +${r.items.length-2} more`:''}</div>
@@ -151,9 +151,9 @@ export const FoodOrders = () => {
         )}
       </div>
     )},
-    { label:'Amount',  render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.total_amount)}</strong> },
-    { label:'Time',    render: r => <div style={{fontSize:12}}><div>{fmtDate(r.created_at)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.created_at)}</div></div> },
-    { label:'Status',  render: r => <Badge status={r.status} /> },
+    { label:'Amount',  sort: r => r.total_amount, render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.total_amount)}</strong> },
+    { label:'Time',    sort: r => new Date(r.created_at).getTime(), render: r => <div style={{fontSize:12}}><div>{fmtDate(r.created_at)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.created_at)}</div></div> },
+    { label:'Status',  sort: r => r.status, render: r => <Badge status={r.status} /> },
     { label:'Action',  render: r => (
       <select className="form-control" style={{padding:'5px 8px',fontSize:12,width:120}} value={r.status}
         onChange={e=>updateStatus(r.id,e.target.value)}>
@@ -177,7 +177,7 @@ export const FoodOrders = () => {
           <input type="date" className="form-control" style={{width:140,padding:'6px 10px',fontSize:13}} value={customTo} onChange={e=>{setTo(e.target.value);setDateF('custom');}} />
         </div>
       </div>
-      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} orders found</div><Table columns={columns} data={data} emptyMessage="No food orders found" /></>}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} orders found</div><Table columns={columns} data={data} emptyMessage="No food orders found" pageSize={10} /></>}</Card>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import './UI.css';
 
 // ── Page Header ───────────────────────────────────────────────────────────────
@@ -51,25 +51,96 @@ export const CardHeader = ({ title, action }) => (
 );
 
 // ── Table ─────────────────────────────────────────────────────────────────────
-export const Table = ({ columns, data, emptyMessage = 'No records found' }) => (
-  <div className="table-wrap">
-    <table>
-      <thead>
-        <tr>{columns.map(c => <th key={c.key || c.label}>{c.label}</th>)}</tr>
-      </thead>
-      <tbody>
-        {data.length === 0
-          ? <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-400)' }}>{emptyMessage}</td></tr>
-          : data.map((row, i) => (
-              <tr key={row._id || i}>
-                {columns.map(c => <td key={c.key || c.label}>{c.render ? c.render(row) : row[c.key]}</td>)}
-              </tr>
-            ))
-        }
-      </tbody>
-    </table>
-  </div>
-);
+// Backward compatible. Extras:
+//   • pageSize   → enables client-side pagination
+//   • a column with `sort: row => value` (or a plain `key`) becomes click-sortable
+//     unless it sets `sortable: false`.
+export const Table = ({ columns, data, emptyMessage = 'No records found', pageSize }) => {
+  const [sort, setSort] = useState(null);   // { key, dir }
+  const [page, setPage] = useState(1);
+
+  const colKey     = c => c.key || c.label;
+  const canSort    = c => (c.sort || c.key) && c.sortable !== false;
+  const valueOf    = (row, c) => (c.sort ? c.sort(row) : c.key ? row[c.key] : null);
+
+  const sorted = useMemo(() => {
+    if (!sort) return data;
+    const col = columns.find(c => colKey(c) === sort.key);
+    if (!col) return data;
+    const arr = [...data].sort((a, b) => {
+      const va = valueOf(a, col), vb = valueOf(b, col);
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (typeof va === 'number' && typeof vb === 'number') return va - vb;
+      return String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' });
+    });
+    return sort.dir === 'desc' ? arr.reverse() : arr;
+  }, [data, sort, columns]);
+
+  const pageCount = pageSize ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1;
+  const curPage   = Math.min(page, pageCount);
+  const visible   = pageSize ? sorted.slice((curPage - 1) * pageSize, curPage * pageSize) : sorted;
+
+  const toggleSort = (c) => {
+    if (!canSort(c)) return;
+    const key = colKey(c);
+    setSort(s => (s && s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+    setPage(1);
+  };
+
+  return (
+    <>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {columns.map(c => {
+                const active = sort && sort.key === colKey(c);
+                return (
+                  <th
+                    key={colKey(c)}
+                    className={canSort(c) ? 'th-sortable' : ''}
+                    onClick={() => toggleSort(c)}
+                  >
+                    <span className="th-inner">
+                      {c.label}
+                      {canSort(c) && (
+                        <span className={`th-arrow ${active ? 'active' : ''}`}>
+                          {active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.length === 0
+              ? <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-400)' }}>{emptyMessage}</td></tr>
+              : visible.map((row, i) => (
+                  <tr key={row._id || row.id || i}>
+                    {columns.map(c => <td key={colKey(c)}>{c.render ? c.render(row) : row[c.key]}</td>)}
+                  </tr>
+                ))
+            }
+          </tbody>
+        </table>
+      </div>
+
+      {pageSize && pageCount > 1 && (
+        <div className="pagination">
+          <button className="page-btn" disabled={curPage === 1} onClick={() => setPage(curPage - 1)}>‹</button>
+          <span style={{ fontSize: 13, color: 'var(--gray-500)', padding: '0 8px', fontWeight: 600 }}>
+            Page {curPage} of {pageCount}
+          </span>
+          <button className="page-btn" disabled={curPage === pageCount} onClick={() => setPage(curPage + 1)}>›</button>
+        </div>
+      )}
+    </>
+  );
+};
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 export const Modal = ({ open, onClose, title, children, width = 500 }) => {

@@ -171,6 +171,13 @@ thead th {
   color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px;
   border-bottom: 1px solid var(--border); white-space: nowrap;
 }
+.th-sortable { cursor: pointer; user-select: none; transition: color 0.15s var(--ease), background 0.15s var(--ease); }
+.th-sortable:hover { color: var(--brand); background: var(--brand-light); }
+.th-inner { display: inline-flex; align-items: center; gap: 5px; }
+.th-arrow { font-size: 9px; opacity: 0.45; transition: opacity 0.15s var(--ease); }
+.th-arrow.active { opacity: 1; color: var(--brand); }
+.th-sortable:hover .th-arrow { opacity: 0.8; }
+
 tbody td   { padding: 13px 16px; border-bottom: 1px solid var(--border); color: var(--gray-700); vertical-align: middle; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr { transition: background 0.12s var(--ease); }

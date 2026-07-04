@@ -14,11 +14,11 @@ export const PaidHotels = () => {
   const hotels = data?.data || [];
 
   const columns = [
-    { label:'Hotel Name', render: r => <strong>{r.hotelName}</strong> },
-    { label:'Email',      render: r => r.email },
+    { label:'Hotel Name', sort: r => r.hotelName, render: r => <strong>{r.hotelName}</strong> },
+    { label:'Email',      sort: r => r.email, render: r => r.email },
     { label:'Plan',       render: r => r.currentPlan ? <Badge status="active" label={r.currentPlan.name}/> : '—' },
-    { label:'Valid From', render: r => fmtDate(r.planValidFrom) },
-    { label:'Valid To',   render: r => fmtDate(r.planValidTo) },
+    { label:'Valid From', sort: r => new Date(r.planValidFrom).getTime(), render: r => fmtDate(r.planValidFrom) },
+    { label:'Valid To',   sort: r => new Date(r.planValidTo).getTime(), render: r => fmtDate(r.planValidTo) },
     { label:'Status',     render: r => {
       const daysLeft = r.planValidTo ? Math.ceil((new Date(r.planValidTo)-Date.now())/86400000) : 0;
       return <Badge status={r.subscriptionStatus} label={
@@ -37,7 +37,7 @@ export const PaidHotels = () => {
   return (
     <div>
       <PageHeader title="Paid Hotels" subtitle="Hotels with active or expired subscription plans" />
-      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <Table columns={columns} data={hotels} emptyMessage="No paid hotels yet" />}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <Table columns={columns} data={hotels} emptyMessage="No paid hotels yet" pageSize={10} />}</Card>
     </div>
   );
 };
@@ -48,9 +48,9 @@ export const PaymentHistory = () => {
   const payments = data?.data || [];
 
   const columns = [
-    { label:'Hotel',      render: r => <strong>{r.hotel?.hotelName}</strong> },
-    { label:'Email',      render: r => r.hotel?.email },
-    { label:'Amount',     render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.amount)}</strong> },
+    { label:'Hotel',      sort: r => r.hotel?.hotelName, render: r => <strong>{r.hotel?.hotelName}</strong> },
+    { label:'Email',      sort: r => r.hotel?.email, render: r => r.hotel?.email },
+    { label:'Amount',     sort: r => r.amount, render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.amount)}</strong> },
     { label:'Plan',       render: r => <Badge status="active" label={r.plan?.name}/> },
     { label:'Valid From', render: r => fmtDate(r.validFrom) },
     { label:'Valid To',   render: r => fmtDate(r.validTo) },
@@ -70,7 +70,7 @@ export const PaymentHistory = () => {
         <StatCard icon="🧾" label="Total Invoices"    value={data?.total || 0}           color="blue" />
         <StatCard icon="📅" label="This Month"        value={fmtCur(payments.filter(p=>new Date(p.paidAt).getMonth()===new Date().getMonth()).reduce((a,p)=>a+p.amount,0))} color="amber" />
       </div>
-      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <Table columns={columns} data={payments} emptyMessage="No payments yet" />}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <Table columns={columns} data={payments} emptyMessage="No payments yet" pageSize={10} />}</Card>
     </div>
   );
 };

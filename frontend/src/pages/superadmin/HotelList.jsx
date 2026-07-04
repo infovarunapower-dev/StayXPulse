@@ -195,7 +195,7 @@ const HotelList = () => {
         {r.user_id || '—'}
       </code>
     )},
-    { label:'Hotel', render: r => (
+    { label:'Hotel', sort: r => r.hotel_name, render: r => (
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
         {r.logo_url
           ? <img src={`http://localhost:5000${r.logo_url}`} alt="" style={{ width:28, height:28, borderRadius:6, objectFit:'contain', border:'1px solid var(--border)' }} />
@@ -207,14 +207,14 @@ const HotelList = () => {
         </div>
       </div>
     )},
-    { label:'Phone',  render: r => r.phone },
-    { label:'Status', render: r => <Badge status={r.subscription_status} label={
+    { label:'Phone',  sort: r => r.phone, render: r => r.phone },
+    { label:'Status', sort: r => r.subscription_status, render: r => <Badge status={r.subscription_status} label={
       r.subscription_status === 'trial'
         ? `Trial (${Math.max(0, Math.ceil((new Date(r.trial_end_date) - Date.now()) / 86400000))}d left)`
         : r.subscription_status
     } /> },
     { label:'Plan',   render: r => r.current_plan ? <Badge status="active" label={r.current_plan.name} /> : <span style={{ color:'var(--gray-300)' }}>—</span> },
-    { label:'Registered', render: r => new Date(r.created_at).toLocaleDateString('en-IN') },
+    { label:'Registered', sort: r => new Date(r.created_at).getTime(), render: r => new Date(r.created_at).toLocaleDateString('en-IN') },
     { label:'Actions', render: r => (
       <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
         <button className="btn btn-sm" style={{ background:'var(--brand-light)', color:'var(--brand)', border:'1px solid var(--brand)', borderRadius:7, padding:'5px 10px', fontSize:12, fontWeight:700, cursor:'pointer' }}
@@ -244,7 +244,7 @@ const HotelList = () => {
         {loading ? <TableSkeleton cols={columns.length} /> : (
           <>
             <div style={{ fontSize:13, color:'var(--gray-400)', marginBottom:12 }}>{data?.total || 0} hotels found</div>
-            <Table columns={columns} data={hotels} emptyMessage="No hotels found" />
+            <Table columns={columns} data={hotels} emptyMessage="No hotels found" pageSize={10} />
           </>
         )}
       </Card>
