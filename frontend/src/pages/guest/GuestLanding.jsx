@@ -20,6 +20,44 @@ const SERVICE_OPTIONS = [
   { icon:'📡', label:'TV / WiFi Issue'           },
 ];
 
+// Guest page is light-only (public), so status colors are fixed light tints.
+const STATUS_META = {
+  pending:       { label: 'Pending',     color: '#B45309', bg: '#FEF3C7' },
+  preparing:     { label: 'Preparing',   color: '#1D4ED8', bg: '#DBEAFE' },
+  delivered:     { label: 'Delivered',   color: '#047857', bg: '#D1FAE5' },
+  cancelled:     { label: 'Cancelled',   color: '#B91C1C', bg: '#FEE2E2' },
+  'in-progress': { label: 'In Progress', color: '#1D4ED8', bg: '#DBEAFE' },
+  completed:     { label: 'Completed',   color: '#047857', bg: '#D1FAE5' },
+};
+
+const StatusPill = ({ status }) => {
+  const m = STATUS_META[status] || { label: status, color: '#374151', bg: '#F3F4F6' };
+  return (
+    <span style={{ fontSize: 12, fontWeight: 700, color: m.color, background: m.bg, textTransform: 'capitalize', padding: '3px 11px', borderRadius: 20 }}>
+      {m.label}
+    </span>
+  );
+};
+
+// Visual tracker for food orders: Placed → Preparing → Delivered
+const ORDER_STEPS = ['Placed', 'Preparing', 'Delivered'];
+const STEP_INDEX  = { pending: 0, preparing: 1, delivered: 2 };
+const OrderTracker = ({ status }) => {
+  if (status === 'cancelled') return <div className="gl-track-cancelled">✕ This order was cancelled</div>;
+  const ai = STEP_INDEX[status] ?? 0;
+  return (
+    <div className="gl-track">
+      {ORDER_STEPS.map((label, i) => (
+        <div key={label} className={`gl-track-step ${i < ai ? 'done' : ''} ${i === ai ? 'active' : ''}`}>
+          {i > 0 && <div className="gl-track-line" />}
+          <div className="gl-track-dot">{i < ai ? '✓' : i + 1}</div>
+          <div className="gl-track-label">{label}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const GuestLanding = () => {
   const { qrToken }      = useParams();
   const [page,   setPage] = useState(null); // null=loading, 'error', 'app'
@@ -46,7 +84,13 @@ const GuestLanding = () => {
       .catch(() => {});
   };
 
-  useEffect(() => { if (tab === 'orders') loadOrders(); }, [tab]);
+  // Live order tracking: refresh immediately on open, then poll every 20s
+  useEffect(() => {
+    if (tab !== 'orders') return;
+    loadOrders();
+    const id = setInterval(loadOrders, 20000);
+    return () => clearInterval(id);
+  }, [tab]);
 
   // Cart helpers
   const addToCart = (item) => {
@@ -107,15 +151,13 @@ const GuestLanding = () => {
   const fmtCur = n => `₹${Number(n||0).toLocaleString('en-IN')}`;
   const fmtTime = d => d ? new Date(d).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
 
-  const STATUS_COLOR = { pending:'#F59E0B', preparing:'#3B7DD8', delivered:'#10B981', cancelled:'#EF4444', 'in-progress':'#3B7DD8', completed:'#10B981' };
-
   return (
     <div className="gl-shell">
       {/* Header */}
       <div className="gl-header">
         <div className="gl-header-inner">
-          {hotel.logoUrl
-            ? <img src={`http://localhost:5000${hotel.logoUrl}`} alt="logo" className="gl-logo"/>
+          {hotel.logoUrl && /^https?:\/\//.test(hotel.logoUrl)
+            ? <img src={hotel.logoUrl} alt="logo" className="gl-logo"/>
             : <div className="gl-logo-placeholder">🏨</div>}
           <div>
             <div className="gl-hotel-name">{hotel.hotelName}</div>
@@ -203,19 +245,25 @@ const GuestLanding = () => {
         {/* ── My Orders ── */}
         {tab==='orders' && (
           <div>
-            <button className="gl-refresh-btn" onClick={loadOrders}>↻ Refresh</button>
+            <div className="gl-orders-head">
+              <span className="gl-live"><span className="gl-live-dot" /> Live · updates automatically</span>
+              <button className="gl-refresh-btn" onClick={loadOrders}>↻ Refresh</button>
+            </div>
 
             <div className="gl-section-title" style={{marginTop:8}}>Food Orders</div>
             {orders.orders.length===0
-              ? <div className="gl-empty-small">No food orders yet</div>
+              ? <div className="gl-empty-block">
+                  <div className="gl-empty-emoji">🍽</div>
+                  <div className="gl-empty-line">No food orders yet</div>
+                  <button className="gl-empty-cta" onClick={()=>setTab('menu')}>Browse the menu →</button>
+                </div>
               : orders.orders.map(o => (
                 <div key={o.id} className="gl-order-card">
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
                     <code style={{fontSize:12,color:'var(--gray-500)',fontFamily:'monospace'}}>{o.id}</code>
-                    <span style={{fontSize:12,fontWeight:700,color:STATUS_COLOR[o.status]||'#374151',textTransform:'capitalize',padding:'2px 10px',background:'#F3F4F6',borderRadius:20}}>
-                      {o.status}
-                    </span>
+                    <StatusPill status={o.status} />
                   </div>
+                  <OrderTracker status={o.status} />
                   {o.items?.map((i,idx)=>(
                     <div key={idx} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'3px 0'}}>
                       <span>{i.name} × {i.quantity}</span>
@@ -232,7 +280,11 @@ const GuestLanding = () => {
 
             <div className="gl-section-title" style={{marginTop:20}}>Service Requests</div>
             {orders.requests.length===0
-              ? <div className="gl-empty-small">No service requests yet</div>
+              ? <div className="gl-empty-block">
+                  <div className="gl-empty-emoji">🛎</div>
+                  <div className="gl-empty-line">No service requests yet</div>
+                  <button className="gl-empty-cta" onClick={()=>setTab('service')}>Request room service →</button>
+                </div>
               : orders.requests.map(r => (
                 <div key={r.id} className="gl-order-card">
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -240,9 +292,7 @@ const GuestLanding = () => {
                       <div style={{fontWeight:600,fontSize:14}}>{r.type}</div>
                       <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{fmtTime(r.created_at)}</div>
                     </div>
-                    <span style={{fontSize:12,fontWeight:700,color:STATUS_COLOR[r.status]||'#374151',textTransform:'capitalize',padding:'2px 10px',background:'#F3F4F6',borderRadius:20}}>
-                      {r.status}
-                    </span>
+                    <StatusPill status={r.status} />
                   </div>
                 </div>
               ))
@@ -263,8 +313,11 @@ const GuestLanding = () => {
         <div className="gl-cart-overlay" onClick={e=>e.target===e.currentTarget&&setShowCart(false)}>
           <div className="gl-cart-sheet">
             <div className="gl-cart-header">
-              <div style={{fontWeight:700,fontSize:17}}>Your Cart</div>
-              <button className="gl-cart-close" onClick={()=>setShowCart(false)}>✕</button>
+              <div style={{fontWeight:700,fontSize:17}}>Your Cart · {cartCount} item{cartCount>1?'s':''}</div>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <button className="gl-cart-clear" onClick={()=>setCart([])}>Clear</button>
+                <button className="gl-cart-close" onClick={()=>setShowCart(false)}>✕</button>
+              </div>
             </div>
             {cart.map(c => (
               <div key={c.foodItem} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid #F3F4F6'}}>
