@@ -6,6 +6,7 @@
   margin: 0 auto;
   position: relative;
   padding-bottom: 80px;
+  box-shadow: 0 0 40px rgba(16,42,82,0.06);
 }
 
 .gl-loading, .gl-error {
@@ -28,13 +29,21 @@
 /* Header */
 .gl-header {
   background: linear-gradient(135deg, #0F2952 0%, #1A4D8F 100%);
-  padding: 20px 20px 16px;
+  padding: 22px 20px 18px;
   color: #fff;
+  position: relative;
+  overflow: hidden;
 }
-.gl-header-inner { display: flex; align-items: center; gap: 14px; }
-.gl-logo          { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
-.gl-logo-placeholder { width: 52px; height: 52px; border-radius: 12px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; }
-.gl-hotel-name    { font-size: 18px; font-weight: 800; }
+.gl-header::after {
+  content: ''; position: absolute; top: -60px; right: -40px;
+  width: 200px; height: 200px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.08), transparent 70%);
+  pointer-events: none;
+}
+.gl-header-inner { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
+.gl-logo          { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2); }
+.gl-logo-placeholder { width: 52px; height: 52px; border-radius: 12px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; }
+.gl-hotel-name    { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
 .gl-room-info     { font-size: 13px; opacity: 0.85; margin-top: 2px; }
 .gl-hotel-phone   { font-size: 12px; opacity: 0.65; margin-top: 2px; }
 
@@ -50,13 +59,14 @@
 @keyframes gl-slideDown { from { transform: translateX(-50%) translateY(-100%); } to { transform: translateX(-50%) translateY(0); } }
 
 /* Tabs */
-.gl-tabs { display: flex; background: #fff; border-bottom: 2px solid #F3F4F6; position: sticky; top: 0; z-index: 50; }
+.gl-tabs { display: flex; background: rgba(255,255,255,0.92); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-bottom: 1px solid #EEF2F6; position: sticky; top: 0; z-index: 50; box-shadow: 0 2px 10px rgba(16,42,82,0.05); }
 .gl-tab  {
-  flex: 1; padding: 13px 6px; text-align: center; font-size: 13px; font-weight: 600;
+  flex: 1; padding: 14px 6px; text-align: center; font-size: 13px; font-weight: 600;
   color: #6B7280; border: none; background: none; cursor: pointer;
-  border-bottom: 3px solid transparent; transition: all 0.2s;
+  border-bottom: 3px solid transparent; transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
   display: flex; align-items: center; justify-content: center; gap: 5px;
 }
+.gl-tab:active { color: #1A4D8F; }
 .gl-tab.active { color: #1A4D8F; border-bottom-color: #1A4D8F; }
 
 /* Body */
@@ -67,26 +77,31 @@
 .gl-service-grid  { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .gl-service-btn   {
   display: flex; align-items: center; gap: 10px;
-  padding: 14px 14px; background: #fff;
+  padding: 15px 14px; background: #fff;
   border: 1.5px solid #E5E7EB; border-radius: 12px;
-  cursor: pointer; text-align: left; transition: all 0.15s;
+  cursor: pointer; text-align: left;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease), transform 0.12s var(--ease), box-shadow 0.15s var(--ease);
+  box-shadow: 0 1px 2px rgba(16,42,82,0.04);
 }
-.gl-service-btn:hover, .gl-service-btn:active { border-color: #1A4D8F; background: #EBF2FF; }
+.gl-service-btn:hover { border-color: #1A4D8F; background: #EBF2FF; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(26,77,143,0.12); }
+.gl-service-btn:active { transform: translateY(0) scale(0.98); border-color: #1A4D8F; background: #EBF2FF; }
 .gl-service-icon  { font-size: 22px; flex-shrink: 0; }
 .gl-service-label { font-size: 13px; font-weight: 600; color: #374151; line-height: 1.3; }
 
 /* Food Menu */
 .gl-menu-cat       { margin-bottom: 24px; }
 .gl-cat-title      { font-size: 15px; font-weight: 800; color: #111827; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid #F3F4F6; }
-.gl-menu-item      { display: flex; align-items: center; gap: 12; padding: 13px 0; border-bottom: 1px solid #F9FAFB; }
+.gl-menu-item      { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid #F1F5F9; }
+.gl-menu-item:last-child { border-bottom: none; }
 .gl-item-name      { font-size: 14px; font-weight: 600; color: #1F2937; }
-.gl-item-desc      { font-size: 12px; color: #9CA3AF; margin-top: 2px; }
-.gl-item-price     { font-size: 15px; font-weight: 700; color: #1A4D8F; margin-top: 4px; }
+.gl-item-desc      { font-size: 12px; color: #9CA3AF; margin-top: 2px; line-height: 1.4; }
+.gl-item-price     { font-size: 15px; font-weight: 700; color: #1A4D8F; margin-top: 4px; font-variant-numeric: tabular-nums; }
 
 /* Qty controls */
 .gl-qty-control { flex-shrink: 0; margin-left: 10px; }
-.gl-add-btn     { background: #1A4D8F; color: #fff; border: none; border-radius: 20px; padding: 6px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
-.gl-add-btn:active { background: #163F75; }
+.gl-add-btn     { background: #1A4D8F; color: #fff; border: none; border-radius: 20px; padding: 7px 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform 0.12s var(--ease), background 0.15s var(--ease); box-shadow: 0 2px 6px rgba(26,77,143,0.25); }
+.gl-add-btn:hover  { background: #163F75; }
+.gl-add-btn:active { background: #163F75; transform: scale(0.94); }
 .gl-stepper     { display: flex; align-items: center; gap: 0; border: 2px solid #1A4D8F; border-radius: 20px; overflow: hidden; }
 .gl-stepper button { width: 32px; height: 32px; background: #1A4D8F; color: #fff; border: none; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .gl-stepper button:active { background: #163F75; }
@@ -94,7 +109,7 @@
 
 /* Orders tab */
 .gl-refresh-btn { background: none; border: 1.5px solid #E5E7EB; border-radius: 8px; padding: 6px 16px; font-size: 13px; font-weight: 600; color: #6B7280; cursor: pointer; margin-bottom: 4px; }
-.gl-order-card  { background: #fff; border: 1px solid #E5E7EB; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+.gl-order-card  { background: #fff; border: 1px solid #E5E7EB; border-radius: 12px; padding: 14px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(16,42,82,0.05); }
 .gl-empty       { text-align: center; padding: 60px 20px; color: #9CA3AF; font-size: 16px; line-height: 2; }
 .gl-empty-small { text-align: center; padding: 20px; color: #9CA3AF; font-size: 13px; }
 
@@ -128,6 +143,7 @@
 .gl-cart-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0 12px; border-bottom: 1px solid #E5E7EB; margin-bottom: 4px; position: sticky; top: 0; background: #fff; }
 .gl-cart-close  { background: none; border: none; font-size: 20px; cursor: pointer; color: #9CA3AF; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
 .gl-cart-close:hover { background: #F3F4F6; }
-.gl-place-btn   { width: 100%; padding: 15px; background: #1A4D8F; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; }
-.gl-place-btn:hover   { background: #163F75; }
-.gl-place-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.gl-place-btn   { width: 100%; padding: 15px; background: linear-gradient(135deg, #1A4D8F 0%, #2E6FCB 100%); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 0.12s var(--ease), box-shadow 0.2s var(--ease); box-shadow: 0 4px 14px rgba(26,77,143,0.3); }
+.gl-place-btn:hover   { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(26,77,143,0.36); }
+.gl-place-btn:active  { transform: translateY(0) scale(0.99); }
+.gl-place-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
