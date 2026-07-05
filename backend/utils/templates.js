@@ -1,3 +1,5 @@
+const CLIENT_URL = require('./clientUrl');
+
 // ── Base layout wrapper ────────────────────────────────────────────────────────
 const layout = (content) => `<!DOCTYPE html>
 <html lang="en">
@@ -51,7 +53,7 @@ const layout = (content) => `<!DOCTYPE html>
           If you have questions, contact us at <strong>support@stayxpulse.com</strong>
         </div>
         <div class="footer-links">
-          <a href="${process.env.CLIENT_URL}">Dashboard</a>
+          <a href="${CLIENT_URL}">Dashboard</a>
           <a href="mailto:support@stayxpulse.com">Support</a>
         </div>
       </div>
@@ -68,13 +70,13 @@ const welcomeTemplate = ({ hotelName, email, userId, password, trialEndDate }) =
     <p class="text">Your hotel has been registered successfully. You can start using StayXPulse right away with your <span class="highlight">3-day free trial</span>.</p>
     <p class="text">Here are your login credentials — please save them securely:</p>
     <div class="box">
-      <div class="box-row"><span class="box-label">Login URL</span>   <span class="box-val">${process.env.CLIENT_URL}/login</span></div>
+      <div class="box-row"><span class="box-label">Login URL</span>   <span class="box-val">${CLIENT_URL}/login</span></div>
       <div class="box-row"><span class="box-label">User ID</span>     <span class="box-val">${userId}</span></div>
       <div class="box-row"><span class="box-label">Email</span>       <span class="box-val">${email}</span></div>
       <div class="box-row"><span class="box-label">Password</span>    <span class="box-val">${password}</span></div>
       <div class="box-row"><span class="box-label">Trial Ends</span>  <span class="box-val">${new Date(trialEndDate).toDateString()}</span></div>
     </div>
-    <div class="btn-wrap"><a class="btn" href="${process.env.CLIENT_URL}/login">Login to Your Dashboard →</a></div>
+    <div class="btn-wrap"><a class="btn" href="${CLIENT_URL}/login">Login to Your Dashboard →</a></div>
     <div class="note">⚠️ Please change your password after first login. Your trial expires on <strong>${new Date(trialEndDate).toDateString()}</strong>.</div>
   `);
 
@@ -96,7 +98,7 @@ const trialReminderTemplate = ({ hotelName, daysLeft, trialEndDate }) =>
     <p class="text">Hi <strong>${hotelName}</strong>,</p>
     <p class="text">Your StayXPulse free trial ends on <span class="highlight">${new Date(trialEndDate).toDateString()}</span>.</p>
     <p class="text">Upgrade now to keep access to all your rooms, QR codes, food menu, and order history.</p>
-    <div class="btn-wrap"><a class="btn" href="${process.env.CLIENT_URL}/hotel/upgrade">View Plans & Upgrade →</a></div>
+    <div class="btn-wrap"><a class="btn" href="${CLIENT_URL}/hotel/upgrade">View Plans & Upgrade →</a></div>
     <div class="note">💡 Plans start at just <strong>₹999/month</strong>. Instant activation after payment.</div>
   `);
 
@@ -107,7 +109,7 @@ const expiryReminderTemplate = ({ hotelName, planName, daysLeft, expiryDate }) =
     <div class="title">Your subscription is expiring soon</div>
     <p class="text">Hi <strong>${hotelName}</strong>,</p>
     <p class="text">Your <span class="highlight">${planName}</span> subscription expires on <span class="highlight">${new Date(expiryDate).toDateString()}</span>.</p>
-    <div class="btn-wrap"><a class="btn" href="${process.env.CLIENT_URL}/hotel/upgrade">Renew Subscription →</a></div>
+    <div class="btn-wrap"><a class="btn" href="${CLIENT_URL}/hotel/upgrade">Renew Subscription →</a></div>
   `);
 
 // ── 5. Payment Success ─────────────────────────────────────────────────────────
@@ -125,7 +127,7 @@ const paymentSuccessTemplate = ({ hotelName, planName, cycle, amount, invoiceNum
       <div class="box-row"><span class="box-label">Valid From</span>   <span class="box-val">${new Date(validFrom).toDateString()}</span></div>
       <div class="box-row"><span class="box-label">Valid To</span>     <span class="box-val">${new Date(validTo).toDateString()}</span></div>
     </div>
-    <div class="btn-wrap"><a class="btn btn-green" href="${process.env.CLIENT_URL}/hotel/dashboard">Go to Dashboard →</a></div>
+    <div class="btn-wrap"><a class="btn btn-green" href="${CLIENT_URL}/hotel/dashboard">Go to Dashboard →</a></div>
     <div class="note">📄 Your invoice PDF is attached to this email.</div>
   `);
 
@@ -136,12 +138,12 @@ const passwordResetByAdminTemplate = ({ hotelName, userId, email, newPassword })
     <p class="text">Hi <strong>${hotelName}</strong>,</p>
     <p class="text">Your StayXPulse account password has been reset by the administrator.</p>
     <div class="box">
-      <div class="box-row"><span class="box-label">Login URL</span>   <span class="box-val">${process.env.CLIENT_URL}/login</span></div>
+      <div class="box-row"><span class="box-label">Login URL</span>   <span class="box-val">${CLIENT_URL}/login</span></div>
       <div class="box-row"><span class="box-label">User ID</span>     <span class="box-val">${userId}</span></div>
       <div class="box-row"><span class="box-label">Email</span>       <span class="box-val">${email}</span></div>
       <div class="box-row"><span class="box-label">New Password</span><span class="box-val">${newPassword}</span></div>
     </div>
-    <div class="btn-wrap"><a class="btn" href="${process.env.CLIENT_URL}/login">Login Now →</a></div>
+    <div class="btn-wrap"><a class="btn" href="${CLIENT_URL}/login">Login Now →</a></div>
     <div class="note">🔒 Please change your password immediately after logging in.</div>
   `);
 

@@ -42,7 +42,7 @@ router.post('/test', SA, async (req, res) => {
     password:      'TestPass@123',
     trialEndDate:  new Date(Date.now() + 3 * 86400000),
     name:          'Test User',
-    resetUrl:      `${process.env.CLIENT_URL}/reset-password/mock-token-123`,
+    resetUrl:      `${require('../utils/clientUrl')}/reset-password/mock-token-123`,
     daysLeft:      2,
     planName:      'Professional',
     cycle:         'monthly',
