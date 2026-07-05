@@ -22,6 +22,19 @@ const withHotel = (req, res, next) => {
 };
 const MW = [...HA, withHotel];
 
+// Guest order history resets daily at 12:00 noon IST (typical checkout) so a new
+// guest doesn't see the previous guest's requests. Returns the ISO timestamp of
+// the most recent 12:00 noon IST boundary (today's if past noon, else yesterday's).
+const GUEST_RESET_HOUR_IST = 12;
+const dailyResetCutoffIso = () => {
+  const IST = 5.5 * 3600 * 1000;               // IST = UTC+5:30
+  const istNow = Date.now() + IST;             // shift so UTC getters read IST wall-clock
+  const d = new Date(istNow);
+  let cut = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), GUEST_RESET_HOUR_IST, 0, 0, 0);
+  if (istNow < cut) cut -= 24 * 3600 * 1000;   // before noon → use yesterday's noon
+  return new Date(cut - IST).toISOString();    // convert back to real UTC
+};
+
 // ════════════════════════════════════════════════════════════════════
 // ROOMS
 // ════════════════════════════════════════════════════════════════════
@@ -388,9 +401,11 @@ router.get('/guest/:qrToken/orders', async (req, res) => {
     const { data: room, error } = await supabase.from('rooms').select('*').eq('qr_token', req.params.qrToken).eq('is_active', true).single();
     if (error || !room) return res.status(404).json({ success: false, message: 'Invalid QR' });
 
+    // Only show this guest's activity since the daily 12:00-noon-IST reset
+    const cutoff = dailyResetCutoffIso();
     const [{ data: orders }, { data: requests }] = await Promise.all([
-      supabase.from('food_orders').select('*').eq('room_id', room.id).order('created_at', { ascending: false }).limit(20),
-      supabase.from('service_requests').select('*').eq('room_id', room.id).order('created_at', { ascending: false }).limit(20),
+      supabase.from('food_orders').select('*').eq('room_id', room.id).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(20),
+      supabase.from('service_requests').select('*').eq('room_id', room.id).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(20),
     ]);
     res.json({ success: true, data: { orders: orders || [], requests: requests || [] } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
