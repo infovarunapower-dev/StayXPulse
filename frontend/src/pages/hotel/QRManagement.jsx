@@ -22,50 +22,113 @@ const QRCard = ({ room, hotel, onDelete }) => {
 
   const downloadQR = async () => {
     if (!qrDataUrl) return;
-    // Create a canvas to compose QR + hotel info label
-    const canvas  = document.createElement('canvas');
-    const W = 320, H = 380;
-    canvas.width  = W;
-    canvas.height = H;
+
+    const W = 480, H = 680;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
+    const cx = W / 2;
+
+    const loadImg = (src, cors) => new Promise(resolve => {
+      const im = new Image();
+      if (cors) im.crossOrigin = 'anonymous';
+      im.onload = () => resolve(im);
+      im.onerror = () => resolve(null);
+      im.src = src;
+    });
+    const roundRect = (x, y, w, h, r) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    };
 
     // Background
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, W, H);
 
-    // Header bar
-    ctx.fillStyle = '#0F766E';
-    ctx.fillRect(0, 0, W, 56);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 18px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(hotel?.hotelName || 'Hotel', W/2, 28);
-    ctx.font = '13px Arial';
-    ctx.fillText(`Room ${room.number}  ·  ${hotel?.phone || ''}`, W/2, 46);
+    // Emerald header
+    const grad = ctx.createLinearGradient(0, 0, W, 190);
+    grad.addColorStop(0, '#0A3B34');
+    grad.addColorStop(0.55, '#0F766E');
+    grad.addColorStop(1, '#14B8A6');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, 190);
 
-    // QR Image
-    const img = new Image();
-    img.onload = () => {
-      ctx.drawImage(img, 60, 64, 200, 200);
-
-      // Footer
-      ctx.fillStyle = '#F0F4F8';
-      ctx.fillRect(0, 280, W, H-280);
-      ctx.fillStyle = '#0F766E';
-      ctx.font = 'bold 15px Arial';
+    // Logo circle (hotel logo if reachable, else the hotel's initial)
+    const r = 36, cyLogo = 66;
+    const logo = (hotel?.logoUrl && /^https?:\/\//.test(hotel.logoUrl)) ? await loadImg(hotel.logoUrl, true) : null;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cyLogo, r, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fill();
+    if (logo) { ctx.clip(); ctx.drawImage(logo, cx - r, cyLogo - r, r * 2, r * 2); }
+    ctx.restore();
+    if (!logo) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 32px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('Scan to Order & Request Services', W/2, 310);
-      ctx.fillStyle = '#6B7280';
-      ctx.font = '12px Arial';
-      ctx.fillText(room.type, W/2, 332);
-      ctx.fillText(`${hotel?.hotelName}`, W/2, 352);
+      ctx.textBaseline = 'middle';
+      ctx.fillText((hotel?.hotelName || 'H').trim().charAt(0).toUpperCase(), cx, cyLogo + 1);
+      ctx.textBaseline = 'alphabetic';
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cyLogo, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
-      const link = document.createElement('a');
-      link.download = `QR_Room_${room.number}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    };
-    img.src = qrDataUrl;
+    // Hotel name + phone
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 25px Arial';
+    ctx.fillText(hotel?.hotelName || 'Your Hotel', cx, 141);
+    if (hotel?.phone) {
+      ctx.font = '14px Arial';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillText(`Call ${hotel.phone}`, cx, 167);
+    }
+
+    // Room
+    ctx.fillStyle = '#0F766E';
+    ctx.font = 'bold 30px Arial';
+    ctx.fillText(`Room ${room.number}`, cx, 246);
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '14px Arial';
+    ctx.fillText([room.floor && `Floor ${room.floor}`, room.type].filter(Boolean).join('   ·   '), cx, 271);
+
+    // QR framed
+    const qrSize = 250, qrX = (W - qrSize) / 2, qrY = 300;
+    ctx.fillStyle = '#F5F8F7';
+    roundRect(qrX - 18, qrY - 18, qrSize + 36, qrSize + 36, 18); ctx.fill();
+    ctx.strokeStyle = '#D9E7E3'; ctx.lineWidth = 1.5;
+    roundRect(qrX - 18, qrY - 18, qrSize + 36, qrSize + 36, 18); ctx.stroke();
+    const qr = await loadImg(qrDataUrl, false);
+    if (qr) ctx.drawImage(qr, qrX, qrY, qrSize, qrSize);
+
+    // Instruction
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#0F766E';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText('Scan to Order Food & Request Services', cx, qrY + qrSize + 54);
+    ctx.fillStyle = '#9CA3AF';
+    ctx.font = '13px Arial';
+    ctx.fillText('Point your phone camera at the code above', cx, qrY + qrSize + 78);
+
+    // Footer
+    ctx.fillStyle = '#0F766E';
+    ctx.font = 'bold 12px Arial';
+    ctx.fillText('Powered by StayXPulse', cx, H - 26);
+
+    const link = document.createElement('a');
+    link.download = `QR_Room_${room.number}_${(hotel?.hotelName || 'Hotel').replace(/[^a-z0-9]/gi, '_')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
     toast.success(`QR for Room ${room.number} downloaded!`);
   };
 

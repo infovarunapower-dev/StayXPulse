@@ -116,7 +116,26 @@ router.get('/me', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const { data: users } = await supabase.from('users').select('*').eq('id', decoded.id);
     if (!users || users.length === 0) return res.status(404).json({ success: false, message: 'User not found.' });
-    res.json({ success: true, user: users[0] });
+
+    const user = users[0];
+    let hotel = null;
+    if (user.hotel_id) {
+      const { data } = await supabase.from('hotels').select('*').eq('id', user.hotel_id).single();
+      hotel = data;
+    }
+    res.json({
+      success: true,
+      user: {
+        id: user.id, name: user.name, email: user.email, role: user.role,
+        hotel: hotel ? {
+          id: hotel.id, hotelName: hotel.hotel_name, logoUrl: hotel.logo_url,
+          phone: hotel.phone, address: hotel.address, gstNumber: hotel.gst_number,
+          subscriptionStatus: hotel.subscription_status,
+          trialStartDate: hotel.trial_start_date, trialEndDate: hotel.trial_end_date,
+          planValidFrom: hotel.plan_valid_from, planValidTo: hotel.plan_valid_to,
+        } : null,
+      },
+    });
   } catch (err) {
     res.status(401).json({ success: false, message: 'Not authorized.' });
   }
