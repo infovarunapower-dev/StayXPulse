@@ -42,33 +42,120 @@ export const PaidHotels = () => {
   );
 };
 
+// ── GST register (billing history) export — per Monetization blueprint §7/§9 ────
+const GST_SELLER = {
+  name: 'Sunver Coresynergy Solutions Pvt Ltd',
+  gstin: '09ABNCS5321F1Z7',
+  stateName: 'Uttar Pradesh',
+  stateCode: '09',
+  sac: '998314', // ⚠ CONFIRM the correct SAC for hotel-SaaS with your CA (blueprint §0.2)
+};
+const GST_RATE = 18; // prices are GST-inclusive; confirm the rate with your CA
+const GST_STATES = { '01':'Jammu & Kashmir','02':'Himachal Pradesh','03':'Punjab','04':'Chandigarh','05':'Uttarakhand','06':'Haryana','07':'Delhi','08':'Rajasthan','09':'Uttar Pradesh','10':'Bihar','11':'Sikkim','12':'Arunachal Pradesh','13':'Nagaland','14':'Manipur','15':'Mizoram','16':'Tripura','17':'Meghalaya','18':'Assam','19':'West Bengal','20':'Jharkhand','21':'Odisha','22':'Chhattisgarh','23':'Madhya Pradesh','24':'Gujarat','27':'Maharashtra','29':'Karnataka','30':'Goa','32':'Kerala','33':'Tamil Nadu','34':'Puducherry','36':'Telangana','37':'Andhra Pradesh' };
+
+const csvCell = v => { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+const csvRow  = arr => arr.map(csvCell).join(',');
+const rs = paise => (paise / 100).toFixed(2);
+
+const buildGstRegisterCsv = (payments) => {
+  const fmtIST = d => d ? new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  let tGross = 0, tTaxable = 0, tCgst = 0, tSgst = 0, tIgst = 0;
+
+  const rows = payments.map(p => {
+    const gross   = Math.round(Number(p.amount || 0) * 100);   // paise, GST-inclusive
+    const taxable = Math.round(gross * 100 / (100 + GST_RATE));
+    const tax     = gross - taxable;
+    const bState  = (p.hotel?.gstNumber || '').trim().slice(0, 2);
+    const intra   = !!bState && bState === GST_SELLER.stateCode;
+    let cgst = 0, sgst = 0, igst = 0;
+    if (intra) { sgst = Math.floor(tax / 2); cgst = tax - sgst; }  // odd paise → CGST
+    else       { igst = tax; }                                     // inter-state / unregistered → IGST
+    tGross += gross; tTaxable += taxable; tCgst += cgst; tSgst += sgst; tIgst += igst;
+    const pos = bState ? `${bState} ${GST_STATES[bState] || 'Other'} (${intra ? 'Intra' : 'Inter'})` : 'Unregistered';
+    return csvRow([
+      p.invoice_number || '', fmtIST(p.paid_at), p.hotel?.hotelName || '', p.hotel?.email || '',
+      p.hotel?.gstNumber || '—', pos, p.plan?.name || '', GST_SELLER.sac,
+      rs(gross), rs(taxable), `${GST_RATE}%`, rs(cgst), rs(sgst), rs(igst), rs(gross), p.payment_id || '',
+    ]);
+  });
+
+  // Serial gap-check (blueprint §9) — only on well-formed INV-YYYY-NNNN serials
+  const serials = payments.map(p => p.invoice_number).filter(x => /^INV-\d{4}-\d+$/.test(x || ''))
+    .map(x => parseInt(x.split('-')[2], 10)).sort((a, b) => a - b);
+  let gapNote = 'No sequential INV-YYYY-NNNN serials found to verify';
+  if (serials.length) {
+    const gaps = [];
+    for (let i = 1; i < serials.length; i++) if (serials[i] > serials[i - 1] + 1) gaps.push(`${serials[i - 1]} -> ${serials[i]}`);
+    gapNote = gaps.length ? `GAPS DETECTED: ${gaps.join(', ')}` : `OK — continuous ${serials[0]}..${serials[serials.length - 1]}`;
+  }
+
+  const headers = ['Invoice No','Invoice Date (IST)','Buyer (Hotel)','Buyer Email','Buyer GSTIN','Place of Supply','Plan','SAC','Gross (INR)','Taxable (INR)','GST Rate','CGST (INR)','SGST (INR)','IGST (INR)','Total (INR)','Payment ID'];
+  return [
+    csvRow(['StayXPulse — GST Tax Register (Billing History)']),
+    csvRow(['Seller', GST_SELLER.name]),
+    csvRow(['GSTIN', `${GST_SELLER.gstin} (${GST_SELLER.stateName}, code ${GST_SELLER.stateCode})`]),
+    csvRow(['SAC', `${GST_SELLER.sac}   [CONFIRM WITH CA]`]),
+    csvRow(['Basis', `Issue date = paid date (IST) · prices GST-inclusive @ ${GST_RATE}% · intra -> CGST+SGST, inter -> IGST`]),
+    csvRow(['Invoices', String(payments.length)]),
+    csvRow(['Generated', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]),
+    '',
+    csvRow(headers),
+    ...rows,
+    '',
+    csvRow(['TOTALS', '', '', '', '', '', '', '', rs(tGross), rs(tTaxable), '', rs(tCgst), rs(tSgst), rs(tIgst), rs(tGross), '']),
+    '',
+    csvRow(['Serial gap-check', gapNote]),
+    csvRow(['Note', 'Export of services (buyer outside India) not handled here — treat as IGST @ 0% under LUT if applicable.']),
+  ].join('\r\n');
+};
+
 // ─── Payment History ──────────────────────────────────────────────────────────
 export const PaymentHistory = () => {
   const { data, loading } = useFetch('/superadmin/payments');
   const payments = data?.data || [];
+  const [exporting, setExporting] = useState(false);
+
+  const downloadRegister = async () => {
+    setExporting(true);
+    const t = toast.loading('Building GST register…');
+    try {
+      const r = await api.get('/superadmin/payments?limit=100000');  // all invoices, not just this page
+      const all = r.data.data || [];
+      if (!all.length) { toast.error('No payments to export', { id: t }); return; }
+      const csv = buildGstRegisterCsv(all);
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `StayXPulse_GST_Register_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(`Exported ${all.length} invoice${all.length > 1 ? 's' : ''}`, { id: t });
+    } catch { toast.error('Export failed', { id: t }); }
+    finally { setExporting(false); }
+  };
 
   const columns = [
     { label:'Hotel',      sort: r => r.hotel?.hotelName, render: r => <strong>{r.hotel?.hotelName}</strong> },
     { label:'Email',      sort: r => r.hotel?.email, render: r => r.hotel?.email },
     { label:'Amount',     sort: r => r.amount, render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.amount)}</strong> },
     { label:'Plan',       render: r => <Badge status="active" label={r.plan?.name}/> },
-    { label:'Valid From', render: r => fmtDate(r.validFrom) },
-    { label:'Valid To',   render: r => fmtDate(r.validTo) },
-    { label:'Invoice',    render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.invoiceNumber}</code> },
-    { label:'Payment ID', render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.paymentId}</code> },
-    { label:'Date',       render: r => fmtDate(r.paidAt) },
-    { label:'Invoice',    render: r => (
-      <button className="btn btn-sm btn-outline" onClick={() => toast.success('Invoice download — connect PDF service')}>⬇ PDF</button>
-    )},
+    { label:'Valid From', sort: r => new Date(r.valid_from).getTime(), render: r => fmtDate(r.valid_from) },
+    { label:'Valid To',   sort: r => new Date(r.valid_to).getTime(), render: r => fmtDate(r.valid_to) },
+    { label:'Invoice',    render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.invoice_number}</code> },
+    { label:'Payment ID', render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.payment_id}</code> },
+    { label:'Date',       sort: r => new Date(r.paid_at).getTime(), render: r => fmtDate(r.paid_at) },
   ];
 
   return (
     <div>
-      <PageHeader title="Payment History" subtitle="All transactions across the platform" />
+      <PageHeader title="Payment History" subtitle="All transactions across the platform"
+        action={<button className="btn btn-brand" onClick={downloadRegister} disabled={exporting || loading}>{exporting ? 'Exporting…' : '⬇ Download GST Register'}</button>}
+      />
       <div className="stats-grid" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
         <StatCard icon="💰" label="Total Revenue"     value={fmtCur(data?.totalRevenue)} color="green" />
         <StatCard icon="🧾" label="Total Invoices"    value={data?.total || 0}           color="blue" />
-        <StatCard icon="📅" label="This Month"        value={fmtCur(payments.filter(p=>new Date(p.paidAt).getMonth()===new Date().getMonth()).reduce((a,p)=>a+p.amount,0))} color="amber" />
+        <StatCard icon="📅" label="This Month"        value={fmtCur(payments.filter(p=>{const d=new Date(p.paid_at);const n=new Date();return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}).reduce((a,p)=>a+p.amount,0))} color="amber" />
       </div>
       <Card>{loading ? <TableSkeleton cols={columns.length} /> : <Table columns={columns} data={payments} emptyMessage="No payments yet" pageSize={10} />}</Card>
     </div>

@@ -196,7 +196,7 @@ router.get('/payments', SA, async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const { data: payments, error, count } = await supabase.from('payments')
-      .select('*, hotels(hotel_name, email), plans(name)', { count: 'exact' })
+      .select('*, hotels(hotel_name, email, gst_number, address), plans(name)', { count: 'exact' })
       .order('paid_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
     if (error) throw error;
@@ -206,7 +206,7 @@ router.get('/payments', SA, async (req, res) => {
 
     const mapped = (payments || []).map(p => ({
       ...p,
-      hotel: p.hotels ? { hotelName: p.hotels.hotel_name, email: p.hotels.email } : null,
+      hotel: p.hotels ? { hotelName: p.hotels.hotel_name, email: p.hotels.email, gstNumber: p.hotels.gst_number, address: p.hotels.address } : null,
       plan: p.plans ? { name: p.plans.name } : null,
     }));
 
