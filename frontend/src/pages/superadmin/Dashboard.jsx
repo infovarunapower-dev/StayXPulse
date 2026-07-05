@@ -35,7 +35,7 @@ const Dashboard = () => {
         <StatCard icon="💰" label="Total Revenue"  value={fmtCurrency(s.totalRevenue)} color="green" />
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+      <div className="grid-2">
         {/* Monthly Revenue chart */}
         <Card>
           <CardHeader title="Monthly Revenue" action={

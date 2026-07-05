@@ -118,6 +118,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;   /* allow content to shrink instead of forcing horizontal overflow */
 }
 
 .shell-header {
@@ -177,6 +178,9 @@
   flex: 1;
   padding: 28px 28px;
   overflow-y: auto;
+  overflow-x: hidden;   /* prevent sideways page scroll on phones */
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* ── Mobile ─────────────────────────────────────────────────────── */

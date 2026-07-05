@@ -43,7 +43,7 @@ const Analytics = () => {
         <StatCard icon="⚠️" label="Pending Requests"       value={s.pendingRequests || 0} color="red" />
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
+      <div className="grid-2" style={{marginBottom:20}}>
         <Card>
           <CardHeader title="Daily Orders (Last 7 Days)" />
           <BarChart data={ordersChart} height={160} color="var(--brand)" />
@@ -54,7 +54,7 @@ const Analytics = () => {
         </Card>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+      <div className="grid-2">
         <Card>
           <CardHeader title="Top 5 Food Items" />
           {top.length === 0

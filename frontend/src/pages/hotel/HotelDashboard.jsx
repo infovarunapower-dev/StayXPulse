@@ -83,7 +83,7 @@ const HotelDashboard = () => {
         <StatCard icon="🛎" label="Pending Requests"    value={s.pendingRequests || 0} color="red" change={s.pendingRequests > 0 ? 'action needed' : undefined} changeType="down" />
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+      <div className="grid-2">
         <Card>
           <CardHeader title="Recent Food Orders" action={<button className="btn btn-sm btn-outline" onClick={() => navigate('/hotel/food-orders')}>View All</button>} />
           <Table

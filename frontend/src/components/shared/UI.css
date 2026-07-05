@@ -20,6 +20,15 @@
 @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 500px) { .stats-grid { grid-template-columns: 1fr; } }
 
+/* Responsive two-column content grid — stacks on phones. Replaces fixed inline
+   `gridTemplateColumns:'1fr 1fr'` so admin pages fit small screens. */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-2 > * { min-width: 0; }   /* let wide tables shrink + scroll inside their card */
+@media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+/* Force stat grids to a single column on phones even when a page overrides the
+   column count inline (e.g. repeat(2,1fr)). */
+@media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr !important; } }
+
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
