@@ -59,9 +59,9 @@ const rs = paise => (paise / 100).toFixed(2);
 
 const buildGstRegisterCsv = (payments) => {
   const fmtIST = d => d ? new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  let tGross = 0, tTaxable = 0, tCgst = 0, tSgst = 0, tIgst = 0;
 
-  const rows = payments.map(p => {
+  // Per-invoice money + place-of-supply
+  const items = payments.map(p => {
     const gross   = Math.round(Number(p.amount || 0) * 100);   // paise, GST-inclusive
     const taxable = Math.round(gross * 100 / (100 + GST_RATE));
     const tax     = gross - taxable;
@@ -70,14 +70,62 @@ const buildGstRegisterCsv = (payments) => {
     let cgst = 0, sgst = 0, igst = 0;
     if (intra) { sgst = Math.floor(tax / 2); cgst = tax - sgst; }  // odd paise → CGST
     else       { igst = tax; }                                     // inter-state / unregistered → IGST
-    tGross += gross; tTaxable += taxable; tCgst += cgst; tSgst += sgst; tIgst += igst;
     const pos = bState ? `${bState} ${GST_STATES[bState] || 'Other'} (${intra ? 'Intra' : 'Inter'})` : 'Unregistered';
-    return csvRow([
-      p.invoice_number || '', fmtIST(p.paid_at), p.hotel?.hotelName || '', p.hotel?.email || '',
-      p.hotel?.gstNumber || '—', pos, p.plan?.name || '', GST_SELLER.sac,
-      rs(gross), rs(taxable), `${GST_RATE}%`, rs(cgst), rs(sgst), rs(igst), rs(gross), p.payment_id || '',
-    ]);
+    return { p, gross, taxable, cgst, sgst, igst, pos, hotel: p.hotel?.hotelName || '—' };
   });
+
+  // Order by hotel (then issue date) so each hotel's invoices are together
+  items.sort((a, b) => a.hotel.localeCompare(b.hotel) || (new Date(a.p.paid_at) - new Date(b.p.paid_at)));
+
+  // Aggregate per hotel + grand total
+  const perHotel = new Map();
+  const grand = { n: 0, gross: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, gstin: '' };
+  items.forEach(it => {
+    if (!perHotel.has(it.hotel)) perHotel.set(it.hotel, { gstin: it.p.hotel?.gstNumber || '—', n: 0, gross: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0 });
+    const h = perHotel.get(it.hotel);
+    ['gross', 'taxable', 'cgst', 'sgst', 'igst'].forEach(k => { h[k] += it[k]; grand[k] += it[k]; });
+    h.n++; grand.n++;
+  });
+
+  const H = ['Invoice No','Invoice Date (IST)','Buyer (Hotel)','Buyer Email','Buyer GSTIN','Place of Supply','Plan','SAC','Gross (INR)','Taxable (INR)','GST Rate','CGST (INR)','SGST (INR)','IGST (INR)','Total (INR)','Payment ID'];
+  // Summary/subtotal row aligned to the detail money columns (Gross=8, Taxable=9, CGST=11, SGST=12, IGST=13, Total=14)
+  const aggRow = (label, o) => ['', '', label, '', o.gstin || '', o.n != null ? `${o.n} invoice${o.n > 1 ? 's' : ''}` : '', '', '', rs(o.gross), rs(o.taxable), '', rs(o.cgst), rs(o.sgst), rs(o.igst), rs(o.gross), ''];
+
+  const lines = [];
+  lines.push(csvRow(['StayXPulse — GST Tax Register (Billing History)']));
+  lines.push(csvRow(['Seller', GST_SELLER.name]));
+  lines.push(csvRow(['GSTIN', `${GST_SELLER.gstin} (${GST_SELLER.stateName}, code ${GST_SELLER.stateCode})`]));
+  lines.push(csvRow(['SAC', `${GST_SELLER.sac}   [CONFIRM WITH CA]`]));
+  lines.push(csvRow(['Basis', `Issue date = paid date (IST) · GST-inclusive @ ${GST_RATE}% · intra -> CGST+SGST, inter -> IGST`]));
+  lines.push(csvRow(['Hotels', String(perHotel.size)]));
+  lines.push(csvRow(['Invoices', String(items.length)]));
+  lines.push(csvRow(['Generated', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]));
+  lines.push('');
+
+  // ── Per-hotel summary ──
+  lines.push(csvRow(['=== PER-HOTEL SUMMARY ===']));
+  lines.push(csvRow(H));
+  [...perHotel.entries()].forEach(([name, h]) => lines.push(csvRow(aggRow(name, h))));
+  lines.push(csvRow(aggRow('GRAND TOTAL', grand)));
+  lines.push('');
+
+  // ── Invoice detail, grouped by hotel with subtotals ──
+  lines.push(csvRow(['=== INVOICE DETAIL (grouped by hotel) ===']));
+  lines.push(csvRow(H));
+  let cur = null, sub = null;
+  const flush = () => { if (sub) { lines.push(csvRow(aggRow(`Subtotal — ${cur}`, sub))); lines.push(''); } };
+  items.forEach(it => {
+    if (it.hotel !== cur) { flush(); cur = it.hotel; sub = { gstin: it.p.hotel?.gstNumber || '', n: 0, gross: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0 }; }
+    lines.push(csvRow([
+      it.p.invoice_number || '', fmtIST(it.p.paid_at), it.hotel, it.p.hotel?.email || '',
+      it.p.hotel?.gstNumber || '—', it.pos, it.p.plan?.name || '', GST_SELLER.sac,
+      rs(it.gross), rs(it.taxable), `${GST_RATE}%`, rs(it.cgst), rs(it.sgst), rs(it.igst), rs(it.gross), it.p.payment_id || '',
+    ]));
+    ['gross', 'taxable', 'cgst', 'sgst', 'igst'].forEach(k => sub[k] += it[k]); sub.n++;
+  });
+  flush();
+  lines.push(csvRow(aggRow('GRAND TOTAL', grand)));
+  lines.push('');
 
   // Serial gap-check (blueprint §9) — only on well-formed INV-YYYY-NNNN serials
   const serials = payments.map(p => p.invoice_number).filter(x => /^INV-\d{4}-\d+$/.test(x || ''))
@@ -88,25 +136,10 @@ const buildGstRegisterCsv = (payments) => {
     for (let i = 1; i < serials.length; i++) if (serials[i] > serials[i - 1] + 1) gaps.push(`${serials[i - 1]} -> ${serials[i]}`);
     gapNote = gaps.length ? `GAPS DETECTED: ${gaps.join(', ')}` : `OK — continuous ${serials[0]}..${serials[serials.length - 1]}`;
   }
+  lines.push(csvRow(['Serial gap-check', gapNote]));
+  lines.push(csvRow(['Note', 'Export of services (buyer outside India) not handled — treat as IGST @ 0% under LUT if applicable.']));
 
-  const headers = ['Invoice No','Invoice Date (IST)','Buyer (Hotel)','Buyer Email','Buyer GSTIN','Place of Supply','Plan','SAC','Gross (INR)','Taxable (INR)','GST Rate','CGST (INR)','SGST (INR)','IGST (INR)','Total (INR)','Payment ID'];
-  return [
-    csvRow(['StayXPulse — GST Tax Register (Billing History)']),
-    csvRow(['Seller', GST_SELLER.name]),
-    csvRow(['GSTIN', `${GST_SELLER.gstin} (${GST_SELLER.stateName}, code ${GST_SELLER.stateCode})`]),
-    csvRow(['SAC', `${GST_SELLER.sac}   [CONFIRM WITH CA]`]),
-    csvRow(['Basis', `Issue date = paid date (IST) · prices GST-inclusive @ ${GST_RATE}% · intra -> CGST+SGST, inter -> IGST`]),
-    csvRow(['Invoices', String(payments.length)]),
-    csvRow(['Generated', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]),
-    '',
-    csvRow(headers),
-    ...rows,
-    '',
-    csvRow(['TOTALS', '', '', '', '', '', '', '', rs(tGross), rs(tTaxable), '', rs(tCgst), rs(tSgst), rs(tIgst), rs(tGross), '']),
-    '',
-    csvRow(['Serial gap-check', gapNote]),
-    csvRow(['Note', 'Export of services (buyer outside India) not handled here — treat as IGST @ 0% under LUT if applicable.']),
-  ].join('\r\n');
+  return lines.join('\r\n');
 };
 
 // ─── Payment History ──────────────────────────────────────────────────────────
