@@ -21,6 +21,7 @@ import FoodManagement  from './pages/hotel/FoodManagement';
 import { ServiceRequests, FoodOrders } from './pages/hotel/OrdersAndRequests';
 import Analytics       from './pages/hotel/Analytics';
 import UpgradePlan     from './pages/hotel/UpgradePlan';
+import Subscription    from './pages/hotel/Subscription';
 import GuestLanding    from './pages/guest/GuestLanding';
 
 const SA = ({ children }) => (
@@ -65,6 +66,7 @@ const App = () => (
         <Route path="/hotel/food-orders"       element={<HA><FoodOrders /></HA>} />
         <Route path="/hotel/analytics"         element={<HA><Analytics /></HA>} />
         <Route path="/hotel/upgrade"           element={<HA><UpgradePlan /></HA>} />
+        <Route path="/hotel/subscription"      element={<HA><Subscription /></HA>} />
 
         <Route path="/"   element={<Navigate to="/login" replace />} />
         <Route path="*"   element={<Navigate to="/login" replace />} />

@@ -34,6 +34,9 @@ const HotelAdminMenu = [
   { section: 'Insights', items: [
     { to: '/hotel/analytics',        icon: '📈', label: 'Analytics'         },
   ]},
+  { section: 'Account', items: [
+    { to: '/hotel/subscription',     icon: '🧾', label: 'Subscription'      },
+  ]},
 ];
 
 const AppShell = ({ children }) => {

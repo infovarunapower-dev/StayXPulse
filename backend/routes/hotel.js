@@ -307,6 +307,29 @@ router.get('/analytics', MW, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// SUBSCRIPTION HISTORY (trial + paid plans + invoices)
+// ════════════════════════════════════════════════════════════════════
+router.get('/subscription', MW, async (req, res) => {
+  try {
+    const { data: hotel, error: hErr } = await supabase
+      .from('hotels')
+      .select('subscription_status, trial_start_date, trial_end_date, plan_valid_from, plan_valid_to, current_plan_id, plans(name, price)')
+      .eq('id', req.hotelId)
+      .single();
+    if (hErr) throw hErr;
+
+    const { data: payments, error: pErr } = await supabase
+      .from('payments')
+      .select('id, amount, payment_id, invoice_number, valid_from, valid_to, paid_at, plans(name)')
+      .eq('hotel_id', req.hotelId)
+      .order('valid_from', { ascending: false });
+    if (pErr) throw pErr;
+
+    res.json({ success: true, data: { hotel, payments: payments || [] } });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════════════
 // GUEST LANDING PAGE (public)
 // ════════════════════════════════════════════════════════════════════
 router.get('/guest/:qrToken', async (req, res) => {
