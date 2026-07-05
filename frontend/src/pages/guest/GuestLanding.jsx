@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE } from '../../config';
 import './GuestLanding.css';
 
-const BASE = '/api';
+const BASE = API_BASE;
 
 const SERVICE_OPTIONS = [
   { icon:'🛁', label:'Extra Towels / Toiletries' },
