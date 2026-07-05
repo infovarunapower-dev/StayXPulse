@@ -45,7 +45,7 @@ const MyPayments = () => {
   const [loading, setLoading]   = useState(true);
   const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
   useEffect(() => {
-    api.get('/payment/my-payments').then(r => setPayments(r.data.data)).catch(()=>{}).finally(()=>setLoading(false));
+    api.get('/payments/my-payments').then(r => setPayments(r.data.data)).catch(()=>{}).finally(()=>setLoading(false));
   }, []);
   if (loading || payments.length === 0) return null;
   return (
@@ -68,7 +68,7 @@ const MyPayments = () => {
               <td style={{ padding:'12px 14px' }}>
                 <button className="btn btn-sm btn-outline" onClick={async()=>{
                   try {
-                    const res = await api.get(`/payment/invoice/${p.payment_id}`,{responseType:'blob'});
+                    const res = await api.get(`/payments/invoice/${p.payment_id}`,{responseType:'blob'});
                     const url = URL.createObjectURL(new Blob([res.data],{type:'application/pdf'}));
                     const a   = document.createElement('a'); a.href=url; a.download=`Invoice_${p.invoice_number}.pdf`; a.click(); URL.revokeObjectURL(url);
                   } catch { toast.error('Download failed'); }
@@ -93,7 +93,7 @@ const UpgradePlan = () => {
   const [success,  setSuccess] = useState(null);
 
   useEffect(() => {
-    api.get('/payment/plans').then(r=>setPlans(r.data.data)).catch(()=>toast.error('Failed to load plans')).finally(()=>setLoading(false));
+    api.get('/payments/plans').then(r=>setPlans(r.data.data)).catch(()=>toast.error('Failed to load plans')).finally(()=>setLoading(false));
   }, []);
 
   const hotel = user?.hotel;
@@ -101,14 +101,14 @@ const UpgradePlan = () => {
   const handlePay = async (plan) => {
     setPaying(plan.id);
     try {
-      const { data } = await api.post('/payment/create-order', { planId: plan.id, cycle });
+      const { data } = await api.post('/payments/create-order', { planId: plan.id, cycle });
       await openRazorpay({
         orderId: data.data.orderId, amount: data.data.amount, keyId: data.data.keyId,
         description: `${data.data.planName} — ${cycle}`,
         email: data.data.email, phone: data.data.phone,
         onSuccess: async (response) => {
           try {
-            const verify = await api.post('/payment/verify', {
+            const verify = await api.post('/payments/verify', {
               razorpay_order_id:   response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature:  response.razorpay_signature,
