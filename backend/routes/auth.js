@@ -51,7 +51,8 @@ router.post('/login', async (req, res) => {
 // POST /api/auth/register
 router.post('/register', upload.single('logo'), async (req, res) => {
   try {
-    const { hotelName, phone, email, address, gstNumber } = req.body;
+    const { hotelName, phone, email, address, gstNumber, intent } = req.body;
+    const isBuy = intent === 'buy';   // direct-purchase: no free trial
     if (!hotelName?.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
     if (!phone?.trim()) return res.status(400).json({ success: false, message: 'Phone number is required.' });
     if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email address is required.' });
@@ -69,12 +70,13 @@ router.post('/register', upload.single('logo'), async (req, res) => {
     const password = generatePassword();
     const hashedPassword = await bcrypt.hash(password, 12);
     const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + 3);   // 3-day free trial
+    if (!isBuy) trialEndDate.setDate(trialEndDate.getDate() + 3);   // 3-day trial (skipped for direct-buy)
 
     const { data: hotel, error: hotelError } = await supabase.from('hotels').insert({
       hotel_name: hotelName.trim(), phone: phone.trim(), email: cleanEmail,
       address: address.trim(), gst_number: gstNumber.trim().toUpperCase(),
-      user_id: userId, is_active: true, subscription_status: 'trial',
+      user_id: userId, is_active: true,
+      subscription_status: isBuy ? 'expired' : 'trial',   // direct-buy has no trial → must subscribe to activate
       trial_end_date: trialEndDate.toISOString(),
     }).select().single();
     if (hotelError) throw hotelError;
@@ -91,7 +93,7 @@ router.post('/register', upload.single('logo'), async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Hotel registered successfully! Check your email for login credentials.',
-      data: { hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate },
+      data: { hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate, intent: isBuy ? 'buy' : 'trial' },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Server error.' });

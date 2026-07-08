@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import AuthLayout from '../../components/auth/AuthLayout';
 import Input from '../../components/common/Input';
@@ -10,6 +10,8 @@ const STEPS = ['Hotel Details', 'Contact & Location', 'Review & Submit'];
 const RegisterPage = () => {
   const navigate  = useNavigate();
   const logoRef   = useRef(null);
+  const [searchParams] = useSearchParams();
+  const intent = searchParams.get('intent') === 'buy' ? 'buy' : 'trial';   // ?intent=buy → no trial, choose a plan
 
   const [step, setStep]       = useState(0);
   const [submitting, setSub]  = useState(false);
@@ -67,6 +69,7 @@ const RegisterPage = () => {
       fd.append('email',     form.email);
       fd.append('address',   form.address);
       fd.append('gstNumber', form.gstNumber.toUpperCase());
+      fd.append('intent', intent);
       if (form.logo) fd.append('logo', form.logo);
 
       const { data } = await api.post('/auth/register', fd, {
@@ -88,10 +91,10 @@ const RegisterPage = () => {
       <AuthLayout>
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <div style={{ fontSize: '56px', marginBottom: '16px' }}>🎉</div>
-          <div className="auth-card-title" style={{ fontSize: '22px' }}>You're all set!</div>
+          <div className="auth-card-title" style={{ fontSize: '22px' }}>{intent === 'buy' ? "You're registered!" : "You're all set!"}</div>
           <div className="auth-card-sub" style={{ marginBottom: '28px' }}>
-            <strong>{success.data.hotelName}</strong> has been registered.
-            Check your email for login credentials.
+            <strong>{success.data.hotelName}</strong> has been registered.{' '}
+            {intent === 'buy' ? 'Log in and choose a plan to activate your account.' : 'Check your email for login credentials.'}
           </div>
           <div style={{ background: 'var(--brand-light)', borderRadius: '12px', padding: '20px', textAlign: 'left', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px' }}>
@@ -99,12 +102,13 @@ const RegisterPage = () => {
               <code style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--brand)' }}>{success.data.userId}</code>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-              <span style={{ color: 'var(--gray-500)', fontWeight: 600 }}>Trial Ends</span>
-              <span style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{new Date(success.data.trialEndDate).toDateString()}</span>
+              <span style={{ color: 'var(--gray-500)', fontWeight: 600 }}>{intent === 'buy' ? 'Next step' : 'Trial Ends'}</span>
+              <span style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{intent === 'buy' ? 'Choose a plan' : new Date(success.data.trialEndDate).toDateString()}</span>
             </div>
           </div>
+          {intent === 'buy' && <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 16 }}>Your login credentials have been emailed to you.</div>}
           <button className="btn btn-primary" onClick={() => navigate('/login')}>
-            Go to Login →
+            {intent === 'buy' ? 'Log in & Choose Plan →' : 'Go to Login →'}
           </button>
         </div>
       </AuthLayout>
@@ -141,7 +145,7 @@ const RegisterPage = () => {
   return (
     <AuthLayout>
       <div className="auth-card-title">Register Your Hotel</div>
-      <div className="auth-card-sub">Get started with a 3-day free trial — no credit card needed</div>
+      <div className="auth-card-sub">{intent === 'buy' ? 'Register your hotel, then choose a plan to activate' : 'Get started with a 3-day free trial — no credit card needed'}</div>
 
       <StepBar />
 
