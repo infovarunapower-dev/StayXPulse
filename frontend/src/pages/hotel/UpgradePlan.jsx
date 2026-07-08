@@ -91,10 +91,26 @@ const UpgradePlan = () => {
   const [cycle,    setCycle]   = useState('monthly');
   const [paying,   setPaying]  = useState(null);
   const [success,  setSuccess] = useState(null);
+  const [testMode, setTestMode]= useState(false);
 
   useEffect(() => {
-    api.get('/payments/plans').then(r=>setPlans(r.data.data)).catch(()=>toast.error('Failed to load plans')).finally(()=>setLoading(false));
+    api.get('/payments/plans')
+      .then(r => { setPlans(r.data.data); setTestMode(!!r.data.testMode); })
+      .catch(() => toast.error('Failed to load plans'))
+      .finally(() => setLoading(false));
   }, []);
+
+  // Simulate a payment (test mode) — activates the subscription with no real charge
+  const handleTestPay = async (plan) => {
+    setPaying(plan.id);
+    try {
+      const { data } = await api.post('/payments/test-pay', { planId: plan.id, cycle });
+      setSuccess(data.data);
+      toast.success('🧪 Test payment successful — subscription activated!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Test payment failed.');
+    } finally { setPaying(null); }
+  };
 
   const hotel = user?.hotel;
 
@@ -165,6 +181,12 @@ const UpgradePlan = () => {
         ))}
       </div>
 
+      {testMode && (
+        <div style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)', borderRadius: 10, padding: '12px 16px', margin: '0 0 20px', fontSize: 13.5, color: 'var(--accent-strong)', fontWeight: 600, textAlign: 'center' }}>
+          🧪 <strong>TEST MODE</strong> — payments are simulated (no real charge). Subscriptions still activate so you can verify the full flow. Add live Razorpay keys to switch to real payments.
+        </div>
+      )}
+
       <div className="plans-grid">
         {plans.map(plan => {
           const pricing = plan.pricing[cycle];
@@ -183,10 +205,10 @@ const UpgradePlan = () => {
               <ul className="plan-features">
                 {plan.features?.map((f,i) => <li key={i}><span className="feat-check">✓</span> {f}</li>)}
               </ul>
-              <button className={`plan-btn ${plan.is_popular?'plan-btn-popular':''}`} onClick={()=>handlePay(plan)} disabled={!!paying}>
-                {isBusy ? <><span className="spinner-sm"/> Processing…</> : `Get ${plan.name} →`}
+              <button className={`plan-btn ${plan.is_popular?'plan-btn-popular':''}`} onClick={()=> testMode ? handleTestPay(plan) : handlePay(plan)} disabled={!!paying}>
+                {isBusy ? <><span className="spinner-sm"/> Processing…</> : (testMode ? `🧪 Simulate ${plan.name}` : `Get ${plan.name} →`)}
               </button>
-              <div className="plan-note">Secured by Razorpay · Instant activation</div>
+              <div className="plan-note">{testMode ? 'Test mode · simulated payment (no charge)' : 'Secured by Razorpay · Instant activation'}</div>
             </div>
           );
         })}

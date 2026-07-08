@@ -10,10 +10,14 @@ const { sendPaymentSuccessEmail } = require('../utils/email');
 
 const HA = [protect, authorize('hoteladmin')];
 
-const razorpay = new Razorpay({
-  key_id:     process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+const razorpay = process.env.RAZORPAY_KEY_ID
+  ? new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET })
+  : null;
+
+// TEST payment mode — verify the activation flow without a real charge.
+// ON when explicitly enabled OR when Razorpay keys aren't configured.
+// To go LIVE: set real RAZORPAY_KEY_ID/SECRET and PAYMENT_TEST_MODE=false, then redeploy.
+const PAYMENT_TEST_MODE = process.env.PAYMENT_TEST_MODE === 'true' || !process.env.RAZORPAY_KEY_ID;
 
 const CYCLE_DAYS     = { monthly: 30, quarterly: 90, yearly: 365 };
 const CYCLE_DISCOUNT = { monthly: 0,  quarterly: 10, yearly: 20  };
@@ -33,7 +37,71 @@ router.get('/plans', async (req, res) => {
       },
     }));
 
-    res.json({ success: true, data: withPricing });
+    res.json({ success: true, data: withPricing, testMode: PAYMENT_TEST_MODE });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── TEST payment: simulate a successful payment (no real charge) ──────────────
+// Mirrors the live verify() activation so you can confirm the whole flow:
+// payment record → subscription active → invoice → history → access restored.
+router.post('/test-pay', HA, async (req, res) => {
+  if (!PAYMENT_TEST_MODE) {
+    return res.status(403).json({ success: false, message: 'Test payments are disabled — live payment is active.' });
+  }
+  try {
+    const { planId, cycle } = req.body;
+    if (!planId || !cycle || !CYCLE_DAYS[cycle]) {
+      return res.status(400).json({ success: false, message: 'planId and cycle (monthly/quarterly/yearly) are required.' });
+    }
+    const hotelId = req.user.hotel?.id || req.user.hotel;
+    const { data: hotel, error: hErr } = await supabase.from('hotels').select('*').eq('id', hotelId).single();
+    if (hErr || !hotel) return res.status(404).json({ success: false, message: 'Hotel not found.' });
+    const { data: plan, error: pErr } = await supabase.from('plans').select('*').eq('id', planId).eq('is_active', true).single();
+    if (pErr || !plan) return res.status(404).json({ success: false, message: 'Plan not found.' });
+
+    const AMOUNTS = { monthly: plan.price, quarterly: Math.round(plan.price * 3 * 0.90), yearly: Math.round(plan.price * 12 * 0.80) };
+    const amount = AMOUNTS[cycle];
+    const validFrom = new Date();
+    const validTo = new Date(); validTo.setDate(validTo.getDate() + CYCLE_DAYS[cycle]);
+    const invoiceNumber = `INV-${Date.now()}`;
+    const paymentId = `TEST-${Date.now()}`;
+
+    const { error: payErr } = await supabase.from('payments').insert({
+      hotel_id: hotel.id, plan_id: planId, amount, payment_id: paymentId,
+      valid_from: validFrom.toISOString(), valid_to: validTo.toISOString(),
+      invoice_number: invoiceNumber, notes: 'TEST PAYMENT (simulated — no real charge)',
+    });
+    if (payErr) throw payErr;
+
+    await supabase.from('hotels').update({
+      subscription_status: 'active', current_plan_id: planId,
+      plan_valid_from: validFrom.toISOString(), plan_valid_to: validTo.toISOString(),
+      is_active: true,
+    }).eq('id', hotel.id);
+
+    // Best-effort invoice email — never blocks activation
+    try {
+      let pdfBuffer = null;
+      try {
+        pdfBuffer = await generateInvoicePDF({
+          invoice: invoiceNumber,
+          hotel: { hotelName: hotel.hotel_name, email: hotel.email, address: hotel.address, gstNumber: hotel.gst_number },
+          plan, cycle, amount, validFrom, validTo, paymentId,
+        });
+      } catch (e) { console.error('Test invoice PDF error:', e.message); }
+      await sendPaymentSuccessEmail({
+        hotelName: hotel.hotel_name, email: hotel.email, plan: plan.name, cycle,
+        amount, invoiceNumber, validFrom, validTo, paymentId, pdfBuffer,
+      });
+    } catch (e) { console.error('Test payment email error:', e.message); }
+
+    res.json({
+      success: true,
+      message: 'Test payment recorded — subscription activated.',
+      data: { invoiceNumber, planName: plan.name, cycle, amount, validFrom, validTo, test: true },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -41,6 +109,7 @@ router.get('/plans', async (req, res) => {
 
 // ── CREATE Razorpay order ─────────────────────────────────────────────────────
 router.post('/create-order', HA, async (req, res) => {
+  if (!razorpay) return res.status(503).json({ success: false, message: 'Live payment is not configured. Test mode is active.' });
   try {
     const { planId, cycle } = req.body;
 
