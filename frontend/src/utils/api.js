@@ -14,10 +14,17 @@ api.interceptors.request.use((config) => {
 });
 
 // Do NOT redirect on 401 here — let AuthContext and ProtectedRoute handle it
-// Redirecting from the interceptor causes a hard reload that wipes React state
+// Redirecting from the interceptor causes a hard reload that wipes React state.
+// On 402 (trial/subscription ended) emit an event; AccessGuard (in App) routes
+// the user to the upgrade page via react-router (no hard reload).
 api.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject(error)
+  (error) => {
+    if (error.response?.status === 402 && error.response?.data?.code === 'SUBSCRIPTION_REQUIRED') {
+      window.dispatchEvent(new Event('sxp:subscription-required'));
+    }
+    return Promise.reject(error);
+  }
 );
 
 export default api;

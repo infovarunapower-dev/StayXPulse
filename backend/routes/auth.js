@@ -68,7 +68,7 @@ router.post('/register', upload.single('logo'), async (req, res) => {
     const password = generatePassword();
     const hashedPassword = await bcrypt.hash(password, 12);
     const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + 14);
+    trialEndDate.setDate(trialEndDate.getDate() + 3);   // 3-day free trial
 
     const { data: hotel, error: hotelError } = await supabase.from('hotels').insert({
       hotel_name: hotelName.trim(), phone: phone.trim(), email: cleanEmail,

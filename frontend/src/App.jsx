@@ -1,6 +1,7 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
@@ -35,6 +36,23 @@ const HA = ({ children }) => (
   </ProtectedRoute>
 );
 
+// Routes the hotel admin to the upgrade page when the backend reports the
+// trial/subscription has ended (402 SUBSCRIPTION_REQUIRED via api.js).
+const AccessGuard = () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const handler = () => {
+      if (window.location.pathname !== '/hotel/upgrade') {
+        toast('🔒 Your trial has ended — please choose a plan to continue', { id: 'sub-required', icon: '🔒' });
+        navigate('/hotel/upgrade');
+      }
+    };
+    window.addEventListener('sxp:subscription-required', handler);
+    return () => window.removeEventListener('sxp:subscription-required', handler);
+  }, [navigate]);
+  return null;
+};
+
 // AuthProvider wraps BrowserRouter so auth state survives route changes
 const App = () => (
   <AuthProvider>
@@ -43,6 +61,7 @@ const App = () => (
         position="top-right"
         toastOptions={{ style: { fontFamily: 'var(--font)', fontSize: '14px', fontWeight: 500 } }}
       />
+      <AccessGuard />
       <Routes>
         <Route path="/login"                  element={<LoginPage />} />
         <Route path="/register"               element={<RegisterPage />} />

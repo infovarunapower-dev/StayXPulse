@@ -131,18 +131,26 @@ const UpgradePlan = () => {
       {hotel?.subscriptionStatus === 'active' && (
         <div className="current-banner">
           <span>✅</span>
-          <div>Active subscription · Valid until <strong>{new Date(hotel.plan_valid_to).toDateString()}</strong> · Renewing extends from your current expiry.</div>
+          <div>Active subscription · Valid until <strong>{new Date(hotel.planValidTo).toDateString()}</strong> · Renewing extends from your current expiry.</div>
         </div>
       )}
       {hotel?.subscriptionStatus === 'expired' && (
         <div className="current-banner expired"><span>🔒</span><div>Your subscription has <strong>expired</strong>. Choose a plan to reactivate.</div></div>
       )}
-      {hotel?.subscriptionStatus === 'trial' && (
-        <div className="current-banner trial">
-          <span>⏰</span>
-          <div>Free trial · <strong>{Math.max(0,Math.ceil((new Date(hotel.trial_end_date)-Date.now())/86400000))} days left</strong>. Upgrade to keep all your data.</div>
-        </div>
-      )}
+      {hotel?.subscriptionStatus === 'trial' && (() => {
+        const daysLeft = Math.ceil((new Date(hotel.trialEndDate) - Date.now()) / 86400000);
+        return daysLeft > 0 ? (
+          <div className="current-banner trial">
+            <span>⏰</span>
+            <div>Free trial · <strong>{daysLeft} day{daysLeft > 1 ? 's' : ''} left</strong>. Upgrade to keep all your data.</div>
+          </div>
+        ) : (
+          <div className="current-banner expired">
+            <span>🔒</span>
+            <div>Your <strong>free trial has ended</strong>. Choose a plan below to continue using StayXPulse.</div>
+          </div>
+        );
+      })()}
 
       <div className="upgrade-header">
         <h1>Choose Your Plan</h1>

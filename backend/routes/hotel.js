@@ -20,7 +20,26 @@ const withHotel = (req, res, next) => {
   req.hotelId = req.user.hotel.id || req.user.hotel;
   next();
 };
-const MW = [...HA, withHotel];
+
+// Trial/subscription access gate. Login still works; once the trial or paid plan
+// has lapsed the product is blocked with 402 and the app routes the user to the
+// upgrade page. Explicit positive rule (blueprint §2): access iff
+//   (active  AND plan_valid_to  > now)  OR  (trial AND trial_end_date > now).
+const requireActiveHotel = (req, res, next) => {
+  const h = req.user.hotel;
+  const now = Date.now();
+  const active   = h?.subscription_status === 'active' && h?.plan_valid_to  && new Date(h.plan_valid_to).getTime()  > now;
+  const trialing = h?.subscription_status === 'trial'  && h?.trial_end_date && new Date(h.trial_end_date).getTime() > now;
+  if (active || trialing) return next();
+  return res.status(402).json({
+    success: false,
+    code: 'SUBSCRIPTION_REQUIRED',
+    message: 'Your free trial has ended. Please choose a plan to continue using StayXPulse.',
+  });
+};
+
+const MW      = [...HA, withHotel, requireActiveHotel]; // product endpoints — gated
+const MW_OPEN = [...HA, withHotel];                     // billing/status — always reachable
 
 // Guest order history resets daily at 12:00 noon IST (typical checkout) so a new
 // guest doesn't see the previous guest's requests. Returns the ISO timestamp of
@@ -322,7 +341,7 @@ router.get('/analytics', MW, async (req, res) => {
 // ════════════════════════════════════════════════════════════════════
 // SUBSCRIPTION HISTORY (trial + paid plans + invoices)
 // ════════════════════════════════════════════════════════════════════
-router.get('/subscription', MW, async (req, res) => {
+router.get('/subscription', MW_OPEN, async (req, res) => {
   try {
     const { data: hotel, error: hErr } = await supabase
       .from('hotels')
