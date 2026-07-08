@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const multer = require('multer');
 const upload = multer();
 const supabase = require('../utils/supabase');
@@ -98,13 +99,65 @@ router.post('/register', upload.single('logo'), async (req, res) => {
 });
 
 // POST /api/auth/forgot-password
+// Emails a single-use, 1-hour reset LINK (not a password). Always returns a
+// generic success so the endpoint can't be used to discover which emails exist.
 router.post('/forgot-password', async (req, res) => {
-  res.json({ success: true, message: 'If that email exists, a reset link has been sent.' });
+  const generic = { success: true, message: 'If that email is registered, a password reset link has been sent.' };
+  try {
+    const email = (req.body.email || '').toLowerCase().trim();
+    if (!email) return res.json(generic);
+
+    const { data: users } = await supabase.from('users').select('id, name, email').eq('email', email);
+    const user = users && users[0];
+    if (user) {
+      const rawToken  = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex'); // hashed at rest
+      const expire    = new Date(Date.now() + 60 * 60 * 1000).toISOString();         // 1 hour
+
+      await supabase.from('users')
+        .update({ reset_password_token: tokenHash, reset_password_expire: expire })
+        .eq('id', user.id);
+
+      const CLIENT_URL = require('../utils/clientUrl');
+      const { sendForgotPasswordEmail } = require('../utils/email');
+      const resetUrl = `${CLIENT_URL}/reset-password/${rawToken}`;
+      try { await sendForgotPasswordEmail({ email: user.email, name: user.name, resetUrl }); }
+      catch (e) { console.error('Reset email error:', e.message); }
+    }
+    return res.json(generic);
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // POST /api/auth/reset-password/:token
+// Verifies the token and sets the user's OWN new password.
 router.post('/reset-password/:token', async (req, res) => {
-  res.json({ success: true, message: 'Password reset successful.' });
+  try {
+    const { password } = req.body;
+    if (!password || String(password).length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
+    const { data: users } = await supabase.from('users')
+      .select('id, reset_password_expire')
+      .eq('reset_password_token', tokenHash);
+    const user = users && users[0];
+
+    if (!user || !user.reset_password_expire || new Date(user.reset_password_expire).getTime() < Date.now()) {
+      return res.status(400).json({ success: false, message: 'This reset link is invalid or has expired. Please request a new one.' });
+    }
+
+    const hashed = await bcrypt.hash(password, 12);
+    await supabase.from('users')
+      .update({ password_hash: hashed, reset_password_token: null, reset_password_expire: null })  // single-use
+      .eq('id', user.id);
+
+    return res.json({ success: true, message: 'Password reset successful. You can now log in with your new password.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // GET /api/auth/me
