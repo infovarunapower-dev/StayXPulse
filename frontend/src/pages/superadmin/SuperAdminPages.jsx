@@ -168,6 +168,19 @@ export const PaymentHistory = () => {
     finally { setExporting(false); }
   };
 
+  const downloadOrderRecord = async (r) => {
+    const t = toast.loading('Generating order record…');
+    try {
+      const res = await api.get(`/superadmin/payments/${r.id}/order-record`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = `OrderRecord_${r.invoice_number || r.id}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Order record downloaded', { id: t });
+    } catch { toast.error('Could not generate record', { id: t }); }
+  };
+
   const columns = [
     { label:'Hotel',      sort: r => r.hotel?.hotelName, render: r => <strong>{r.hotel?.hotelName}</strong> },
     { label:'Email',      sort: r => r.hotel?.email, render: r => r.hotel?.email },
@@ -178,6 +191,7 @@ export const PaymentHistory = () => {
     { label:'Invoice',    render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.invoice_number}</code> },
     { label:'Payment ID', render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.payment_id}</code> },
     { label:'Date',       sort: r => new Date(r.paid_at).getTime(), render: r => fmtDate(r.paid_at) },
+    { label:'Record',     render: r => <button className="btn btn-sm btn-outline" onClick={()=>downloadOrderRecord(r)} style={{whiteSpace:'nowrap'}}>📄 Record</button> },
   ];
 
   return (

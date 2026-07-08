@@ -5,6 +5,7 @@ const { body, validationResult } = require('express-validator');
 const { protect, authorize }     = require('../middleware/auth');
 const supabase = require('../utils/supabase');
 const { sendTrialReminderEmail, sendExpiryReminderEmail, sendPasswordResetByAdminEmail } = require('../utils/email');
+const { generateOrderRecordPDF } = require('../utils/invoice');
 
 const SA = [protect, authorize('superadmin')];
 
@@ -214,6 +215,29 @@ router.get('/payments', SA, async (req, res) => {
       success: true, data: mapped, total: count, totalRevenue,
       page: Number(page), pages: Math.ceil(count / limit),
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── ORDER RECORD (per-payment forensic PDF) ──────────────────────────────────
+router.get('/payments/:id/order-record', SA, async (req, res) => {
+  try {
+    const { data: payment, error } = await supabase
+      .from('payments')
+      .select('*, hotels(*), plans(*)')
+      .eq('id', req.params.id)
+      .single();
+    if (error || !payment) return res.status(404).json({ success: false, message: 'Payment not found.' });
+
+    const pdf = await generateOrderRecordPDF({ payment, hotel: payment.hotels || {}, plan: payment.plans || {} });
+    const fname = `OrderRecord_${String(payment.invoice_number || payment.id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${fname}"`,
+      'Content-Length': pdf.length,
+    });
+    res.end(pdf);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
