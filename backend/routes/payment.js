@@ -15,9 +15,9 @@ const razorpay = process.env.RAZORPAY_KEY_ID
   : null;
 
 // TEST payment mode — verify the activation flow without a real charge.
-// ON when explicitly enabled OR when Razorpay keys aren't configured.
-// To go LIVE: set real RAZORPAY_KEY_ID/SECRET and PAYMENT_TEST_MODE=false, then redeploy.
-const PAYMENT_TEST_MODE = process.env.PAYMENT_TEST_MODE === 'true' || !process.env.RAZORPAY_KEY_ID;
+// Defaults ON so payments can be simulated during setup. To GO LIVE: set real
+// RAZORPAY_KEY_ID/SECRET and PAYMENT_TEST_MODE=false in the env, then redeploy.
+const PAYMENT_TEST_MODE = process.env.PAYMENT_TEST_MODE !== 'false';
 
 const CYCLE_DAYS     = { monthly: 30, quarterly: 90, yearly: 365 };
 const CYCLE_DISCOUNT = { monthly: 0,  quarterly: 10, yearly: 20  };
