@@ -77,6 +77,21 @@
 }
 .nav-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
 
+.shell-apk-btn {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 12px 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-decoration: none;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+  flex-shrink: 0;
+}
+.shell-apk-btn:hover { border-color: var(--brand); background: var(--brand-light); }
+.shell-apk-icon  { font-size: 20px; line-height: 1; }
+.shell-apk-title { display: block; font-size: 12.5px; font-weight: 600; color: var(--gray-800); }
+.shell-apk-sub   { display: block; font-size: 11px; color: var(--gray-400); }
+
 .shell-sidebar-footer {
   padding: 12px 14px;
   border-top: 1px solid var(--border);

@@ -78,6 +78,14 @@ const AppShell = ({ children }) => {
           ))}
         </nav>
 
+        <a className="shell-apk-btn" href="/stayxpulse.apk" download="StayXPulse.apk">
+          <span className="shell-apk-icon">🤖</span>
+          <span>
+            <span className="shell-apk-title">Get the Android App</span>
+            <span className="shell-apk-sub">Download APK</span>
+          </span>
+        </a>
+
         <div className="shell-sidebar-footer">
           <div className="shell-user">
             <div className="shell-avatar">{initials}</div>
