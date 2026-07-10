@@ -54,6 +54,16 @@ const dailyResetCutoffIso = () => {
   return new Date(cut - IST).toISOString();    // convert back to real UTC
 };
 
+// "Today"/"Yesterday" filters use Indian midnight, not server (UTC) midnight —
+// the server runs in UTC where midnight is 5:30 AM IST, which hid late-evening
+// requests from the "Today" view for Indian hotels.
+const istDayStartIso = (daysAgo = 0) => {
+  const IST = 5.5 * 3600 * 1000;
+  const d = new Date(Date.now() + IST);
+  const cut = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - daysAgo, 0, 0, 0, 0);
+  return new Date(cut - IST).toISOString();
+};
+
 // ════════════════════════════════════════════════════════════════════
 // ROOMS
 // ════════════════════════════════════════════════════════════════════
@@ -333,9 +343,8 @@ router.get('/service-requests', MW, async (req, res) => {
     // yet, the join errors — fall back to a plain select so requests still show.
     const buildQuery = (select) => {
       let q = supabase.from('service_requests').select(select, { count: 'exact' }).eq('hotel_id', req.hotelId);
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const yesterday = new Date(new Date(today).setDate(new Date(today).getDate() - 1)).toISOString();
+      const today = istDayStartIso(0);
+      const yesterday = istDayStartIso(1);
       if (filter === 'today') q = q.gte('created_at', today);
       else if (filter === 'yesterday') q = q.gte('created_at', yesterday).lt('created_at', today);
       if (from && to) q = q.gte('created_at', from).lte('created_at', new Date(new Date(to).setHours(23, 59, 59)).toISOString());
@@ -450,9 +459,8 @@ router.get('/food-orders', MW, async (req, res) => {
     const { filter = 'all', status, from, to, page = 1, limit = 50 } = req.query;
     let query = supabase.from('food_orders').select('*', { count: 'exact' }).eq('hotel_id', req.hotelId);
 
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    const yesterday = new Date(new Date(today).setDate(new Date(today).getDate() - 1)).toISOString();
+    const today = istDayStartIso(0);
+    const yesterday = istDayStartIso(1);
 
     if (filter === 'today') query = query.gte('created_at', today);
     else if (filter === 'yesterday') query = query.gte('created_at', yesterday).lt('created_at', today);
