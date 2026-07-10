@@ -2,6 +2,26 @@ import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { PageHeader, Spinner, Modal, FilterBar } from '../../components/shared/UI';
+import { STARTER_MENUS } from '../../data/starterMenus';
+
+// Downscale a menu photo before upload: smaller request (Vercel body limit)
+// and fewer AI vision tokens, with no real loss of text legibility.
+const downscaleImage = (file, maxDim = 1600) => new Promise((resolve) => {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    if (scale === 1 && file.size < 1.5 * 1024 * 1024) return resolve(file);
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(b => resolve(b || file), 'image/jpeg', 0.85);
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+  img.src = url;
+});
 
 const EMOJIS = ['🍽','🥘','🍜','🍛','🥗','🍱','🥞','🍚','🍖','🥩','🍗','🧀','🥚','🍳','🥙','🌮','🌯','🥪','🍔','🍟','🌭','🍕','🫔','🥨','🧆','🥓','🍿','🧂','🥫','🍱','🍣','🍤','🍙','🍘','🍥','🥮','🍡','🧁','🎂','🍰','🍦','🍧','🍨','🍩','🍪','☕','🍵','🧃','🥤','🧋','🍶','🍷','🧉'];
 
@@ -48,8 +68,15 @@ const FoodManagement = () => {
   const [showBulk, setShowBulk]= useState(false);
   const [bulkFile, setBulkFile]= useState(null);
   const [uploading,setUploading]=useState(false);
+  const [showStarter, setShowStarter] = useState(false);
+  const [showScan,  setShowScan]  = useState(false);
+  const [scanFile,  setScanFile]  = useState(null);
+  const [scanning,  setScanning]  = useState(false);
+  const [preview,   setPreview]   = useState(null);   // { title, items } — shared by starter & scan
+  const [importing, setImporting] = useState(false);
   const fileRef  = useRef(null);
   const bulkRef  = useRef(null);
+  const scanRef  = useRef(null);
 
   const load = async () => {
     try { const r = await api.get('/hotel/food'); setItems(r.data.data); }
@@ -93,6 +120,38 @@ const FoodManagement = () => {
     catch { toast.error('Failed to delete'); }
   };
 
+  const handleScan = async () => {
+    if (!scanFile) return;
+    setScanning(true);
+    try {
+      const blob = await downscaleImage(scanFile);
+      const fd = new FormData();
+      fd.append('image', blob, 'menu.jpg');
+      const res = await api.post('/hotel/food/scan-menu', fd, { headers:{'Content-Type':'multipart/form-data'}, timeout: 120000 });
+      const found = res.data.data || [];
+      if (!found.length) { toast.error('No menu items found in this photo. Try a clearer, closer shot.'); return; }
+      setShowScan(false); setScanFile(null);
+      setPreview({ title: `Scanned menu — ${found.length} items found`, items: found });
+    } catch (err) { toast.error(err.response?.data?.message || 'Scan failed. Try again.'); }
+    finally { setScanning(false); }
+  };
+
+  const updatePreviewItem = (idx, patch) =>
+    setPreview(p => ({ ...p, items: p.items.map((it, i) => i === idx ? { ...it, ...patch } : it) }));
+  const removePreviewItem = (idx) =>
+    setPreview(p => ({ ...p, items: p.items.filter((_, i) => i !== idx) }));
+
+  const handleImport = async () => {
+    if (!preview?.items?.length) return;
+    setImporting(true);
+    try {
+      const res = await api.post('/hotel/food/bulk-json', { items: preview.items });
+      toast.success(res.data.message);
+      setPreview(null); load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Import failed'); }
+    finally { setImporting(false); }
+  };
+
   const handleBulkUpload = async () => {
     if (!bulkFile) return;
     setUploading(true);
@@ -112,7 +171,9 @@ const FoodManagement = () => {
     <div>
       <PageHeader title="Food Management" subtitle="Manage your menu — add items, control availability, bulk upload"
         action={
-          <div style={{display:'flex',gap:10}}>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+            <button className="btn btn-outline" onClick={() => setShowStarter(true)}>✨ Starter Menu</button>
+            <button className="btn btn-outline" onClick={() => setShowScan(true)}>📷 Scan Menu Card</button>
             <button className="btn btn-outline" onClick={() => setShowBulk(true)}>⬆ Bulk Upload</button>
             <button className="btn btn-brand" onClick={openAdd}>+ Add Item</button>
           </div>
@@ -218,6 +279,87 @@ const FoodManagement = () => {
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={()=>{setShowBulk(false);setBulkFile(null);}}>Cancel</button>
           <button className="btn btn-brand" disabled={!bulkFile||uploading} onClick={handleBulkUpload}>{uploading?'Uploading…':'⬆ Upload Menu'}</button>
+        </div>
+      </Modal>
+
+      {/* Starter Menu picker */}
+      <Modal open={showStarter} onClose={() => setShowStarter(false)} title="Start with a Ready-Made Menu" width={560}>
+        <p style={{fontSize:13,color:'var(--gray-500)',marginBottom:16}}>
+          Pick a starter menu, then review the list — remove items you don't serve and adjust prices before importing.
+        </p>
+        <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:8}}>
+          {STARTER_MENUS.map(t => (
+            <div key={t.id}
+              onClick={() => { setShowStarter(false); setPreview({ title: `${t.icon} ${t.name} — ${t.items.length} items`, items: t.items.map(i => ({...i})) }); }}
+              style={{display:'flex',alignItems:'center',gap:14,border:'1px solid var(--border)',borderRadius:12,padding:'14px 16px',cursor:'pointer',transition:'border-color 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor='var(--brand)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border)'}>
+              <div style={{fontSize:30}}>{t.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:14,color:'var(--gray-900)'}}>{t.name} <span style={{fontWeight:600,fontSize:12,color:'var(--brand)'}}>· {t.items.length} items</span></div>
+                <div style={{fontSize:12,color:'var(--gray-500)',marginTop:2}}>{t.description}</div>
+              </div>
+              <div style={{color:'var(--gray-400)',fontSize:18}}>›</div>
+            </div>
+          ))}
+        </div>
+      </Modal>
+
+      {/* AI Menu Card Scan */}
+      <Modal open={showScan} onClose={() => { setShowScan(false); setScanFile(null); }} title="Scan Your Menu Card (AI)" width={480}>
+        <div style={{background:'var(--brand-light)',borderRadius:10,padding:14,marginBottom:20,fontSize:13,color:'var(--brand)'}}>
+          📷 Photograph your printed menu card — the AI reads out the items, prices and categories for you to review and import.
+          For best results: good light, hold the camera straight, one page per photo.
+        </div>
+        <input ref={scanRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={e=>setScanFile(e.target.files[0])} />
+        <div onClick={() => scanRef.current.click()} style={{border:'2px dashed var(--gray-300)',borderRadius:10,padding:28,textAlign:'center',cursor:'pointer',marginBottom:20}}
+          onMouseEnter={e=>e.currentTarget.style.borderColor='var(--brand)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--gray-300)'}>
+          {scanFile ? (
+            <div>
+              <img src={URL.createObjectURL(scanFile)} alt="menu preview" style={{maxHeight:160,maxWidth:'100%',borderRadius:8,marginBottom:8}} />
+              <div style={{fontWeight:600,color:'var(--gray-800)',fontSize:13}}>{scanFile.name}</div>
+            </div>
+          ) : (
+            <div><div style={{fontSize:32,marginBottom:8}}>📸</div><div style={{color:'var(--gray-500)',fontSize:14}}>Tap to take a photo or choose an image</div></div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={()=>{setShowScan(false);setScanFile(null);}}>Cancel</button>
+          <button className="btn btn-brand" disabled={!scanFile||scanning} onClick={handleScan}>
+            {scanning ? <><span className="spinner" /> Reading menu… (up to a minute)</> : '✨ Scan with AI'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Import preview (shared by starter menus & AI scan) */}
+      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview?.title || 'Review items'} width={640}>
+        <p style={{fontSize:13,color:'var(--gray-500)',marginBottom:12}}>
+          Check the list below — edit names, prices and categories, remove anything you don't serve, then import.
+        </p>
+        <div style={{maxHeight:'50vh',overflowY:'auto',border:'1px solid var(--border)',borderRadius:10,marginBottom:16}}>
+          {(preview?.items || []).map((it, idx) => (
+            <div key={idx} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderBottom:'1px solid var(--border)'}}>
+              <span style={{fontSize:18,flexShrink:0}}>{it.emoji || '🍽'}</span>
+              <input className="form-control" style={{flex:'2 1 120px',minWidth:0,padding:'6px 8px',fontSize:13}} value={it.name}
+                onChange={e=>updatePreviewItem(idx,{name:e.target.value})} />
+              <input className="form-control" type="number" style={{flex:'0 0 76px',padding:'6px 8px',fontSize:13}} value={it.price}
+                onChange={e=>updatePreviewItem(idx,{price:e.target.value})} />
+              <input className="form-control" style={{flex:'1 1 100px',minWidth:0,padding:'6px 8px',fontSize:13}} value={it.category}
+                onChange={e=>updatePreviewItem(idx,{category:e.target.value})} />
+              <span onClick={()=>updatePreviewItem(idx,{isVeg:!it.isVeg})} title={it.isVeg?'Vegetarian — tap to change':'Non-veg — tap to change'}
+                style={{cursor:'pointer',fontSize:11,fontWeight:700,flexShrink:0,color:it.isVeg?'#10B981':'#EF4444'}}>
+                {it.isVeg?'●VEG':'●NV'}
+              </span>
+              <button onClick={()=>removePreviewItem(idx)} title="Remove"
+                style={{background:'none',border:'none',cursor:'pointer',color:'var(--danger)',fontSize:14,flexShrink:0,padding:2}}>✕</button>
+            </div>
+          ))}
+          {preview?.items?.length === 0 && <div style={{padding:20,textAlign:'center',fontSize:13,color:'var(--gray-400)'}}>All items removed — close and start again.</div>}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={()=>setPreview(null)}>Cancel</button>
+          <button className="btn btn-brand" disabled={importing || !preview?.items?.length} onClick={handleImport}>
+            {importing ? 'Importing…' : `⬇ Import ${preview?.items?.length || 0} Items`}
+          </button>
         </div>
       </Modal>
 

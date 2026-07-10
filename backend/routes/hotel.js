@@ -220,6 +220,108 @@ router.post('/food/bulk', MW, memUpload.single('file'), async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// Import an array of menu items directly (starter templates + AI menu scan preview)
+router.post('/food/bulk-json', MW, async (req, res) => {
+  try {
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    const toInsert = items
+      .filter(r => r && r.name && r.category && r.price !== undefined && r.price !== '')
+      .slice(0, 300)
+      .map(r => ({
+        hotel_id: req.hotelId,
+        name: String(r.name).trim().slice(0, 120),
+        description: String(r.description || '').trim().slice(0, 300),
+        price: Math.max(0, parseFloat(r.price) || 0),
+        category: String(r.category).trim().slice(0, 60),
+        is_veg: r.isVeg !== false && String(r.isVeg).toLowerCase() !== 'false',
+        is_available: true,
+        image_emoji: r.emoji || '🍽',
+      }));
+
+    if (toInsert.length === 0)
+      return res.status(400).json({ success: false, message: 'No valid items. Each item needs name, price and category.' });
+
+    const { error } = await supabase.from('food_items').insert(toInsert);
+    if (error) throw error;
+    res.json({ success: true, message: `${toInsert.length} items added to your menu`, count: toInsert.length });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// AI menu-card scan: photo of a printed menu → structured items. Returns the
+// extracted items for client-side preview/editing; nothing is inserted here —
+// the client imports the confirmed list via /food/bulk-json.
+const MENU_SCAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'price', 'category', 'isVeg', 'emoji', 'description'],
+        properties: {
+          name:        { type: 'string' },
+          price:       { type: 'number' },
+          category:    { type: 'string' },
+          isVeg:       { type: 'boolean' },
+          emoji:       { type: 'string' },
+          description: { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
+router.post('/food/scan-menu', MW, memUpload.single('image'), async (req, res) => {
+  try {
+    if (!process.env.ANTHROPIC_API_KEY)
+      return res.status(503).json({ success: false, message: 'Menu scanning is not set up yet. Add ANTHROPIC_API_KEY to the server environment.' });
+    if (!req.file) return res.status(400).json({ success: false, message: 'No image uploaded' });
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(req.file.mimetype))
+      return res.status(400).json({ success: false, message: 'Upload a JPEG, PNG or WebP photo of your menu card' });
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic();
+
+    const response = await client.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 16000,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: MENU_SCAN_SCHEMA } },
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: req.file.buffer.toString('base64') } },
+          {
+            type: 'text',
+            text: 'This is a photo of a hotel/restaurant menu card (likely Indian). Extract every food and drink item. ' +
+              'price: the number only, in rupees; if an item lists Half/Full or multiple sizes with different prices, output one item per size (e.g. "Chicken Biryani (Half)"). ' +
+              'category: use the menu\'s own section headings; if none, infer a sensible one (Breakfast, Starters, Main Course, Breads, Rice & Biryani, Chinese, Beverages, Desserts). ' +
+              'isVeg: from the green/red markings if present, otherwise judge from the dish (chicken/mutton/fish/egg/prawn = false). ' +
+              'emoji: one food emoji that suits the dish. ' +
+              'description: only if a description is actually printed on the menu, else empty string. ' +
+              'Skip decorative text, taglines, hotel name, GST notes and page numbers. If part of the menu is unreadable, extract what you can.',
+          },
+        ],
+      }],
+    });
+
+    if (response.stop_reason === 'refusal')
+      return res.status(422).json({ success: false, message: 'The AI declined to process this image. Try a clearer photo of the menu card.' });
+    if (response.stop_reason === 'max_tokens')
+      return res.status(422).json({ success: false, message: 'This menu is too large for one scan. Try photographing one page at a time.' });
+
+    const textBlock = response.content.find(b => b.type === 'text');
+    const parsed = JSON.parse(textBlock.text);
+    res.json({ success: true, data: parsed.items || [] });
+  } catch (e) {
+    const msg = e.status === 429 ? 'Scanner is busy right now, try again in a minute.' : (e.message || 'Scan failed');
+    res.status(500).json({ success: false, message: msg });
+  }
+});
+
 // ════════════════════════════════════════════════════════════════════
 // SERVICE REQUESTS
 // ════════════════════════════════════════════════════════════════════
