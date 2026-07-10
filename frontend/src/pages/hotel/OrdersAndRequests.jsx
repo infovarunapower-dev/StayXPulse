@@ -7,12 +7,12 @@ const fmtTime = d => d ? new Date(d).toLocaleTimeString('en-IN',{hour:'2-digit',
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—';
 
 const DATE_FILTERS = [
-  { value:'all',       label:'All'       },
+  { value:'all',       label:'📅 All Dates' },
   { value:'today',     label:'Today'     },
   { value:'yesterday', label:'Yesterday' },
 ];
 const STATUS_FILTERS = [
-  { value:'all',       label:'All'       },
+  { value:'all',       label:'Any Status' },
   { value:'pending',   label:'Pending'   },
   { value:'completed', label:'Completed' },
 ];
