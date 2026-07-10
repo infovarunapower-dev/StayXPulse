@@ -328,7 +328,7 @@ router.post('/food/scan-menu', MW, memUpload.single('image'), async (req, res) =
 router.get('/service-requests', MW, async (req, res) => {
   try {
     const { filter = 'all', status, from, to, page = 1, limit = 50 } = req.query;
-    let query = supabase.from('service_requests').select('*', { count: 'exact' }).eq('hotel_id', req.hotelId);
+    let query = supabase.from('service_requests').select('*, staff:assigned_to (id, name)', { count: 'exact' }).eq('hotel_id', req.hotelId);
 
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
@@ -357,6 +357,85 @@ router.patch('/service-requests/:id/status', MW, async (req, res) => {
     const { data, error } = await supabase.from('service_requests').update(update).eq('id', req.params.id).eq('hotel_id', req.hotelId).select().single();
     if (error) throw error;
     res.json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Assign / unassign a service request to a staff member
+router.patch('/service-requests/:id/assign', MW, async (req, res) => {
+  try {
+    const staffId = req.body.staffId || null;
+    if (staffId) {
+      const { data: st } = await supabase.from('staff').select('id').eq('id', staffId).eq('hotel_id', req.hotelId).maybeSingle();
+      if (!st) return res.status(404).json({ success: false, message: 'Staff member not found' });
+    }
+    const { data, error } = await supabase.from('service_requests')
+      .update({ assigned_to: staffId, assigned_at: staffId ? new Date().toISOString() : null })
+      .eq('id', req.params.id).eq('hotel_id', req.hotelId)
+      .select('*, staff:assigned_to (id, name)').single();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// STAFF (labour) MANAGEMENT
+// ════════════════════════════════════════════════════════════════════
+router.get('/staff', MW, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('staff')
+      .select('id, name, phone, department, is_active, created_at')
+      .eq('hotel_id', req.hotelId).order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.post('/staff', MW, async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const { name, phone, pin, department = 'Housekeeping' } = req.body;
+    if (!name || !phone || !pin) return res.status(400).json({ success: false, message: 'Name, phone and PIN are required' });
+    if (!/^\d{4}$/.test(String(pin))) return res.status(400).json({ success: false, message: 'PIN must be exactly 4 digits' });
+
+    const { data, error } = await supabase.from('staff').insert({
+      hotel_id: req.hotelId,
+      name: String(name).trim(),
+      phone: String(phone).trim(),
+      pin_hash: await bcrypt.hash(String(pin), 10),
+      department,
+    }).select('id, name, phone, department, is_active, created_at').single();
+    if (error) {
+      if (error.code === '23505') return res.status(400).json({ success: false, message: 'A staff member with this phone number already exists' });
+      throw error;
+    }
+    res.status(201).json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.patch('/staff/:id', MW, async (req, res) => {
+  try {
+    const update = {};
+    if (req.body.name)       update.name = String(req.body.name).trim();
+    if (req.body.department) update.department = req.body.department;
+    if (req.body.isActive !== undefined) update.is_active = !!req.body.isActive;
+    if (req.body.pin) {
+      if (!/^\d{4}$/.test(String(req.body.pin))) return res.status(400).json({ success: false, message: 'PIN must be exactly 4 digits' });
+      const bcrypt = require('bcryptjs');
+      update.pin_hash = await bcrypt.hash(String(req.body.pin), 10);
+    }
+    const { data, error } = await supabase.from('staff').update(update)
+      .eq('id', req.params.id).eq('hotel_id', req.hotelId)
+      .select('id, name, phone, department, is_active, created_at').single();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.delete('/staff/:id', MW, async (req, res) => {
+  try {
+    const { error } = await supabase.from('staff').delete().eq('id', req.params.id).eq('hotel_id', req.hotelId);
+    if (error) throw error;
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 

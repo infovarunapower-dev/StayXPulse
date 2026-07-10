@@ -32,6 +32,7 @@ const HotelAdminMenu = [
   { section: 'Operations', items: [
     { to: '/hotel/service-requests', icon: '🛎', label: 'Service Requests'  },
     { to: '/hotel/food-orders',      icon: '🍛', label: 'Food Orders'       },
+    { to: '/hotel/staff',            icon: '🧑‍🔧', label: 'Staff'             },
   ]},
   { section: 'Insights', items: [
     { to: '/hotel/analytics',        icon: '📈', label: 'Analytics'         },

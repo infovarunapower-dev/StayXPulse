@@ -24,6 +24,8 @@ import Analytics       from './pages/hotel/Analytics';
 import UpgradePlan     from './pages/hotel/UpgradePlan';
 import Subscription    from './pages/hotel/Subscription';
 import GuestLanding    from './pages/guest/GuestLanding';
+import StaffManagement from './pages/hotel/StaffManagement';
+import { StaffLogin, StaffTasks } from './pages/staff/StaffApp';
 
 const SA = ({ children }) => (
   <ProtectedRoute allowedRoles={['superadmin']}>
@@ -68,6 +70,8 @@ const App = () => (
         <Route path="/forgot-password"        element={<ForgotPasswordPage />} />
         <Route path="/reset-password/:token"  element={<ResetPasswordPage />} />
         <Route path="/guest/:qrToken"         element={<GuestLanding />} />
+        <Route path="/staff-login"            element={<StaffLogin />} />
+        <Route path="/staff"                  element={<StaffTasks />} />
 
         <Route path="/admin/dashboard"    element={<SA><SADashboard /></SA>} />
         <Route path="/admin/summary"      element={<SA><OverallSummary /></SA>} />
@@ -82,6 +86,7 @@ const App = () => (
         <Route path="/hotel/qr"                element={<HA><QRManagement /></HA>} />
         <Route path="/hotel/food"              element={<HA><FoodManagement /></HA>} />
         <Route path="/hotel/service-requests"  element={<HA><ServiceRequests /></HA>} />
+        <Route path="/hotel/staff"             element={<HA><StaffManagement /></HA>} />
         <Route path="/hotel/food-orders"       element={<HA><FoodOrders /></HA>} />
         <Route path="/hotel/analytics"         element={<HA><Analytics /></HA>} />
         <Route path="/hotel/upgrade"           element={<HA><UpgradePlan /></HA>} />

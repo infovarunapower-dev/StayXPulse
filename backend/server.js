@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
@@ -16,6 +16,7 @@ app.use('/api/superadmin', require('./routes/superadmin'));
 app.use('/api/hotel', require('./routes/hotel'));
 app.use('/api/payments', require('./routes/payment'));
 app.use('/api/email', require('./routes/email'));
+app.use('/api/staff', require('./routes/staff'));
 
 // Seed on first request
 let seeded = false;
@@ -37,7 +38,7 @@ const PORT = process.env.PORT || 5000;
 // For local development
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
-    console.log(`🚀 StayXPulse API running on http://localhost:${PORT}`);
+    console.log(`ðŸš€ StayXPulse API running on http://localhost:${PORT}`);
   });
 }
 
