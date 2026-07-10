@@ -89,6 +89,56 @@
 .gl-service-label { font-size: 13px; font-weight: 600; color: #374151; line-height: 1.3; }
 
 /* Food Menu */
+/* Menu toolbar: search + veg filter + category chips.
+   Sticky just below the tab bar (which is sticky at top: 0, ~48px tall). */
+.gl-menu-tools {
+  position: sticky; top: 47px; z-index: 40;
+  background: #F8FAFC;
+  margin: -16px -16px 12px;         /* bleed over gl-body padding so it spans full width */
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid #EEF2F6;
+}
+.gl-menu-tools-row { display: flex; gap: 8px; align-items: center; }
+.gl-search-wrap {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 6px;
+  background: #fff; border: 1.5px solid #E5E7EB; border-radius: 10px;
+  padding: 8px 10px;
+}
+.gl-search-wrap span  { font-size: 13px; flex-shrink: 0; }
+.gl-search-wrap input { flex: 1; min-width: 0; border: none; outline: none; font-size: 14px; font-family: inherit; background: transparent; color: #1F2937; }
+.gl-search-clear      { background: none; border: none; color: #9CA3AF; font-size: 13px; cursor: pointer; padding: 0 2px; flex-shrink: 0; }
+.gl-veg-seg {
+  display: flex; flex-shrink: 0;
+  background: #fff; border: 1.5px solid #E5E7EB; border-radius: 10px;
+  overflow: hidden;
+}
+.gl-veg-seg button {
+  border: none; background: none; cursor: pointer;
+  font-size: 11px; font-weight: 700; color: #6B7280;
+  padding: 9px 8px; white-space: nowrap;
+}
+.gl-veg-seg button + button { border-left: 1px solid #E5E7EB; }
+.gl-veg-seg button.active   { background: #0D9488; color: #fff; }
+.gl-cat-chips {
+  display: flex; gap: 8px;
+  overflow-x: auto;
+  margin-top: 10px;
+  padding-bottom: 2px;
+  scrollbar-width: none;            /* Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+.gl-cat-chips::-webkit-scrollbar { display: none; }
+.gl-cat-chip {
+  flex-shrink: 0;
+  border: 1.5px solid #E5E7EB; border-radius: 20px;
+  background: #fff; color: #374151;
+  font-size: 12.5px; font-weight: 600;
+  padding: 7px 13px; cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.gl-cat-chip.active { background: #0D9488; border-color: #0D9488; color: #fff; }
+
 .gl-menu-cat       { margin-bottom: 24px; }
 .gl-cat-title      { font-size: 15px; font-weight: 800; color: #111827; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid #F3F4F6; }
 .gl-menu-item      { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid #F1F5F9; }

@@ -72,6 +72,9 @@ const GuestLanding = () => {
   const [success,setSuccess]=useState('');
   const [guestNote,setNote]=useState('');
   const [showCart,setShowCart]=useState(false);
+  const [menuCat,   setMenuCat]   = useState('all');  // category chip filter
+  const [menuSearch,setMenuSearch]= useState('');
+  const [vegFilter, setVegFilter] = useState('all');  // all | veg | nonveg
 
   useEffect(() => {
     axios.get(`${BASE}/hotel/guest/${qrToken}`)
@@ -202,11 +205,59 @@ const GuestLanding = () => {
         )}
 
         {/* ── Food Menu ── */}
-        {tab==='menu' && (
+        {tab==='menu' && (() => {
+          if (Object.keys(menu).length === 0)
+            return <div className="gl-empty">🍽<br/>Menu not available yet</div>;
+
+          const q = menuSearch.trim().toLowerCase();
+          const matches = (item) =>
+            (vegFilter === 'all' || (vegFilter === 'veg') === !!item.is_veg) &&
+            (!q || item.name.toLowerCase().includes(q));
+          // Searching looks across the whole menu; the category chip scopes browsing
+          const visibleMenu = Object.entries(menu)
+            .filter(([cat]) => q ? true : (menuCat === 'all' || cat === menuCat))
+            .map(([cat, items]) => [cat, items.filter(matches)])
+            .filter(([, items]) => items.length > 0);
+
+          return (
           <div>
-            {Object.keys(menu).length === 0
-              ? <div className="gl-empty">🍽<br/>Menu not available yet</div>
-              : Object.entries(menu).map(([cat, items]) => (
+            <div className="gl-menu-tools">
+              <div className="gl-menu-tools-row">
+                <div className="gl-search-wrap">
+                  <span>🔍</span>
+                  <input value={menuSearch} onChange={e=>setMenuSearch(e.target.value)}
+                    placeholder="Search dishes…" inputMode="search" />
+                  {menuSearch && <button className="gl-search-clear" onClick={()=>setMenuSearch('')}>✕</button>}
+                </div>
+                <div className="gl-veg-seg">
+                  {[['all','All'],['veg','🟢 Veg'],['nonveg','🔴 Non-Veg']].map(([v,label]) => (
+                    <button key={v} className={vegFilter===v?'active':''} onClick={()=>setVegFilter(v)}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              {!q && (
+                <div className="gl-cat-chips">
+                  <button className={`gl-cat-chip ${menuCat==='all'?'active':''}`} onClick={()=>setMenuCat('all')}>
+                    All · {Object.values(menu).reduce((s,i)=>s+i.length,0)}
+                  </button>
+                  {Object.entries(menu).map(([cat, items]) => (
+                    <button key={cat} className={`gl-cat-chip ${menuCat===cat?'active':''}`} onClick={()=>setMenuCat(cat)}>
+                      {cat} · {items.length}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {visibleMenu.length === 0 && (
+              <div className="gl-empty-block" style={{marginTop:16}}>
+                <div className="gl-empty-emoji">🔍</div>
+                <div className="gl-empty-line">Nothing matches{q ? ` “${menuSearch.trim()}”` : ' this filter'}</div>
+                <button className="gl-empty-cta" onClick={()=>{setMenuSearch('');setVegFilter('all');setMenuCat('all');}}>Clear filters</button>
+              </div>
+            )}
+
+            {visibleMenu.map(([cat, items]) => (
                 <div key={cat} className="gl-menu-cat">
                   <div className="gl-cat-title">{cat}</div>
                   {items.map(item => {
@@ -238,10 +289,10 @@ const GuestLanding = () => {
                     );
                   })}
                 </div>
-              ))
-            }
+            ))}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── My Orders ── */}
         {tab==='orders' && (
