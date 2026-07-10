@@ -6,6 +6,7 @@ import { PageHeader, Card, Modal, Spinner } from '../../components/shared/UI';
 
 const DEPARTMENTS = ['Housekeeping', 'Room Service', 'Maintenance', 'Front Desk', 'Kitchen', 'Other'];
 const BLANK = { name: '', phone: '', pin: '', department: 'Housekeeping' };
+const STAFF_APK_URL = 'https://stayxpulse.sunver.in/stayxpulse-staff.apk';
 
 const StaffManagement = () => {
   const { user } = useAuth();
@@ -82,8 +83,14 @@ const StaffManagement = () => {
             </div>
           </div>
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            <a className="btn btn-sm btn-outline" href="/staff-login" target="_blank" rel="noreferrer">🌐 Open Web App</a>
-            <a className="btn btn-sm btn-brand" href="/stayxpulse-staff.apk" download="StayXPulse-Staff.apk">🤖 Download Android App</a>
+            <a className="btn btn-sm btn-brand"
+              href={`https://wa.me/?text=${encodeURIComponent(`Install the StayXPulse Staff app on your phone: ${STAFF_APK_URL}\n\nSign in with:\nHotel code: ${hotelCode}\nYour phone number + the PIN your manager gave you.`)}`}
+              target="_blank" rel="noreferrer">💬 Share on WhatsApp</a>
+            <button className="btn btn-sm btn-outline" onClick={async () => {
+              try { await navigator.clipboard.writeText(STAFF_APK_URL); toast.success('Download link copied — send it to your staff'); }
+              catch { window.prompt('Copy this link and send it to your staff:', STAFF_APK_URL); }
+            }}>📋 Copy Download Link</button>
+            <a className="btn btn-sm btn-outline" href={STAFF_APK_URL} download="StayXPulse-Staff.apk">🤖 Download APK</a>
           </div>
         </div>
       </Card>
