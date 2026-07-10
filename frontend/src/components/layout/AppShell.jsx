@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import ThemeToggle from '../common/ThemeToggle';
+import useNewOrderAlert from '../../hooks/useNewOrderAlert';
 import sunverMark from '../../assets/sunver-mark.png';
 import './AppShell.css';
 
@@ -47,6 +48,9 @@ const AppShell = ({ children }) => {
 
   const menus    = user?.role === 'superadmin' ? SuperAdminMenu : HotelAdminMenu;
   const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'U';
+
+  // Chime + toast + desktop notification when a new order/request lands
+  useNewOrderAlert(user?.role === 'hoteladmin');
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
