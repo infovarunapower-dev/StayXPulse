@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import ThemeToggle from '../common/ThemeToggle';
+import sunverMark from '../../assets/sunver-mark.png';
 import './AppShell.css';
 
 const SuperAdminMenu = [
@@ -95,6 +96,11 @@ const AppShell = ({ children }) => {
             </div>
           </div>
           <button className="shell-logout-btn" onClick={handleLogout} title="Sign out">⏻</button>
+        </div>
+
+        <div className="shell-company">
+          <img src={sunverMark} alt="" className="shell-company-mark" />
+          <span>A product of <strong>SUNVER</strong> Coresynergy Solutions</span>
         </div>
       </aside>
 

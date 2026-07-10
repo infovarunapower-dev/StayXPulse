@@ -100,6 +100,19 @@
   gap: 10px;
   flex-shrink: 0;
 }
+.shell-company {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px 12px;
+  font-size: 10.5px;
+  color: var(--gray-400);
+  flex-shrink: 0;
+}
+.shell-company-mark { height: 12px; width: auto; opacity: 0.85; }
+.shell-company strong { color: #3EB8C5; letter-spacing: 0.08em; }
+
 .shell-user { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
 .shell-user-name  { font-size: 13px; font-weight: 600; color: var(--gray-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shell-user-role  { font-size: 11px; color: var(--gray-400); }

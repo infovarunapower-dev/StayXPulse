@@ -92,6 +92,14 @@
 }
 .auth-toggle { position: absolute; top: 20px; right: 20px; z-index: 3; }
 
+.auth-form-col {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .auth-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -146,6 +154,42 @@
   user-select: none;
 }
 .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
+
+/* Company branding under the auth card */
+.auth-company {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  user-select: none;
+}
+.auth-company-label {
+  font-size: 11px;
+  color: var(--gray-400);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.auth-company-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.auth-company-mark { height: 20px; width: auto; }
+.auth-company-name {
+  font-size: 17px;
+  font-weight: 800;
+  color: #3EB8C5;
+  letter-spacing: 0.14em;
+}
+.auth-company-sub {
+  font-size: 10px;
+  font-weight: 700;
+  color: #3EB8C5;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
 
 @media (max-width: 900px) {
   .auth-panel { display: none; }

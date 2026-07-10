@@ -1,5 +1,6 @@
 import React from 'react';
 import ThemeToggle from '../common/ThemeToggle';
+import sunverMark from '../../assets/sunver-mark.png';
 import './AuthLayout.css';
 
 const AuthLayout = ({ children }) => (
@@ -41,7 +42,17 @@ const AuthLayout = ({ children }) => (
     {/* Right form area */}
     <div className="auth-form-area">
       <div className="auth-toggle"><ThemeToggle /></div>
-      <div className="auth-card">{children}</div>
+      <div className="auth-form-col">
+        <div className="auth-card">{children}</div>
+        <div className="auth-company">
+          <div className="auth-company-label">A product of</div>
+          <div className="auth-company-row">
+            <img src={sunverMark} alt="Sunver Coresynergy Solutions" className="auth-company-mark" />
+            <span className="auth-company-name">SUNVER</span>
+          </div>
+          <div className="auth-company-sub">Coresynergy Solutions Pvt Ltd</div>
+        </div>
+      </div>
     </div>
   </div>
 );
