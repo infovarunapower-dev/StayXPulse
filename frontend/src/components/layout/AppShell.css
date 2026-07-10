@@ -41,6 +41,13 @@
   box-shadow: 0 3px 8px rgba(13,148,136,0.28);
 }
 .shell-logo-text { font-size: 17px; font-weight: 800; color: var(--gray-900); letter-spacing: -0.02em; }
+.shell-logo-sub {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 10px; color: var(--gray-400);
+  margin-top: 1px; white-space: nowrap;
+}
+.shell-logo-sub-mark   { height: 10px; width: auto; }
+.shell-logo-sub strong { color: #3EB8C5; letter-spacing: 0.08em; font-weight: 800; }
 
 .shell-nav { flex: 1; padding: 12px 10px; overflow-y: auto; }
 
@@ -100,19 +107,6 @@
   gap: 10px;
   flex-shrink: 0;
 }
-.shell-company {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 14px 12px;
-  font-size: 10.5px;
-  color: var(--gray-400);
-  flex-shrink: 0;
-}
-.shell-company-mark { height: 12px; width: auto; opacity: 0.85; }
-.shell-company strong { color: #3EB8C5; letter-spacing: 0.08em; }
-
 .shell-user { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
 .shell-user-name  { font-size: 13px; font-weight: 600; color: var(--gray-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shell-user-role  { font-size: 11px; color: var(--gray-400); }

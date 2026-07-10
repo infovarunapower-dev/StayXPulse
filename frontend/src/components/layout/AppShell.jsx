@@ -61,7 +61,12 @@ const AppShell = ({ children }) => {
       <aside className={`shell-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="shell-logo">
           <div className="shell-logo-icon">S</div>
-          <div className="shell-logo-text">StayXPulse</div>
+          <div>
+            <div className="shell-logo-text">StayXPulse</div>
+            <div className="shell-logo-sub">
+              by <img src={sunverMark} alt="" className="shell-logo-sub-mark" /> <strong>SUNVER</strong> Coresynergy
+            </div>
+          </div>
         </div>
 
         <nav className="shell-nav">
@@ -100,11 +105,6 @@ const AppShell = ({ children }) => {
             </div>
           </div>
           <button className="shell-logout-btn" onClick={handleLogout} title="Sign out">⏻</button>
-        </div>
-
-        <div className="shell-company">
-          <img src={sunverMark} alt="" className="shell-company-mark" />
-          <span>A product of <strong>SUNVER</strong> Coresynergy Solutions</span>
         </div>
       </aside>
 
