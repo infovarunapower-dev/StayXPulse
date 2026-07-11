@@ -1,9 +1,0 @@
-{
-  "appId": "com.stayxpulse.staff",
-  "appName": "StayXPulse Staff",
-  "webDir": "www",
-  "server": {
-    "url": "https://stayxpulse.sunver.in/staff-login",
-    "cleartext": false
-  }
-}

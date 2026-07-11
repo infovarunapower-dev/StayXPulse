@@ -27,14 +27,7 @@ export const ServiceRequests = () => {
   const [customTo,   setTo]        = useState('');
   const [pending,    setPending]   = useState(0);
   const [total,      setTotal]     = useState(0);
-  const [staffList,  setStaffList] = useState([]);
   const REFRESH_MS = 30000;
-
-  useEffect(() => {
-    api.get('/hotel/staff')
-      .then(r => setStaffList((r.data.data || []).filter(s => s.is_active)))
-      .catch(() => {}); // staff table may not exist yet — dropdown just stays hidden
-  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -61,34 +54,12 @@ export const ServiceRequests = () => {
     } catch { toast.error('Failed to update'); }
   };
 
-  const assignStaff = async (id, staffId) => {
-    try {
-      const r = await api.patch(`/hotel/service-requests/${id}/assign`, { staffId: staffId || null });
-      const name = r.data.data?.staff?.name;
-      toast.success(name ? `Assigned to ${name} — they'll see it in the staff app` : 'Assignment removed');
-      load();
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed to assign'); }
-  };
-
   const columns = [
     { label:'Ref',     render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.id}</code> },
     { label:'Room',    sort: r => r.room_number, render: r => <strong>Room {r.room_number}</strong> },
     { label:'Request', sort: r => r.type, render: r => <div><div style={{fontWeight:600}}>{r.type}</div>{r.note&&<div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{r.note}</div>}</div> },
     { label:'Time',    sort: r => new Date(r.created_at).getTime(), render: r => <div style={{fontSize:12}}><div>{fmtDate(r.created_at)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.created_at)}</div></div> },
     { label:'Status',  sort: r => r.status, render: r => <Badge status={r.status} /> },
-    ...(staffList.length ? [{
-      label:'Assigned To',
-      sort: r => r.staff?.name || '',
-      render: r => (
-        <select className="form-control" style={{padding:'5px 8px',fontSize:12,width:130}}
-          value={r.staff?.id || ''}
-          disabled={r.status === 'completed' || r.status === 'cancelled'}
-          onChange={e=>assignStaff(r.id, e.target.value)}>
-          <option value="">— Unassigned</option>
-          {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      ),
-    }] : []),
     { label:'Action',  render: r => (
       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
         {r.status === 'pending' && <>

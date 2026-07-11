@@ -114,12 +114,6 @@ const LoginPage = () => {
           Register your hotel
         </Link>
       </div>
-      <div className="auth-switch" style={{ marginTop: 10 }}>
-        Hotel staff?{' '}
-        <Link to="/staff-login" className="btn-link" style={{ fontSize:14 }}>
-          Sign in to the staff app
-        </Link>
-      </div>
     </AuthLayout>
   );
 };
