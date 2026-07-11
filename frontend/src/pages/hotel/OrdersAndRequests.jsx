@@ -27,7 +27,7 @@ export const ServiceRequests = () => {
   const [customTo,   setTo]        = useState('');
   const [pending,    setPending]   = useState(0);
   const [total,      setTotal]     = useState(0);
-  const REFRESH_MS = 30000;
+  const REFRESH_MS = 5000;
 
   const load = useCallback(async () => {
     try {
@@ -75,7 +75,7 @@ export const ServiceRequests = () => {
   return (
     <div>
       <PageHeader title="Service Requests"
-        subtitle={<span>Auto-refreshes every 30s &nbsp;·&nbsp; <span style={{color:pending>0?'var(--danger)':'var(--success)',fontWeight:700}}>{pending} pending</span></span>}
+        subtitle={<span>Auto-refreshes every 5s &nbsp;·&nbsp; <span style={{color:pending>0?'var(--danger)':'var(--success)',fontWeight:700}}>{pending} pending</span></span>}
         action={<button className="btn btn-sm btn-outline" onClick={load}>↻ Refresh</button>}
       />
       <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:16}}>
