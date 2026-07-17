@@ -66,4 +66,25 @@ router.get('/stats', masterAuth, async (req, res) => {
   }
 });
 
+// GET /api/master/users — registered hotel accounts (email + signup date).
+router.get('/users', masterAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('hotels')
+      .select('email, hotel_name, subscription_status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    const users = (data || []).map((h) => ({
+      email: h.email,
+      name: h.hotel_name,
+      role: h.subscription_status || 'hotel',
+      createdAt: h.created_at,
+    }));
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;
