@@ -16,6 +16,7 @@ app.use('/api/superadmin', require('./routes/superadmin'));
 app.use('/api/hotel', require('./routes/hotel'));
 app.use('/api/payments', require('./routes/payment'));
 app.use('/api/email', require('./routes/email'));
+app.use('/api/master', require('./routes/master'));
 
 // Seed on first request
 let seeded = false;
