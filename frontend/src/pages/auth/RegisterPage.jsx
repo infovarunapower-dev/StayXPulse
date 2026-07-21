@@ -143,29 +143,42 @@ const RegisterPage = () => {
   }
 
   // ── Step indicators ────────────────────────────────────────────────────────
+  // All three labels side by side need more width than the auth card has, so
+  // the last one used to spill outside it. Only the current step is labelled;
+  // the others stay as numbered dots, which fits at any width.
   const StepBar = () => (
-    <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', alignItems: 'center' }}>
-      {STEPS.map((label, i) => (
-        <React.Fragment key={label}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: i < 2 ? 'none' : 1 }}>
-            <div style={{
-              width: '28px', height: '28px', borderRadius: '50%',
-              background: i < step ? 'var(--success)' : i === step ? 'var(--brand)' : 'var(--gray-200)',
-              color: i <= step ? '#fff' : 'var(--gray-400)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '13px', fontWeight: 700, flexShrink: 0,
-            }}>
-              {i < step ? '✓' : i + 1}
+    <div style={{ marginBottom: '28px' }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {STEPS.map((label, i) => (
+          <React.Fragment key={label}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+              <div style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                background: i < step ? 'var(--success)' : i === step ? 'var(--brand)' : 'var(--gray-200)',
+                color: i <= step ? '#fff' : 'var(--gray-400)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '13px', fontWeight: 700, flexShrink: 0,
+              }}>
+                {i < step ? '✓' : i + 1}
+              </div>
+              {i === step && (
+                <span style={{
+                  fontSize: '13px', fontWeight: 700, color: 'var(--gray-900)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {label}
+                </span>
+              )}
             </div>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: i === step ? 'var(--gray-900)' : 'var(--gray-400)', whiteSpace: 'nowrap' }}>
-              {label}
-            </span>
-          </div>
-          {i < STEPS.length - 1 && (
-            <div style={{ flex: 1, height: '2px', background: i < step ? 'var(--success)' : 'var(--gray-200)', borderRadius: '1px' }} />
-          )}
-        </React.Fragment>
-      ))}
+            {i < STEPS.length - 1 && (
+              <div style={{ flex: 1, minWidth: '10px', height: '2px', background: i < step ? 'var(--success)' : 'var(--gray-200)', borderRadius: '1px' }} />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+      <div style={{ fontSize: '12px', color: 'var(--gray-400)', fontWeight: 600, marginTop: '8px' }}>
+        Step {step + 1} of {STEPS.length}
+      </div>
     </div>
   );
 
@@ -193,7 +206,7 @@ const RegisterPage = () => {
             </div>
             <div className="form-group">
               <label className="form-label">Hotel Logo (optional)</label>
-              <input type="file" ref={logoRef} accept="image/*" style={{ display: 'none' }} onChange={handleLogo} />
+              <input type="file" ref={logoRef} accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={handleLogo} />
               <div
                 onClick={() => logoRef.current.click()}
                 style={{
@@ -209,7 +222,7 @@ const RegisterPage = () => {
                 ) : (
                   <>
                     <div style={{ fontSize: '32px', marginBottom: '6px' }}>🏨</div>
-                    <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>Click to upload PNG / JPG / SVG (max 2 MB)</div>
+                    <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>Click to upload PNG / JPG / WEBP (max 2 MB)</div>
                   </>
                 )}
               </div>
