@@ -74,7 +74,7 @@ router.post('/register', logoUpload.single('logo'), async (req, res) => {
     // The logo used to be parsed and then silently dropped — logo_url was never
     // written, so every hotel's logo was NULL while the signup form said
     // "✅ Uploaded".
-    const logoUrl = await uploadHotelLogo(req.file);
+    const { url: logoUrl } = await uploadHotelLogo(req.file);   // non-fatal: signup proceeds without a logo
 
     const { data: hotel, error: hotelError } = await supabase.from('hotels').insert({
       hotel_name: hotelName.trim(), phone: phone.trim(), email: cleanEmail,

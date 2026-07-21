@@ -493,9 +493,9 @@ router.put('/profile', [...MW_OPEN, logoUpload.single('logo')], async (req, res)
     // Only overwrite the logo when a new file was actually sent — saving the
     // form without touching the file input must not wipe the existing one.
     if (req.file) {
-      const logoUrl = await uploadHotelLogo(req.file);
-      if (!logoUrl) return res.status(502).json({ success: false, message: 'Could not upload the logo. Please try again.' });
-      update.logo_url = logoUrl;
+      const { url, error: upErr } = await uploadHotelLogo(req.file);
+      if (!url) return res.status(502).json({ success: false, message: `Logo upload failed: ${upErr || 'unknown error'}` });
+      update.logo_url = url;
     }
 
     const { data, error } = await supabase.from('hotels').update(update)
