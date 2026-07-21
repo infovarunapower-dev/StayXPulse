@@ -54,7 +54,7 @@ router.get('/summary', SA, async (req, res) => {
 
     const in7 = new Date(); in7.setDate(in7.getDate() + 7);
     const { data: expiringSoon } = await supabase.from('hotels')
-      .select('hotel_name, email, plan_valid_to')
+      .select('id, hotel_name, email, plan_valid_to')
       .eq('subscription_status', 'active')
       .lte('plan_valid_to', in7.toISOString())
       .gte('plan_valid_to', new Date().toISOString());
@@ -244,6 +244,7 @@ router.get('/plans', SA, async (req, res) => {
       durationDays: p.duration_days,
       maxRooms: p.max_rooms,
       isActive: p.is_active,
+      isPopular: p.is_popular,
     }));
     res.json({ success: true, data: mapped });
   } catch (err) {
@@ -264,9 +265,10 @@ router.post('/plans', [...SA,
       max_rooms: req.body.maxRooms,
       features: req.body.features || [],
       is_active: true,
+      is_popular: !!req.body.isPopular,
     }).select().single();
     if (error) throw error;
-    res.status(201).json({ success: true, data: { ...plan, _id: plan.id, durationDays: plan.duration_days, maxRooms: plan.max_rooms } });
+    res.status(201).json({ success: true, data: { ...plan, _id: plan.id, durationDays: plan.duration_days, maxRooms: plan.max_rooms, isPopular: plan.is_popular } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -281,10 +283,11 @@ router.put('/plans/:id', SA, async (req, res) => {
       max_rooms: req.body.maxRooms,
       features: req.body.features,
       is_active: req.body.isActive,
+      is_popular: req.body.isPopular,
     }).eq('id', req.params.id).select().single();
     if (error) throw error;
     if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
-    res.json({ success: true, data: { ...plan, _id: plan.id, durationDays: plan.duration_days, maxRooms: plan.max_rooms } });
+    res.json({ success: true, data: { ...plan, _id: plan.id, durationDays: plan.duration_days, maxRooms: plan.max_rooms, isPopular: plan.is_popular } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

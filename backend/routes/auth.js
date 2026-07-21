@@ -177,11 +177,17 @@ router.get('/me', async (req, res) => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ success: false, message: 'Not authorized.' });
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const { data: users } = await supabase.from('users').select('*').eq('id', decoded.id);
     if (!users || users.length === 0) return res.status(404).json({ success: false, message: 'User not found.' });
 
     const user = users[0];
+    // This route verifies the JWT inline rather than going through `protect`,
+    // so it has to repeat protect's deactivated-account check — otherwise a
+    // hotel disabled by the superadmin keeps getting its profile back until
+    // the token expires.
+    if (user.is_active === false) return res.status(403).json({ success: false, message: 'Account is deactivated.' });
+
     let hotel = null;
     if (user.hotel_id) {
       const { data } = await supabase.from('hotels').select('*').eq('id', user.hotel_id).single();

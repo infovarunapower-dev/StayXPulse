@@ -11,19 +11,19 @@ const fmtTime = d => d ? new Date(d).toLocaleTimeString('en-IN',{hour:'2-digit',
 const TrialBanner = ({ hotel }) => {
   const navigate = useNavigate();
   if (!hotel) return null;
-  if (hotel.subscription_status === 'active') {
-    const days = hotel.plan_valid_to ? Math.ceil((new Date(hotel.plan_valid_to)-Date.now())/86400000) : 0;
+  if (hotel.subscriptionStatus === 'active') {
+    const days = hotel.planValidTo ? Math.ceil((new Date(hotel.planValidTo)-Date.now())/86400000) : 0;
     if (days > 7) return null;
     return (
       <div className="trial-banner">
         <span style={{fontSize:20}}>⚠️</span>
-        <div className="trial-banner-text">Your plan expires in <strong>{days} day(s)</strong> on {fmtDate(hotel.plan_valid_to)}. Renew now to avoid interruption.</div>
+        <div className="trial-banner-text">Your plan expires in <strong>{days} day(s)</strong> on {fmtDate(hotel.planValidTo)}. Renew now to avoid interruption.</div>
         <button className="btn btn-sm btn-brand" style={{whiteSpace:'nowrap'}} onClick={() => navigate('/hotel/upgrade')}>Renew Plan</button>
       </div>
     );
   }
-  if (hotel.subscription_status === 'trial') {
-    const days = Math.max(0,Math.ceil((new Date(hotel.trial_end_date)-Date.now())/86400000));
+  if (hotel.subscriptionStatus === 'trial') {
+    const days = Math.max(0,Math.ceil((new Date(hotel.trialEndDate)-Date.now())/86400000));
     return (
       <div className="trial-banner">
         <span style={{fontSize:20}}>⏰</span>
@@ -32,7 +32,7 @@ const TrialBanner = ({ hotel }) => {
       </div>
     );
   }
-  if (hotel.subscription_status === 'expired') {
+  if (hotel.subscriptionStatus === 'expired') {
     return (
       <div className="trial-banner" style={{background:'var(--danger-light)',borderColor:'var(--danger)'}}>
         <span style={{fontSize:20}}>🔒</span>

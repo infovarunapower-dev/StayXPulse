@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
 
@@ -53,6 +53,25 @@ const AccessGuard = () => {
   return null;
 };
 
+// Sends the user back to login when the token expires mid-session (401 via
+// api.js). Without this the dashboard stayed on screen with every request
+// failing silently — stale data, a frozen order count and no new-order chime,
+// with nothing on screen to explain why.
+const AuthGuard = () => {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  useEffect(() => {
+    const handler = () => {
+      logout();
+      toast('Your session has expired — please log in again', { id: 'session-expired', icon: '🔑' });
+      navigate('/login');
+    };
+    window.addEventListener('sxp:unauthorized', handler);
+    return () => window.removeEventListener('sxp:unauthorized', handler);
+  }, [navigate, logout]);
+  return null;
+};
+
 // AuthProvider wraps BrowserRouter so auth state survives route changes
 const App = () => (
   <AuthProvider>
@@ -62,6 +81,7 @@ const App = () => (
         toastOptions={{ style: { fontFamily: 'var(--font)', fontSize: '14px', fontWeight: 500 } }}
       />
       <AccessGuard />
+      <AuthGuard />
       <Routes>
         <Route path="/login"                  element={<LoginPage />} />
         <Route path="/register"               element={<RegisterPage />} />

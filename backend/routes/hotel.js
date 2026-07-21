@@ -85,10 +85,16 @@ router.post('/rooms', [...MW, body('number').trim().notEmpty().withMessage('Room
     const { data: exists } = await supabase.from('rooms').select('id').eq('hotel_id', req.hotelId).eq('number', req.body.number);
     if (exists && exists.length > 0) return res.status(409).json({ success: false, message: `Room ${req.body.number} already exists.` });
 
+    // rooms.type has a CHECK constraint with capitalised values, so a lowercase
+    // default (or any unknown value) fails the insert with a 500 instead of a
+    // useful message.
+    const ROOM_TYPES = ['Standard', 'Deluxe', 'Suite', 'Executive Suite', 'Villa'];
+    const type = ROOM_TYPES.includes(req.body.type) ? req.body.type : 'Standard';
+
     const { data, error } = await supabase.from('rooms').insert({
       hotel_id: req.hotelId,
       number: req.body.number,
-      type: req.body.type || 'standard',
+      type,
       floor: req.body.floor || null,
       is_active: true,
     }).select().single();

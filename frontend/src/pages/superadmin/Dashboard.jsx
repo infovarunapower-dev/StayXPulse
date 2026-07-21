@@ -78,7 +78,7 @@ const Dashboard = () => {
         }/>
         <Table
           columns={[
-            { label: 'Hotel',    render: r => <strong>{r.hotel?.hotel_name}</strong> },
+            { label: 'Hotel',    render: r => <strong>{r.hotel?.hotelName}</strong> },
             { label: 'Plan',     render: r => <Badge status="active" label={r.plan?.name} /> },
             { label: 'Amount',   render: r => <strong>{fmtCurrency(r.amount)}</strong> },
             { label: 'Valid To', render: r => fmtDate(r.valid_to) },

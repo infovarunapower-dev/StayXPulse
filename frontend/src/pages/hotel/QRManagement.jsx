@@ -190,7 +190,7 @@ const QRManagement = () => {
 
   const handleDelete = async () => {
     try {
-      await api.delete(`/hotel/rooms/${delRoom._id}`);
+      await api.delete(`/hotel/rooms/${delRoom.id}`);
       toast.success(`Room ${delRoom.number} deleted`);
       setDelRoom(null);
       loadRooms();
@@ -214,7 +214,7 @@ const QRManagement = () => {
         </div>
       ) : (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:16}}>
-          {rooms.map(r => <QRCard key={r._id} room={r} hotel={hotel} onDelete={setDelRoom} />)}
+          {rooms.map(r => <QRCard key={r.id} room={r} hotel={hotel} onDelete={setDelRoom} />)}
         </div>
       )}
 

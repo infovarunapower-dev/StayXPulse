@@ -111,7 +111,7 @@ const FoodManagement = () => {
   const handleToggle = async (id, val) => {
     try {
       await api.patch(`/hotel/food/${id}/availability`, { isAvailable:val });
-      setItems(prev => prev.map(i => i.id===id ? {...i,isAvailable:val} : i));
+      setItems(prev => prev.map(i => i.id===id ? {...i,is_available:val} : i));
     } catch { toast.error('Failed to update'); }
   };
 
