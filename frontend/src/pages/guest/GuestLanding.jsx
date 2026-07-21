@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE } from '../../config';
+import { LANGUAGES, LANG_KEY, getDict } from './translations';
 import './GuestLanding.css';
 
 const BASE = API_BASE;
@@ -23,19 +24,19 @@ const SERVICE_OPTIONS = [
 
 // Guest page is light-only (public), so status colors are fixed light tints.
 const STATUS_META = {
-  pending:       { label: 'Pending',     color: '#B45309', bg: '#FEF3C7' },
-  preparing:     { label: 'Preparing',   color: '#1D4ED8', bg: '#DBEAFE' },
-  delivered:     { label: 'Delivered',   color: '#047857', bg: '#D1FAE5' },
-  cancelled:     { label: 'Cancelled',   color: '#B91C1C', bg: '#FEE2E2' },
-  'in-progress': { label: 'In Progress', color: '#1D4ED8', bg: '#DBEAFE' },
-  completed:     { label: 'Completed',   color: '#047857', bg: '#D1FAE5' },
+  pending:       { color: '#B45309', bg: '#FEF3C7' },
+  preparing:     { color: '#1D4ED8', bg: '#DBEAFE' },
+  delivered:     { color: '#047857', bg: '#D1FAE5' },
+  cancelled:     { color: '#B91C1C', bg: '#FEE2E2' },
+  'in-progress': { color: '#1D4ED8', bg: '#DBEAFE' },
+  completed:     { color: '#047857', bg: '#D1FAE5' },
 };
 
-const StatusPill = ({ status }) => {
-  const m = STATUS_META[status] || { label: status, color: '#374151', bg: '#F3F4F6' };
+const StatusPill = ({ status, t }) => {
+  const m = STATUS_META[status] || { color: '#374151', bg: '#F3F4F6' };
   return (
     <span style={{ fontSize: 12, fontWeight: 700, color: m.color, background: m.bg, textTransform: 'capitalize', padding: '3px 11px', borderRadius: 20 }}>
-      {m.label}
+      {t.status[status] || status}
     </span>
   );
 };
@@ -43,8 +44,8 @@ const StatusPill = ({ status }) => {
 // Visual tracker for food orders: Placed → Preparing → Delivered
 const ORDER_STEPS = ['Placed', 'Preparing', 'Delivered'];
 const STEP_INDEX  = { pending: 0, preparing: 1, delivered: 2 };
-const OrderTracker = ({ status }) => {
-  if (status === 'cancelled') return <div className="gl-track-cancelled">✕ This order was cancelled</div>;
+const OrderTracker = ({ status, t }) => {
+  if (status === 'cancelled') return <div className="gl-track-cancelled">{t.cancelledNote}</div>;
   const ai = STEP_INDEX[status] ?? 0;
   return (
     <div className="gl-track">
@@ -52,7 +53,7 @@ const OrderTracker = ({ status }) => {
         <div key={label} className={`gl-track-step ${i < ai ? 'done' : ''} ${i === ai ? 'active' : ''}`}>
           {i > 0 && <div className="gl-track-line" />}
           <div className="gl-track-dot">{i < ai ? '✓' : i + 1}</div>
-          <div className="gl-track-label">{label}</div>
+          <div className="gl-track-label">{t.steps[label]}</div>
         </div>
       ))}
     </div>
@@ -75,6 +76,10 @@ const GuestLanding = () => {
   const [menuCat,   setMenuCat]   = useState('all');  // category chip filter
   const [menuSearch,setMenuSearch]= useState('');
   const [vegFilter, setVegFilter] = useState('all');  // all | veg | nonveg
+  const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || 'en');
+
+  const t = getDict(lang);
+  const changeLang = (code) => { setLang(code); localStorage.setItem(LANG_KEY, code); };
 
   useEffect(() => {
     axios.get(`${BASE}/hotel/guest/${qrToken}`)
@@ -118,11 +123,11 @@ const GuestLanding = () => {
     try {
       await axios.post(`${BASE}/hotel/guest/${qrToken}/order`, { items:cart, guestNote });
       setCart([]); setNote(''); setShowCart(false);
-      setSuccess('Your order has been placed! We\'ll bring it to your room shortly. 🍽');
+      setSuccess(t.orderPlaced);
       setTimeout(()=>setSuccess(''), 5000);
       setTab('orders'); loadOrders();
     } catch(err) {
-      const msg = err.response?.data?.message || err.message || 'Failed to place order';
+      const msg = err.response?.data?.message || err.message || t.orderFailed;
       console.error('Order error:', msg, err);
       setSuccess(`❌ ${msg}`);
       setTimeout(()=>setSuccess(''), 4000);
@@ -132,23 +137,24 @@ const GuestLanding = () => {
 
   const placeService = async (type) => {
     try {
+      // `type` stays English — the hotel admin dashboard reads it
       await axios.post(`${BASE}/hotel/guest/${qrToken}/service`, { type });
-      setSuccess(`✅ "${type}" request submitted! Our team will assist you shortly.`);
+      setSuccess(t.requestSent(t.services[type] || type));
       setTimeout(()=>setSuccess(''),5000);
     } catch(err) {
-      const msg = err.response?.data?.message || err.message || 'Failed';
+      const msg = err.response?.data?.message || err.message || t.requestFailed;
       console.error('Service request error:', msg, err);
       setSuccess(`❌ ${msg}`);
       setTimeout(()=>setSuccess(''),4000);
     }
   };
 
-  if (!page) return <div className="gl-loading"><div className="gl-spinner"/><div>Loading…</div></div>;
+  if (!page) return <div className="gl-loading"><div className="gl-spinner"/><div>{t.loading}</div></div>;
   if (page==='error') return (
     <div className="gl-error">
       <div style={{fontSize:56,marginBottom:16}}>🔗</div>
-      <div style={{fontSize:20,fontWeight:700,marginBottom:8}}>Invalid QR Code</div>
-      <div style={{fontSize:14,color:'#9CA3AF'}}>This QR code is inactive or invalid. Please ask the hotel staff for assistance.</div>
+      <div style={{fontSize:20,fontWeight:700,marginBottom:8}}>{t.invalidTitle}</div>
+      <div style={{fontSize:14,color:'#9CA3AF'}}>{t.invalidBody}</div>
     </div>
   );
 
@@ -159,13 +165,29 @@ const GuestLanding = () => {
     <div className="gl-shell">
       {/* Header */}
       <div className="gl-header">
+        {/* Language switcher — top-left corner */}
+        <div className="gl-lang-bar">
+          <div className="gl-lang-seg" role="group" aria-label={t.language}>
+            <span className="gl-lang-globe" aria-hidden="true">🌐</span>
+            {LANGUAGES.map(l => (
+              <button key={l.code}
+                className={`gl-lang-btn ${lang===l.code?'active':''}`}
+                onClick={()=>changeLang(l.code)}
+                aria-pressed={lang===l.code}
+                title={l.label}>
+                {l.flag} {l.short}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="gl-header-inner">
           {hotel.logoUrl && /^https?:\/\//.test(hotel.logoUrl)
             ? <img src={hotel.logoUrl} alt="logo" className="gl-logo"/>
             : <div className="gl-logo-placeholder">🏨</div>}
           <div>
             <div className="gl-hotel-name">{hotel.hotelName}</div>
-            <div className="gl-room-info">Room {room.number} &nbsp;·&nbsp; {room.type}</div>
+            <div className="gl-room-info">{t.room} {room.number} &nbsp;·&nbsp; {room.type}</div>
             <div className="gl-hotel-phone">📞 {hotel.phone}</div>
           </div>
         </div>
@@ -177,9 +199,9 @@ const GuestLanding = () => {
       {/* Tabs */}
       <div className="gl-tabs">
         {[
-          { id:'service', icon:'🛎', label:'Room Service' },
-          { id:'menu',    icon:'🍽', label:'Food Menu'    },
-          { id:'orders',  icon:'📋', label:'My Orders'    },
+          { id:'service', icon:'🛎', label:t.tabService },
+          { id:'menu',    icon:'🍽', label:t.tabMenu    },
+          { id:'orders',  icon:'📋', label:t.tabOrders  },
         ].map(t => (
           <button key={t.id} className={`gl-tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>
             <span>{t.icon}</span> {t.label}
@@ -192,12 +214,12 @@ const GuestLanding = () => {
         {/* ── Room Service ── */}
         {tab==='service' && (
           <div>
-            <div className="gl-section-title">How can we help you?</div>
+            <div className="gl-section-title">{t.helpTitle}</div>
             <div className="gl-service-grid">
               {SERVICE_OPTIONS.map(s => (
                 <button key={s.label} className="gl-service-btn" onClick={()=>placeService(s.label)}>
                   <span className="gl-service-icon">{s.icon}</span>
-                  <span className="gl-service-label">{s.label}</span>
+                  <span className="gl-service-label">{t.services[s.label] || s.label}</span>
                 </button>
               ))}
             </div>
@@ -207,7 +229,7 @@ const GuestLanding = () => {
         {/* ── Food Menu ── */}
         {tab==='menu' && (() => {
           if (Object.keys(menu).length === 0)
-            return <div className="gl-empty">🍽<br/>Menu not available yet</div>;
+            return <div className="gl-empty">🍽<br/>{t.menuUnavailable}</div>;
 
           const q = menuSearch.trim().toLowerCase();
           const matches = (item) =>
@@ -226,11 +248,11 @@ const GuestLanding = () => {
                 <div className="gl-search-wrap">
                   <span>🔍</span>
                   <input value={menuSearch} onChange={e=>setMenuSearch(e.target.value)}
-                    placeholder="Search dishes…" inputMode="search" />
+                    placeholder={t.searchPlaceholder} inputMode="search" />
                   {menuSearch && <button className="gl-search-clear" onClick={()=>setMenuSearch('')}>✕</button>}
                 </div>
                 <div className="gl-veg-seg">
-                  {[['all','All'],['veg','🟢 Veg'],['nonveg','🔴 Non-Veg']].map(([v,label]) => (
+                  {[['all',t.filterAll],['veg',t.filterVeg],['nonveg',t.filterNonVeg]].map(([v,label]) => (
                     <button key={v} className={vegFilter===v?'active':''} onClick={()=>setVegFilter(v)}>{label}</button>
                   ))}
                 </div>
@@ -238,7 +260,7 @@ const GuestLanding = () => {
               {!q && (
                 <div className="gl-cat-chips">
                   <button className={`gl-cat-chip ${menuCat==='all'?'active':''}`} onClick={()=>setMenuCat('all')}>
-                    All · {Object.values(menu).reduce((s,i)=>s+i.length,0)}
+                    {t.filterAll} · {Object.values(menu).reduce((s,i)=>s+i.length,0)}
                   </button>
                   {Object.entries(menu).map(([cat, items]) => (
                     <button key={cat} className={`gl-cat-chip ${menuCat===cat?'active':''}`} onClick={()=>setMenuCat(cat)}>
@@ -252,8 +274,8 @@ const GuestLanding = () => {
             {visibleMenu.length === 0 && (
               <div className="gl-empty-block" style={{marginTop:16}}>
                 <div className="gl-empty-emoji">🔍</div>
-                <div className="gl-empty-line">Nothing matches{q ? ` “${menuSearch.trim()}”` : ' this filter'}</div>
-                <button className="gl-empty-cta" onClick={()=>{setMenuSearch('');setVegFilter('all');setMenuCat('all');}}>Clear filters</button>
+                <div className="gl-empty-line">{q ? t.noMatchQuery(menuSearch.trim()) : t.noMatchFilter}</div>
+                <button className="gl-empty-cta" onClick={()=>{setMenuSearch('');setVegFilter('all');setMenuCat('all');}}>{t.clearFilters}</button>
               </div>
             )}
 
@@ -277,7 +299,7 @@ const GuestLanding = () => {
                         </div>
                         <div className="gl-qty-control">
                           {qty === 0
-                            ? <button className="gl-add-btn" onClick={()=>addToCart(item)}>Add</button>
+                            ? <button className="gl-add-btn" onClick={()=>addToCart(item)}>{t.add}</button>
                             : <div className="gl-stepper">
                                 <button onClick={()=>qty===1?removeFromCart(item.id):changeQty(item.id,-1)}>−</button>
                                 <span>{qty}</span>
@@ -298,24 +320,24 @@ const GuestLanding = () => {
         {tab==='orders' && (
           <div>
             <div className="gl-orders-head">
-              <span className="gl-live"><span className="gl-live-dot" /> Live · updates automatically</span>
-              <button className="gl-refresh-btn" onClick={loadOrders}>↻ Refresh</button>
+              <span className="gl-live"><span className="gl-live-dot" /> {t.live}</span>
+              <button className="gl-refresh-btn" onClick={loadOrders}>{t.refresh}</button>
             </div>
 
-            <div className="gl-section-title" style={{marginTop:8}}>Food Orders</div>
+            <div className="gl-section-title" style={{marginTop:8}}>{t.foodOrders}</div>
             {orders.orders.length===0
               ? <div className="gl-empty-block">
                   <div className="gl-empty-emoji">🍽</div>
-                  <div className="gl-empty-line">No food orders yet</div>
-                  <button className="gl-empty-cta" onClick={()=>setTab('menu')}>Browse the menu →</button>
+                  <div className="gl-empty-line">{t.noOrders}</div>
+                  <button className="gl-empty-cta" onClick={()=>setTab('menu')}>{t.browseMenu}</button>
                 </div>
               : orders.orders.map(o => (
                 <div key={o.id} className="gl-order-card">
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
                     <code style={{fontSize:12,color:'var(--gray-500)',fontFamily:'monospace'}}>{o.id}</code>
-                    <StatusPill status={o.status} />
+                    <StatusPill status={o.status} t={t} />
                   </div>
-                  <OrderTracker status={o.status} />
+                  <OrderTracker status={o.status} t={t} />
                   {o.items?.map((i,idx)=>(
                     <div key={idx} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'3px 0'}}>
                       <span>{i.name} × {i.quantity}</span>
@@ -323,28 +345,28 @@ const GuestLanding = () => {
                     </div>
                   ))}
                   <div style={{borderTop:'1px solid #E5E7EB',marginTop:8,paddingTop:8,display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:700}}>
-                    <span>Total</span><span style={{color:'#0D9488'}}>₹{o.total_amount}</span>
+                    <span>{t.total}</span><span style={{color:'#0D9488'}}>₹{o.total_amount}</span>
                   </div>
                   <div style={{fontSize:11,color:'#9CA3AF',marginTop:4}}>{fmtTime(o.created_at)}</div>
                 </div>
               ))
             }
 
-            <div className="gl-section-title" style={{marginTop:20}}>Service Requests</div>
+            <div className="gl-section-title" style={{marginTop:20}}>{t.serviceRequests}</div>
             {orders.requests.length===0
               ? <div className="gl-empty-block">
                   <div className="gl-empty-emoji">🛎</div>
-                  <div className="gl-empty-line">No service requests yet</div>
-                  <button className="gl-empty-cta" onClick={()=>setTab('service')}>Request room service →</button>
+                  <div className="gl-empty-line">{t.noRequests}</div>
+                  <button className="gl-empty-cta" onClick={()=>setTab('service')}>{t.requestService}</button>
                 </div>
               : orders.requests.map(r => (
                 <div key={r.id} className="gl-order-card">
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
-                      <div style={{fontWeight:600,fontSize:14}}>{r.type}</div>
+                      <div style={{fontWeight:600,fontSize:14}}>{t.services[r.type] || r.type}</div>
                       <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{fmtTime(r.created_at)}</div>
                     </div>
-                    <StatusPill status={r.status} />
+                    <StatusPill status={r.status} t={t} />
                   </div>
                 </div>
               ))
@@ -356,7 +378,7 @@ const GuestLanding = () => {
       {/* Floating Cart Button */}
       {cartCount > 0 && !showCart && (
         <button className="gl-cart-float" onClick={()=>setShowCart(true)}>
-          🛒 View Cart &nbsp;·&nbsp; {cartCount} item{cartCount>1?'s':''} &nbsp;·&nbsp; {fmtCur(cartTotal)}
+          {t.viewCart} &nbsp;·&nbsp; {cartCount} {cartCount>1?t.items:t.item} &nbsp;·&nbsp; {fmtCur(cartTotal)}
         </button>
       )}
 
@@ -365,9 +387,9 @@ const GuestLanding = () => {
         <div className="gl-cart-overlay" onClick={e=>e.target===e.currentTarget&&setShowCart(false)}>
           <div className="gl-cart-sheet">
             <div className="gl-cart-header">
-              <div style={{fontWeight:700,fontSize:17}}>Your Cart · {cartCount} item{cartCount>1?'s':''}</div>
+              <div style={{fontWeight:700,fontSize:17}}>{t.yourCart} · {cartCount} {cartCount>1?t.items:t.item}</div>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <button className="gl-cart-clear" onClick={()=>setCart([])}>Clear</button>
+                <button className="gl-cart-clear" onClick={()=>setCart([])}>{t.clear}</button>
                 <button className="gl-cart-close" onClick={()=>setShowCart(false)}>✕</button>
               </div>
             </div>
@@ -375,7 +397,7 @@ const GuestLanding = () => {
               <div key={c.foodItem} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid #F3F4F6'}}>
                 <div style={{flex:1}}>
                   <div style={{fontWeight:600,fontSize:14}}>{c.name}</div>
-                  <div style={{fontSize:13,color:'#6B7280'}}>₹{c.price} each</div>
+                  <div style={{fontSize:13,color:'#6B7280'}}>₹{c.price} {t.each}</div>
                 </div>
                 <div className="gl-stepper" style={{marginRight:8}}>
                   <button onClick={()=>c.quantity===1?removeFromCart(c.foodItem):changeQty(c.foodItem,-1)}>−</button>
@@ -386,16 +408,16 @@ const GuestLanding = () => {
               </div>
             ))}
             <div style={{padding:'12px 0'}}>
-              <label style={{display:'block',fontSize:13,fontWeight:600,color:'#374151',marginBottom:6}}>Special instructions (optional)</label>
+              <label style={{display:'block',fontSize:13,fontWeight:600,color:'#374151',marginBottom:6}}>{t.instructionsLabel}</label>
               <textarea rows={2} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #E5E7EB',borderRadius:8,fontFamily:'inherit',fontSize:13,resize:'none'}}
-                placeholder="e.g. less spicy, no onions…" value={guestNote} onChange={e=>setNote(e.target.value)} />
+                placeholder={t.instructionsPlaceholder} value={guestNote} onChange={e=>setNote(e.target.value)} />
             </div>
             <div style={{borderTop:'2px solid #E5E7EB',paddingTop:14}}>
               <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:16,marginBottom:14}}>
-                <span>Total</span><span style={{color:'#0D9488'}}>{fmtCur(cartTotal)}</span>
+                <span>{t.total}</span><span style={{color:'#0D9488'}}>{fmtCur(cartTotal)}</span>
               </div>
               <button className="gl-place-btn" onClick={placeOrder} disabled={placing}>
-                {placing ? 'Placing Order…' : `Place Order · ${fmtCur(cartTotal)}`}
+                {placing ? t.placing : `${t.placeOrder} · ${fmtCur(cartTotal)}`}
               </button>
             </div>
           </div>
