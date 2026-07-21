@@ -48,7 +48,20 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/register
-router.post('/register', logoUpload.single('logo'), async (req, res) => {
+// The logo is optional, so a rejected file (too large, HEIC from an iPhone,
+// wrong type) must not stop a hotel signing up. Swallow multer's error and
+// carry on without a logo; they can add one later from Hotel Profile.
+const optionalLogo = (req, res, next) => {
+  logoUpload.single('logo')(req, res, (err) => {
+    if (err) {
+      req.logoRejected = err.message || 'Logo could not be accepted';
+      console.warn('Register: logo rejected —', req.logoRejected);
+    }
+    next();
+  });
+};
+
+router.post('/register', optionalLogo, async (req, res) => {
   try {
     const { hotelName, phone, email, address, gstNumber, intent } = req.body;
     const isBuy = intent === 'buy';   // direct-purchase: no free trial

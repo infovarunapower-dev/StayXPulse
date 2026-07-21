@@ -33,7 +33,11 @@ api.interceptors.response.use(
       const url = error.config?.url || '';
       const isAuthCall = AUTH_ENDPOINTS.some(p => url.includes(p));
       const hadToken = !!(localStorage.getItem('token') || sessionStorage.getItem('token'));
-      if (!isAuthCall && hadToken) {
+      // The guest QR page is public. A staff member opening it on a phone that
+      // still holds an expired token would otherwise be yanked to /login,
+      // hijacking a page that never needed auth in the first place.
+      const onGuestPage = window.location.pathname.startsWith('/guest/');
+      if (!isAuthCall && hadToken && !onGuestPage) {
         window.dispatchEvent(new Event('sxp:unauthorized'));
       }
     }

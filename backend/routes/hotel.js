@@ -5,6 +5,7 @@ const path    = require('path');
 const { body, validationResult } = require('express-validator');
 const { protect, authorize }     = require('../middleware/auth');
 const { logoUpload, uploadHotelLogo } = require('../utils/logoUpload');
+const { isValidGstin } = require('../utils/gst');
 const supabase = require('../utils/supabase');
 
 const HA  = [protect, authorize('hoteladmin')];
@@ -482,6 +483,7 @@ router.put('/profile', [...MW_OPEN, logoUpload.single('logo')], async (req, res)
     if (!phone?.trim())     return res.status(400).json({ success: false, message: 'Phone number is required.' });
     if (!address?.trim())   return res.status(400).json({ success: false, message: 'Address is required.' });
     if (!gstNumber?.trim()) return res.status(400).json({ success: false, message: 'GST number is required.' });
+    if (!isValidGstin(gstNumber)) return res.status(400).json({ success: false, message: 'That GST number is not a valid GSTIN (e.g. 29ABCDE1234F1Z5).' });
 
     const update = {
       hotel_name: hotelName.trim(),
