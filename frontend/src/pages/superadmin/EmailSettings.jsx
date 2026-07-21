@@ -67,7 +67,11 @@ const EmailSettings = () => {
 
   const isLive     = !status?.testMode;
   const smtpOk     = status?.connection?.success;
-  const configured = status?.smtpUser && !status.smtpUser.includes('your_gmail');
+  const isBrevo    = status?.provider === 'brevo';
+  // Brevo needs an API key and a verified sender; SMTP needs a real user.
+  const configured = isBrevo
+    ? !!status?.brevoKeySet
+    : status?.smtpUser && !status.smtpUser.includes('your_gmail');
 
   return (
     <div>
@@ -93,8 +97,13 @@ const EmailSettings = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
           {[
             { label: 'Mode',       value: status?.testMode ? 'Test (console only)' : 'Live (real emails)',  ok: true },
-            { label: 'SMTP Host',  value: status?.smtpHost || '—',    ok: !!status?.smtpHost },
-            { label: 'SMTP User',  value: status?.smtpUser || '—',    ok: configured },
+            { label: 'Provider',   value: isBrevo ? 'Brevo (HTTP API)' : 'SMTP', ok: true },
+            isBrevo
+              ? { label: 'API Key',   value: status?.brevoKeySet ? 'Configured' : 'MISSING', ok: !!status?.brevoKeySet }
+              : { label: 'SMTP Host', value: status?.smtpHost || '—',  ok: !!status?.smtpHost },
+            isBrevo
+              ? { label: 'Sender',    value: status?.fromEmail || '— (FROM_EMAIL not set)', ok: !!status?.fromEmail }
+              : { label: 'SMTP User', value: status?.smtpUser || '—',  ok: configured },
             { label: 'From Name',  value: status?.fromName || '—',    ok: !!status?.fromName },
             { label: 'Connection', value: status?.connection?.message, ok: smtpOk || status?.testMode },
           ].map(item => (

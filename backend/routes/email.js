@@ -1,7 +1,7 @@
 const express  = require('express');
 const router   = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const { verifyConnection, TEST_MODE } = require('../utils/mailer');
+const { verifyConnection, TEST_MODE, PROVIDER } = require('../utils/mailer');
 const {
   sendWelcomeEmail,
   sendForgotPasswordEmail,
@@ -20,6 +20,8 @@ router.get('/status', SA, async (req, res) => {
     success: true,
     data: {
       testMode:   TEST_MODE,
+      provider:   PROVIDER,
+      brevoKeySet: !!process.env.BREVO_API_KEY,
       smtpHost:   process.env.SMTP_HOST,
       smtpPort:   process.env.SMTP_PORT,
       smtpUser:   process.env.SMTP_USER,
