@@ -16,7 +16,6 @@
     { "src": "/api/(.*)", "dest": "backend/server.js" },
     { "src": "/static/(.*)", "dest": "/frontend/static/$1" },
     {
-      "comment": "Email clients cannot read bundled /static assets by hash, so the logo needs a stable public URL. Must sit BEFORE the SPA catch-all or it gets swallowed.",
       "src": "/logo.png",
       "dest": "/frontend/logo.png",
       "headers": { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400" }
