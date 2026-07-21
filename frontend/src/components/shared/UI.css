@@ -102,7 +102,10 @@
   position: relative; z-index: 1;
   overflow: hidden;
 }
-.dash-hero-logo img { width: 100%; height: 100%; object-fit: cover; }
+/* contain, not cover: hotel logos are rarely square and cover crops them.
+   The white plate keeps dark wordmarks legible on the teal gradient. */
+.dash-hero-logo img { width: 100%; height: 100%; object-fit: contain; }
+.dash-hero-logo.has-img { background: #fff; padding: 5px; }
 .dash-hero-body { flex: 1; min-width: 0; position: relative; z-index: 1; }
 .dash-hero-eyebrow { font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.72); letter-spacing: 0.2px; }
 .dash-hero-name { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; line-height: 1.2; }
