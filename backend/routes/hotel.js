@@ -498,11 +498,34 @@ router.post('/guest/:qrToken/order', async (req, res) => {
     if (error || !room) return res.status(404).json({ success: false, message: 'Invalid QR' });
 
     const { items, guestNote = '' } = req.body;
-    if (!items || items.length === 0) return res.status(400).json({ success: false, message: 'No items in order' });
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ success: false, message: 'No items in order' });
+    if (items.length > 50) return res.status(400).json({ success: false, message: 'Too many items in one order.' });
 
-    const totalAmount = items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+    // NEVER trust the price or name the browser sends — re-read both from the
+    // menu, scoped to this room's hotel, or a guest could order at any price.
+    const ids = [...new Set(items.map(i => i.foodItem).filter(Boolean))];
+    if (ids.length === 0) return res.status(400).json({ success: false, message: 'No valid items in order' });
+
+    const { data: menuItems, error: menuError } = await supabase
+      .from('food_items').select('id, name, price, is_available')
+      .eq('hotel_id', room.hotel_id).in('id', ids);
+    if (menuError) throw menuError;
+
+    const byId = new Map((menuItems || []).map(m => [m.id, m]));
+    const priced = [];
+    for (const i of items) {
+      const m = byId.get(i.foodItem);
+      if (!m) return res.status(400).json({ success: false, message: 'One of the items is no longer on the menu.' });
+      if (!m.is_available) return res.status(400).json({ success: false, message: `"${m.name}" is currently unavailable.` });
+      const quantity = Math.floor(Number(i.quantity));
+      if (!Number.isFinite(quantity) || quantity < 1 || quantity > 99)
+        return res.status(400).json({ success: false, message: 'Invalid quantity.' });
+      priced.push({ foodItem: m.id, name: m.name, price: Number(m.price), quantity });
+    }
+
+    const totalAmount = priced.reduce((sum, i) => sum + i.price * i.quantity, 0);
     const { data: order, error: orderError } = await supabase.from('food_orders').insert({
-      hotel_id: room.hotel_id, room_id: room.id, room_number: room.number, items, total_amount: totalAmount, guest_note: guestNote,
+      hotel_id: room.hotel_id, room_id: room.id, room_number: room.number, items: priced, total_amount: totalAmount, guest_note: String(guestNote).slice(0, 500),
     }).select().single();
     if (orderError) throw orderError;
     res.status(201).json({ success: true, data: order, message: 'Order placed successfully!' });
@@ -515,10 +538,11 @@ router.post('/guest/:qrToken/service', async (req, res) => {
     if (error || !room) return res.status(404).json({ success: false, message: 'Invalid QR' });
 
     const { type, note = '' } = req.body;
-    if (!type) return res.status(400).json({ success: false, message: 'Request type required' });
+    if (!type || typeof type !== 'string' || !type.trim()) return res.status(400).json({ success: false, message: 'Request type required' });
 
     const { data: sr, error: srError } = await supabase.from('service_requests').insert({
-      hotel_id: room.hotel_id, room_id: room.id, room_number: room.number, type, note,
+      hotel_id: room.hotel_id, room_id: room.id, room_number: room.number,
+      type: type.trim().slice(0, 100), note: String(note).slice(0, 500),
     }).select().single();
     if (srError) throw srError;
     res.status(201).json({ success: true, data: sr, message: 'Request submitted!' });

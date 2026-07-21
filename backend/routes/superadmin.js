@@ -9,16 +9,6 @@ const { generateOrderRecordPDF } = require('../utils/invoice');
 
 const SA = [protect, authorize('superadmin')];
 
-// TEMP DEBUG - remove after fix
-router.get('/debug-env', async (req, res) => {
-  const { data, error } = await supabase.from('users').select('id, email').limit(3);
-  res.json({ 
-    supabase_url: process.env.SUPABASE_URL,
-    users: data,
-    error: error?.message 
-  });
-});
-
 const validate = (req, res) => {
   const e = validationResult(req);
   if (!e.isEmpty()) return res.status(422).json({ success: false, errors: e.array() });
