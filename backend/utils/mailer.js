@@ -23,7 +23,7 @@ let transporter = createTransporter();
 
 // ── Core send function ─────────────────────────────────────────────────────────
 const sendEmail = async ({ to, subject, html, attachments = [] }) => {
-  const from = `"${process.env.FROM_NAME || 'HotelIQ'}" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`;
+  const from = `"${process.env.FROM_NAME || 'StayXPulse'}" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`;
 
   if (TEST_MODE) {
     // Log to console instead of sending

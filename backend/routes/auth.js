@@ -87,13 +87,22 @@ router.post('/register', upload.single('logo'), async (req, res) => {
     });
     if (userError) throw userError;
 
-    try { await sendWelcomeEmail({ hotelName: hotelName.trim(), email: cleanEmail, userId, password, trialEndDate }); }
-    catch (e) { console.error('Email error:', e.message); }
+    // Credentials go ONLY to the address entered on the signup form — this is the
+    // one time the plaintext password exists, so a silent failure would strand the
+    // hotel. Report the real outcome instead of always saying "check your email".
+    let mailed = false;
+    try {
+      const r = await sendWelcomeEmail({ hotelName: hotelName.trim(), email: cleanEmail, userId, password, trialEndDate });
+      mailed = r?.success !== false;
+      console.log(`📧 Welcome email → ${cleanEmail} : ${mailed ? 'ok' : 'FAILED'}${r?.mode ? ` (${r.mode} mode)` : ''}`);
+    } catch (e) { console.error(`📧 Welcome email → ${cleanEmail} threw:`, e.message); }
 
     res.status(201).json({
       success: true,
-      message: 'Hotel registered successfully! Check your email for login credentials.',
-      data: { hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate, intent: isBuy ? 'buy' : 'trial' },
+      message: mailed
+        ? `Hotel registered successfully! Login credentials have been sent to ${cleanEmail}.`
+        : `Hotel registered, but we could not email your credentials to ${cleanEmail}. Please contact support to receive them.`,
+      data: { hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate, emailSent: mailed, emailedTo: cleanEmail, intent: isBuy ? 'buy' : 'trial' },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Server error.' });

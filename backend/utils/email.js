@@ -12,7 +12,7 @@ const {
 const sendWelcomeEmail = ({ hotelName, email, userId, password, trialEndDate }) =>
   sendEmail({
     to:      email,
-    subject: `🎉 Welcome to HotelIQ — Your Login Credentials`,
+    subject: `🎉 Welcome to StayXPulse — Your Login Credentials`,
     html:    welcomeTemplate({ hotelName, email, userId, password, trialEndDate }),
   });
 
@@ -20,7 +20,7 @@ const sendWelcomeEmail = ({ hotelName, email, userId, password, trialEndDate }) 
 const sendForgotPasswordEmail = ({ email, name, resetUrl }) =>
   sendEmail({
     to:      email,
-    subject: `🔒 HotelIQ — Password Reset Request`,
+    subject: `🔒 StayXPulse — Password Reset Request`,
     html:    forgotPasswordTemplate({ name, resetUrl }),
   });
 
@@ -28,7 +28,7 @@ const sendForgotPasswordEmail = ({ email, name, resetUrl }) =>
 const sendTrialReminderEmail = ({ hotelName, email, daysLeft, trialEndDate }) =>
   sendEmail({
     to:      email,
-    subject: `⏰ HotelIQ — Your free trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
+    subject: `⏰ StayXPulse — Your free trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
     html:    trialReminderTemplate({ hotelName, daysLeft, trialEndDate }),
   });
 
@@ -36,7 +36,7 @@ const sendTrialReminderEmail = ({ hotelName, email, daysLeft, trialEndDate }) =>
 const sendExpiryReminderEmail = ({ hotelName, email, planName, daysLeft, expiryDate }) =>
   sendEmail({
     to:      email,
-    subject: `⚠️ HotelIQ — Subscription expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
+    subject: `⚠️ StayXPulse — Subscription expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
     html:    expiryReminderTemplate({ hotelName, planName, daysLeft, expiryDate }),
   });
 
@@ -44,7 +44,7 @@ const sendExpiryReminderEmail = ({ hotelName, email, planName, daysLeft, expiryD
 const sendPaymentSuccessEmail = ({ hotelName, email, plan, cycle, amount, invoiceNumber, validFrom, validTo, paymentId, pdfBuffer }) =>
   sendEmail({
     to:          email,
-    subject:     `✅ HotelIQ Payment Confirmed · ${invoiceNumber}`,
+    subject:     `✅ StayXPulse Payment Confirmed · ${invoiceNumber}`,
     html:        paymentSuccessTemplate({ hotelName, planName: plan, cycle, amount, invoiceNumber, paymentId, validFrom, validTo }),
     attachments: pdfBuffer ? [{ filename: `Invoice_${invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }] : [],
   });
@@ -53,7 +53,7 @@ const sendPaymentSuccessEmail = ({ hotelName, email, plan, cycle, amount, invoic
 const sendPasswordResetByAdminEmail = ({ hotelName, email, userId, newPassword }) =>
   sendEmail({
     to:      email,
-    subject: `🔑 HotelIQ — Your password has been reset`,
+    subject: `🔑 StayXPulse — Your password has been reset`,
     html:    passwordResetByAdminTemplate({ hotelName, userId, email, newPassword }),
   });
 

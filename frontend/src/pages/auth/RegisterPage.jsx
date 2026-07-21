@@ -94,7 +94,9 @@ const RegisterPage = () => {
           <div className="auth-card-title" style={{ fontSize: '22px' }}>{intent === 'buy' ? "You're registered!" : "You're all set!"}</div>
           <div className="auth-card-sub" style={{ marginBottom: '28px' }}>
             <strong>{success.data.hotelName}</strong> has been registered.{' '}
-            {intent === 'buy' ? 'Log in and choose a plan to activate your account.' : 'Check your email for login credentials.'}
+            {success.data.emailSent === false
+              ? <>We could not email your login credentials to <strong>{success.data.emailedTo}</strong>. Please contact support to receive them.</>
+              : <>Login credentials have been sent to <strong>{success.data.emailedTo}</strong>.{intent === 'buy' ? ' Log in and choose a plan to activate your account.' : ''}</>}
           </div>
           <div style={{ background: 'var(--brand-light)', borderRadius: '12px', padding: '20px', textAlign: 'left', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px' }}>
@@ -106,7 +108,6 @@ const RegisterPage = () => {
               <span style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{intent === 'buy' ? 'Choose a plan' : new Date(success.data.trialEndDate).toDateString()}</span>
             </div>
           </div>
-          {intent === 'buy' && <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 16 }}>Your login credentials have been emailed to you.</div>}
           <button className="btn btn-primary" onClick={() => navigate('/login')}>
             {intent === 'buy' ? 'Log in & Choose Plan →' : 'Go to Login →'}
           </button>
