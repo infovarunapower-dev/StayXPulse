@@ -212,16 +212,25 @@ CREATE TRIGGER set_request_ref BEFORE INSERT ON service_requests FOR EACH ROW EX
 -- ═══════════════════════════════════════════════════════════════
 --  ROW LEVEL SECURITY (RLS)
 -- ═══════════════════════════════════════════════════════════════
--- We use our own JWT, so disable RLS (backend handles auth)
-ALTER TABLE hotels          DISABLE ROW LEVEL SECURITY;
-ALTER TABLE users           DISABLE ROW LEVEL SECURITY;
-ALTER TABLE plans           DISABLE ROW LEVEL SECURITY;
-ALTER TABLE payments        DISABLE ROW LEVEL SECURITY;
-ALTER TABLE razorpay_orders DISABLE ROW LEVEL SECURITY;
-ALTER TABLE rooms           DISABLE ROW LEVEL SECURITY;
-ALTER TABLE food_items      DISABLE ROW LEVEL SECURITY;
-ALTER TABLE food_orders     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE service_requests DISABLE ROW LEVEL SECURITY;
+-- The backend authenticates with its own JWT and connects using the SERVICE
+-- ROLE key, which bypasses RLS — so RLS is enabled here with NO policies:
+-- default-deny for anon/authenticated, unrestricted for the backend.
+--
+-- Do NOT disable this. Supabase publishes PostgREST at
+-- https://<project>.supabase.co/rest/v1 whether you use it or not; with RLS
+-- off, anyone holding the (public-by-design) anon key can read `users`
+-- including password_hash, and set any hotel's subscription to active.
+ALTER TABLE hotels           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE plans            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE razorpay_orders  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rooms            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE food_items       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE food_orders      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE service_requests ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
 
 -- ═══════════════════════════════════════════════════════════════
 --  SEED DATA — Default Plans + Super Admin

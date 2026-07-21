@@ -23,17 +23,13 @@ VALUES (
   ARRAY['image/jpeg','image/png','image/webp']
 ) ON CONFLICT DO NOTHING;
 
--- Allow public read access to hotel-logos bucket
+-- Public READ only. Writes go through the backend, which uses the service-role
+-- key and bypasses these policies entirely.
+--
+-- There is deliberately no INSERT or DELETE policy: granting those without an
+-- owner check (as an earlier version did) lets anyone upload arbitrary files
+-- into a public bucket — free CDN hosting for whatever they like — and delete
+-- every hotel's logo.
 CREATE POLICY "Public read hotel logos"
   ON storage.objects FOR SELECT
-  USING (bucket_id = 'hotel-logos');
-
--- Allow authenticated upload to hotel-logos
-CREATE POLICY "Allow logo upload"
-  ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'hotel-logos');
-
--- Allow delete own logos
-CREATE POLICY "Allow logo delete"
-  ON storage.objects FOR DELETE
-  USING (bucket_id = 'hotel-logos');
+  USING (bucket_id IN ('hotel-logos', 'food-images'));
