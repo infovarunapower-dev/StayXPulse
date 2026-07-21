@@ -1,5 +1,10 @@
 const CLIENT_URL = require('./clientUrl');
 
+// Email clients cannot resolve bundled assets or data: URIs reliably (Gmail
+// strips them), so the logo has to be a plain hosted URL. /logo.png is routed
+// explicitly in vercel.json ahead of the SPA catch-all.
+const LOGO_URL = process.env.EMAIL_LOGO_URL || `${CLIENT_URL}/logo.png`;
+
 // ── Base layout wrapper ────────────────────────────────────────────────────────
 const layout = (content) => `<!DOCTYPE html>
 <html lang="en">
@@ -43,8 +48,20 @@ const layout = (content) => `<!DOCTYPE html>
   <div class="wrapper">
     <div class="card">
       <div class="header">
-        <div class="header-logo">Stay<span>X</span>Pulse</div>
-        <div class="header-sub">Smart Hotel Management Platform</div>
+        <!-- Table layout, not flexbox: Outlook ignores flex entirely.
+             The wordmark stays as live text so branding survives when the
+             recipient's client blocks images, which most do by default. -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="padding-right:12px; vertical-align:middle;">
+              <img src="${LOGO_URL}" alt="" width="44" height="22" style="display:block; border:0; outline:none; text-decoration:none;" />
+            </td>
+            <td style="vertical-align:middle;">
+              <div class="header-logo">Stay<span>X</span>Pulse</div>
+              <div class="header-sub">Smart Hotel Management Platform</div>
+            </td>
+          </tr>
+        </table>
       </div>
       <div class="body">${content}</div>
       <div class="footer">
@@ -55,6 +72,10 @@ const layout = (content) => `<!DOCTYPE html>
         <div class="footer-links">
           <a href="${CLIENT_URL}">Dashboard</a>
           <a href="mailto:support@stayxpulse.com">Support</a>
+        </div>
+        <div style="text-align:center; margin-top:16px;">
+          <img src="${LOGO_URL}" alt="" width="52" height="26" style="display:inline-block; border:0; opacity:0.75;" />
+          <div style="font-size:11px; color:#9CA3AF; letter-spacing:0.08em; margin-top:5px;">A PRODUCT OF SUNVER CORESYNERGY</div>
         </div>
       </div>
     </div>

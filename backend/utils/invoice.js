@@ -1,4 +1,17 @@
 const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs = require('fs');
+
+// Bundled with the deployment, so it is readable on Vercel's read-only FS.
+const LOGO_PATH = path.join(__dirname, '../assets/logo.png');
+const HAS_LOGO = fs.existsSync(LOGO_PATH);
+
+// Draws the company mark into a PDF header, silently skipping if the asset is
+// missing — an invoice must never fail to generate over a decoration.
+const drawLogo = (doc, x, y, width) => {
+  if (!HAS_LOGO) return;
+  try { doc.image(LOGO_PATH, x, y, { width }); } catch (e) { /* non-fatal */ }
+};
 
 const generateInvoicePDF = ({ invoice, hotel, plan, cycle, amount, validFrom, validTo, paymentId }) => {
   return new Promise((resolve, reject) => {
@@ -17,8 +30,9 @@ const generateInvoicePDF = ({ invoice, hotel, plan, cycle, amount, validFrom, va
 
       // Header
       doc.rect(50, 50, W, 70).fill(BRAND);
-      doc.fillColor('#FFFFFF').fontSize(22).font('Helvetica-Bold').text('StayXPulse', 66, 66);
-      doc.fontSize(10).font('Helvetica').text('Smart Hotel Management Platform', 66, 92);
+      drawLogo(doc, 66, 70, 46);
+      doc.fillColor('#FFFFFF').fontSize(22).font('Helvetica-Bold').text('StayXPulse', 122, 66);
+      doc.fontSize(10).font('Helvetica').text('Smart Hotel Management Platform', 122, 92);
       doc.fontSize(11).font('Helvetica-Bold').text('TAX INVOICE', 400, 66, { width: 130, align: 'right' });
       doc.fontSize(9).font('Helvetica').text(invoice, 400, 84, { width: 130, align: 'right' });
 
@@ -77,6 +91,10 @@ const generateInvoicePDF = ({ invoice, hotel, plan, cycle, amount, validFrom, va
          .text('For support: support@stayxpulse.com  |  www.stayxpulse.com', 66, totTop + 146);
 
       // Footer
+      drawLogo(doc, 50, 726, 40);
+      doc.fillColor(GRAY).fontSize(8).font('Helvetica')
+         .text('A product of SUNVER CORESYNERGY', 96, 738);
+
       doc.rect(50, 760, W, 32).fill(BRAND);
       doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica')
          .text(`${invoice}  ·  StayXPulse  ·  Powered by Razorpay  ·  support@stayxpulse.com`, 50, 771, { width: W, align: 'center' });
@@ -121,9 +139,10 @@ const generateOrderRecordPDF = ({ payment, hotel = {}, plan = {} }) => {
 
       // ── Header ──
       doc.rect(M, 50, W, 64).fill(BRAND);
-      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(18).text('StayXPulse', M + 16, 63);
-      doc.font('Helvetica').fontSize(8.5).text('by Sunver Coresynergy Solutions Pvt Ltd', M + 16, 85);
-      doc.fontSize(8.5).text('GSTIN: ' + SELLER.gstin, M + 16, 97);
+      drawLogo(doc, M + 16, 68, 40);
+      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(18).text('StayXPulse', M + 66, 63);
+      doc.font('Helvetica').fontSize(8.5).text('by Sunver Coresynergy Solutions Pvt Ltd', M + 66, 85);
+      doc.fontSize(8.5).text('GSTIN: ' + SELLER.gstin, M + 66, 97);
       doc.font('Helvetica-Bold').fontSize(13).text('ORDER RECORD', R - 176, 63, { width: 160, align: 'right' });
       doc.font('Helvetica').fontSize(8).text('Complete transaction record', R - 176, 84, { width: 160, align: 'right' });
       doc.fontSize(8).text('Generated ' + fmt(new Date()), R - 176, 96, { width: 160, align: 'right' });
