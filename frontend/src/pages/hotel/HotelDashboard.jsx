@@ -61,7 +61,7 @@ const HotelDashboard = () => {
       {/* Hotel Hero Banner */}
       <div className="dash-hero">
         <div className="dash-hero-logo">
-          {hotel?.logo_url ? <img src={hotel.logo_url} alt="" /> : '🏨'}
+          {hotel?.logoUrl ? <img src={hotel.logoUrl} alt="" /> : '🏨'}
         </div>
         <div className="dash-hero-body">
           <div className="dash-hero-eyebrow">Welcome back 👋</div>

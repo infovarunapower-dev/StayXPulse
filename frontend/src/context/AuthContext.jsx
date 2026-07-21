@@ -55,6 +55,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Re-reads the profile after the hotel edits it, so the sidebar logo, name
+  // and trial banner update without forcing a re-login.
+  const refreshUser = async () => {
+    try {
+      const { data } = await api.get('/auth/me');
+      setUser(data.user);
+      return data.user;
+    } catch { return null; }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     sessionStorage.removeItem('token');
@@ -65,7 +75,7 @@ export const AuthProvider = ({ children }) => {
   const clearError = () => setError(null);
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, logout, clearError }}>
+    <AuthContext.Provider value={{ user, loading, error, login, logout, clearError, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

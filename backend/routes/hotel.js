@@ -4,6 +4,7 @@ const multer  = require('multer');
 const path    = require('path');
 const { body, validationResult } = require('express-validator');
 const { protect, authorize }     = require('../middleware/auth');
+const { logoUpload, uploadHotelLogo } = require('../utils/logoUpload');
 const supabase = require('../utils/supabase');
 
 const HA  = [protect, authorize('hoteladmin')];
@@ -457,6 +458,60 @@ router.get('/analytics', MW, async (req, res) => {
 // ════════════════════════════════════════════════════════════════════
 // SUBSCRIPTION HISTORY (trial + paid plans + invoices)
 // ════════════════════════════════════════════════════════════════════
+// ─── HOTEL PROFILE ────────────────────────────────────────────────────────────
+// MW_OPEN, not MW: a hotel whose trial has lapsed must still be able to correct
+// its own name/GST — that data feeds the invoice it is about to pay for.
+
+router.get('/profile', MW_OPEN, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('hotels')
+      .select('id, hotel_name, email, phone, address, gst_number, logo_url, user_id')
+      .eq('id', req.hotelId).single();
+    if (error) throw error;
+    res.json({ success: true, data: {
+      id: data.id, hotelName: data.hotel_name, email: data.email, phone: data.phone,
+      address: data.address, gstNumber: data.gst_number, logoUrl: data.logo_url, userId: data.user_id,
+    }});
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.put('/profile', [...MW_OPEN, logoUpload.single('logo')], async (req, res) => {
+  try {
+    const { hotelName, phone, address, gstNumber } = req.body;
+    if (!hotelName?.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
+    if (!phone?.trim())     return res.status(400).json({ success: false, message: 'Phone number is required.' });
+    if (!address?.trim())   return res.status(400).json({ success: false, message: 'Address is required.' });
+    if (!gstNumber?.trim()) return res.status(400).json({ success: false, message: 'GST number is required.' });
+
+    const update = {
+      hotel_name: hotelName.trim(),
+      phone: phone.trim(),
+      address: address.trim(),
+      gst_number: gstNumber.trim().toUpperCase(),
+    };
+
+    // Only overwrite the logo when a new file was actually sent — saving the
+    // form without touching the file input must not wipe the existing one.
+    if (req.file) {
+      const logoUrl = await uploadHotelLogo(req.file);
+      if (!logoUrl) return res.status(502).json({ success: false, message: 'Could not upload the logo. Please try again.' });
+      update.logo_url = logoUrl;
+    }
+
+    const { data, error } = await supabase.from('hotels').update(update)
+      .eq('id', req.hotelId).select().single();
+    if (error) throw error;
+
+    // The email/invoice name comes from users.name, so keep them in step.
+    await supabase.from('users').update({ name: update.hotel_name }).eq('hotel_id', req.hotelId).eq('role', 'hoteladmin');
+
+    res.json({ success: true, message: 'Profile updated.', data: {
+      id: data.id, hotelName: data.hotel_name, email: data.email, phone: data.phone,
+      address: data.address, gstNumber: data.gst_number, logoUrl: data.logo_url,
+    }});
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 router.get('/subscription', MW_OPEN, async (req, res) => {
   try {
     const { data: hotel, error: hErr } = await supabase

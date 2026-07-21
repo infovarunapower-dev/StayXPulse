@@ -37,6 +37,7 @@ const HotelAdminMenu = [
     { to: '/hotel/analytics',        icon: '📈', label: 'Analytics'         },
   ]},
   { section: 'Account', items: [
+    { to: '/hotel/profile',          icon: '🏨', label: 'Hotel Profile'     },
     { to: '/hotel/subscription',     icon: '🧾', label: 'Subscription'      },
   ]},
 ];
