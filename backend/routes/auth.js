@@ -3,8 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const multer = require('multer');
-const upload = multer();
+const { logoUpload, uploadHotelLogo } = require('../utils/logoUpload');
 const supabase = require('../utils/supabase');
 
 // POST /api/auth/login
@@ -49,7 +48,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/register
-router.post('/register', upload.single('logo'), async (req, res) => {
+router.post('/register', logoUpload.single('logo'), async (req, res) => {
   try {
     const { hotelName, phone, email, address, gstNumber, intent } = req.body;
     const isBuy = intent === 'buy';   // direct-purchase: no free trial
@@ -72,9 +71,15 @@ router.post('/register', upload.single('logo'), async (req, res) => {
     const trialEndDate = new Date();
     if (!isBuy) trialEndDate.setDate(trialEndDate.getDate() + 3);   // 3-day trial (skipped for direct-buy)
 
+    // The logo used to be parsed and then silently dropped — logo_url was never
+    // written, so every hotel's logo was NULL while the signup form said
+    // "✅ Uploaded".
+    const logoUrl = await uploadHotelLogo(req.file);
+
     const { data: hotel, error: hotelError } = await supabase.from('hotels').insert({
       hotel_name: hotelName.trim(), phone: phone.trim(), email: cleanEmail,
       address: address.trim(), gst_number: gstNumber.trim().toUpperCase(),
+      logo_url: logoUrl,
       user_id: userId, is_active: true,
       subscription_status: isBuy ? 'expired' : 'trial',   // direct-buy has no trial → must subscribe to activate
       trial_end_date: trialEndDate.toISOString(),

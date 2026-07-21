@@ -198,7 +198,7 @@ const HotelList = () => {
     { label:'Hotel', sort: r => r.hotel_name, render: r => (
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
         {r.logo_url
-          ? <img src={`http://localhost:5000${r.logo_url}`} alt="" style={{ width:28, height:28, borderRadius:6, objectFit:'contain', border:'1px solid var(--border)' }} />
+          ? <img src={r.logo_url} alt="" style={{ width:28, height:28, borderRadius:6, objectFit:'contain', border:'1px solid var(--border)' }} />
           : <div style={{ width:28, height:28, borderRadius:6, background:'var(--brand-light)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>🏨</div>
         }
         <div>

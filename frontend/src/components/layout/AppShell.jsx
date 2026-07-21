@@ -114,7 +114,7 @@ const AppShell = ({ children }) => {
           <div className="shell-header-info">
             {user?.hotel && (
               <span className="shell-hotel-badge">
-                {user.hotel.logoUrl && <img src={`http://localhost:5000${user.hotel.logoUrl}`} alt="logo" className="shell-hotel-logo" />}
+                {user.hotel.logoUrl && <img src={user.hotel.logoUrl} alt="logo" className="shell-hotel-logo" />}
                 {user.hotel.hotelName}
               </span>
             )}
