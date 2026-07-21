@@ -95,9 +95,35 @@ const RegisterPage = () => {
           <div className="auth-card-sub" style={{ marginBottom: '28px' }}>
             <strong>{success.data.hotelName}</strong> has been registered.{' '}
             {success.data.emailSent === false
-              ? <>We could not email your login credentials to <strong>{success.data.emailedTo}</strong>. Please contact support to receive them.</>
+              ? <>We could not deliver the welcome email to <strong>{success.data.emailedTo}</strong>, so your login details are below — <strong>save them now</strong>, this is the only time they are shown.</>
               : <>Login credentials have been sent to <strong>{success.data.emailedTo}</strong>.{intent === 'buy' ? ' Log in and choose a plan to activate your account.' : ''}</>}
           </div>
+
+          {/* Fallback delivery. The password exists in plaintext only in this
+              response — the database keeps a bcrypt hash — so if the email did
+              not go out, this screen is the account's only way in. */}
+          {success.data.credentials && (
+            <div style={{ background: '#FEF3C7', border: '1.5px solid #F59E0B', borderRadius: '12px', padding: '18px', textAlign: 'left', marginBottom: '20px' }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#92400E', marginBottom: 12 }}>⚠️ Save these login details now</div>
+              {[['User ID', success.data.credentials.userId], ['Email', success.data.credentials.email], ['Password', success.data.credentials.password]].map(([label, value]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8, fontSize: 14 }}>
+                  <span style={{ color: '#92400E', fontWeight: 600 }}>{label}</span>
+                  <code style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#78350F', wordBreak: 'break-all' }}>{value}</code>
+                </div>
+              ))}
+              <button
+                className="btn btn-sm"
+                style={{ width: '100%', marginTop: 8, background: '#92400E', color: '#fff' }}
+                onClick={() => {
+                  const { userId, email, password } = success.data.credentials;
+                  navigator.clipboard?.writeText(`StayXPulse login\nUser ID: ${userId}\nEmail: ${email}\nPassword: ${password}`)
+                    .then(() => toast.success('Login details copied'))
+                    .catch(() => toast.error('Could not copy — please write them down'));
+                }}>
+                Copy login details
+              </button>
+            </div>
+          )}
           <div style={{ background: 'var(--brand-light)', borderRadius: '12px', padding: '20px', textAlign: 'left', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px' }}>
               <span style={{ color: 'var(--gray-500)', fontWeight: 600 }}>Your User ID</span>

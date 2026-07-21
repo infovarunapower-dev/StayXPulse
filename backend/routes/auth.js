@@ -96,18 +96,35 @@ router.post('/register', logoUpload.single('logo'), async (req, res) => {
     // one time the plaintext password exists, so a silent failure would strand the
     // hotel. Report the real outcome instead of always saying "check your email".
     let mailed = false;
+    let mailError = null;
     try {
       const r = await sendWelcomeEmail({ hotelName: hotelName.trim(), email: cleanEmail, userId, password, trialEndDate });
       mailed = r?.success !== false;
-      console.log(`📧 Welcome email → ${cleanEmail} : ${mailed ? 'ok' : 'FAILED'}${r?.mode ? ` (${r.mode} mode)` : ''}`);
-    } catch (e) { console.error(`📧 Welcome email → ${cleanEmail} threw:`, e.message); }
+      if (!mailed) mailError = r?.error || 'unknown send failure';
+      // Test mode logs instead of sending, so the hotel gets nothing — treat it
+      // as "not delivered" for the purposes of showing the fallback below.
+      if (r?.mode === 'test') { mailed = false; mailError = 'EMAIL_TEST_MODE is on — nothing was sent'; }
+      console.log(`📧 Welcome email → ${cleanEmail} : ${mailed ? 'ok' : 'NOT DELIVERED'}${r?.mode ? ` (${r.mode} mode)` : ''}${mailError ? ` — ${mailError}` : ''}`);
+    } catch (e) {
+      mailError = e.message;
+      console.error(`📧 Welcome email → ${cleanEmail} threw:`, e.message);
+    }
 
     res.status(201).json({
       success: true,
       message: mailed
         ? `Hotel registered successfully! Login credentials have been sent to ${cleanEmail}.`
-        : `Hotel registered, but we could not email your credentials to ${cleanEmail}. Please contact support to receive them.`,
-      data: { hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate, emailSent: mailed, emailedTo: cleanEmail, intent: isBuy ? 'buy' : 'trial' },
+        : `Hotel registered! We could not email your credentials, so please save them from this screen now.`,
+      data: {
+        hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate,
+        emailSent: mailed, emailedTo: cleanEmail,
+        // Last-resort delivery. The generated password exists in plaintext only
+        // here — the DB stores a bcrypt hash — so if the mail did not go out,
+        // showing it to the person who just registered (over HTTPS, in their own
+        // session) is the difference between a working account and a dead one.
+        credentials: mailed ? null : { userId, email: cleanEmail, password },
+        intent: isBuy ? 'buy' : 'trial',
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Server error.' });
