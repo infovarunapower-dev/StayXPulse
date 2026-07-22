@@ -4,47 +4,49 @@ const { sendPaymentSuccessEmail } = require('./email');
 
 const CYCLE_DAYS = { monthly: 30, quarterly: 90, yearly: 365 };
 
-// Single source of truth for turning a captured Razorpay payment into an active
-// subscription. Called from BOTH the browser callback (/payments/verify) and the
-// Razorpay webhook, which race each other by design — whichever arrives first
-// wins and the other becomes a no-op.
+// Single source of truth for turning a captured payment into an active
+// subscription. Gateway-agnostic: it works off our own `payment_orders.txnid`,
+// so the callback, the webhook and any manual reconciliation all funnel through
+// the same code and inherit the same guarantees.
 //
-// Idempotency has three layers, because money is involved:
+// Idempotency has three layers, because money is involved and the browser
+// callback races the server-to-server webhook by design:
 //   1. an early lookup on payments.payment_id
-//   2. a conditional status flip on razorpay_orders (only 'created' -> 'paid'),
-//      so two concurrent callers cannot both proceed
+//   2. a conditional 'created' -> 'paid' flip on payment_orders, so only one
+//      caller can proceed
 //   3. the UNIQUE constraint on payments.payment_id as the final backstop
-const activateSubscription = async ({ razorpayOrderId, paymentId, signature = null, source = 'verify' }) => {
-  const { data: rzpOrder, error: orderError } = await supabase
-    .from('razorpay_orders')
+const activateSubscription = async ({ txnid, gatewayPaymentId, gateway = 'easebuzz', source = 'callback' }) => {
+  const { data: order, error: orderError } = await supabase
+    .from('payment_orders')
     .select('*, hotels(*), plans(*)')
-    .eq('razorpay_order_id', razorpayOrderId)
+    .eq('txnid', txnid)
     .single();
 
-  if (orderError || !rzpOrder) return { ok: false, reason: 'order_not_found' };
+  if (orderError || !order) return { ok: false, reason: 'order_not_found' };
+
+  const paymentRef = gatewayPaymentId || txnid;
 
   // (1) Already recorded — nothing to do.
   const { data: existing } = await supabase
-    .from('payments').select('id, invoice_number').eq('payment_id', paymentId).maybeSingle();
+    .from('payments').select('id, invoice_number').eq('payment_id', paymentRef).maybeSingle();
   if (existing) {
-    return { ok: true, already: true, invoiceNumber: existing.invoice_number, rzpOrder };
+    return { ok: true, already: true, invoiceNumber: existing.invoice_number, order };
   }
 
   // (2) Claim the order. Only one caller can move it out of 'created'.
   const { data: claimed } = await supabase
-    .from('razorpay_orders')
-    .update({ razorpay_payment_id: paymentId, razorpay_signature: signature, status: 'paid' })
-    .eq('id', rzpOrder.id).eq('status', 'created')
+    .from('payment_orders')
+    .update({ gateway_payment_id: gatewayPaymentId || null, status: 'paid' })
+    .eq('id', order.id).eq('status', 'created')
     .select();
 
   if (!claimed || claimed.length === 0) {
-    // Someone else claimed it microseconds ago; let them finish.
-    return { ok: true, already: true, rzpOrder };
+    return { ok: true, already: true, order };
   }
 
-  const hotel = rzpOrder.hotels;
-  const plan  = rzpOrder.plans;
-  const days  = CYCLE_DAYS[rzpOrder.cycle] || 30;
+  const hotel = order.hotels;
+  const plan  = order.plans;
+  const days  = CYCLE_DAYS[order.cycle] || 30;
 
   // Renewing must EXTEND the existing term, not restart it. Previously a hotel
   // with 300 days remaining who renewed lost every one of them — while the
@@ -55,23 +57,24 @@ const activateSubscription = async ({ razorpayOrderId, paymentId, signature = nu
   const validFrom = now;
   const validTo   = new Date(base.getTime() + days * 86400000);
 
-  await supabase.from('razorpay_orders')
+  await supabase.from('payment_orders')
     .update({ valid_from: validFrom.toISOString(), valid_to: validTo.toISOString() })
-    .eq('id', rzpOrder.id);
+    .eq('id', order.id);
 
   const { data: payment, error: payError } = await supabase.from('payments').insert({
-    hotel_id: rzpOrder.hotel_id,
-    plan_id: rzpOrder.plan_id,
-    amount: rzpOrder.amount_display,
-    payment_id: paymentId,
+    hotel_id: order.hotel_id,
+    plan_id: order.plan_id,
+    amount: order.amount,
+    payment_id: paymentRef,
+    gateway,
+    txnid,
     valid_from: validFrom.toISOString(),
     valid_to: validTo.toISOString(),
-    razorpay_order_id: razorpayOrderId,
   }).select().single();
 
   if (payError) {
     // A unique violation here means the other caller won the race after all.
-    if (String(payError.code) === '23505') return { ok: true, already: true, rzpOrder };
+    if (String(payError.code) === '23505') return { ok: true, already: true, order };
     return { ok: false, reason: payError.message };
   }
 
@@ -82,11 +85,11 @@ const activateSubscription = async ({ razorpayOrderId, paymentId, signature = nu
 
   await supabase.from('hotels').update({
     subscription_status: 'active',
-    current_plan_id: rzpOrder.plan_id,
+    current_plan_id: order.plan_id,
     plan_valid_from: validFrom.toISOString(),
     plan_valid_to: validTo.toISOString(),
     is_active: true,
-  }).eq('id', rzpOrder.hotel_id);
+  }).eq('id', order.hotel_id);
 
   // Neither the PDF nor the email may fail the activation — the money is taken
   // and the subscription is live regardless.
@@ -95,22 +98,22 @@ const activateSubscription = async ({ razorpayOrderId, paymentId, signature = nu
     pdfBuffer = await generateInvoicePDF({
       invoice: invoiceNumber,
       hotel: { hotelName: hotel.hotel_name, email: hotel.email, address: hotel.address, gstNumber: hotel.gst_number },
-      plan, cycle: rzpOrder.cycle, amount: rzpOrder.amount_display,
-      validFrom, validTo, paymentId,
+      plan, cycle: order.cycle, amount: order.amount,
+      validFrom, validTo, paymentId: paymentRef,
     });
   } catch (e) { console.error('Invoice PDF failed:', e.message); }
 
   try {
     await sendPaymentSuccessEmail({
       hotelName: hotel.hotel_name, email: hotel.email,
-      plan: plan.name, cycle: rzpOrder.cycle, amount: rzpOrder.amount_display,
-      invoiceNumber, validFrom, validTo, paymentId, pdfBuffer,
+      plan: plan.name, cycle: order.cycle, amount: order.amount,
+      invoiceNumber, validFrom, validTo, paymentId: paymentRef, pdfBuffer,
     });
   } catch (e) { console.error('Payment email failed:', e.message); }
 
-  console.log(`💰 Subscription activated via ${source}: hotel=${rzpOrder.hotel_id} payment=${paymentId} invoice=${invoiceNumber} until=${validTo.toISOString()}`);
+  console.log(`💰 Activated via ${source}: hotel=${order.hotel_id} txnid=${txnid} payment=${paymentRef} invoice=${invoiceNumber} until=${validTo.toISOString()}`);
 
-  return { ok: true, already: false, invoiceNumber, validFrom, validTo, rzpOrder, plan };
+  return { ok: true, already: false, invoiceNumber, validFrom, validTo, order, plan };
 };
 
 module.exports = { activateSubscription, CYCLE_DAYS };

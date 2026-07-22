@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
-import useRazorpay from '../../utils/useRazorpay';
 import { useAuth } from '../../context/AuthContext';
 import { Spinner } from '../../components/shared/UI';
 import './UpgradePlan.css';
@@ -83,60 +82,56 @@ const MyPayments = () => {
 };
 
 const UpgradePlan = () => {
-  const { user }     = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate     = useNavigate();
-  const openRazorpay = useRazorpay();
   const [plans,    setPlans]   = useState([]);
   const [loading,  setLoading] = useState(true);
   const [cycle,    setCycle]   = useState('monthly');
   const [paying,   setPaying]  = useState(null);
   const [success,  setSuccess] = useState(null);
-  const [testMode, setTestMode]= useState(false);
+  const [gatewayReady, setGatewayReady] = useState(true);
 
   useEffect(() => {
     api.get('/payments/plans')
-      .then(r => { setPlans(r.data.data); setTestMode(!!r.data.testMode); })
+      .then(r => { setPlans(r.data.data); setGatewayReady(r.data.configured !== false); })
       .catch(() => toast.error('Failed to load plans'))
       .finally(() => setLoading(false));
   }, []);
 
-  // Simulate a payment (test mode) — activates the subscription with no real charge
-  const handleTestPay = async (plan) => {
-    setPaying(plan.id);
-    try {
-      const { data } = await api.post('/payments/test-pay', { planId: plan.id, cycle });
-      setSuccess(data.data);
-      toast.success('🧪 Test payment successful — subscription activated!');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Test payment failed.');
-    } finally { setPaying(null); }
-  };
+  // Easebuzz returns the customer here with ?payment=success|failed|invalid after
+  // its hosted checkout. The subscription was already activated server-side by
+  // the callback, so this only reports the outcome and refreshes the profile.
+  useEffect(() => {
+    const outcome = new URLSearchParams(window.location.search).get('payment');
+    if (!outcome) return;
+    if (outcome === 'success') {
+      toast.success('🎉 Payment successful — your subscription is active!');
+      refreshUser?.();
+      navigate('/hotel/subscription', { replace: true });
+    } else if (outcome === 'invalid') {
+      toast.error('We could not verify that payment. Please contact support before paying again.');
+    } else {
+      toast.error('Payment was not completed. You have not been charged.');
+    }
+  }, []);   // once on mount: this reads the redirect result, not live state
 
   const hotel = user?.hotel;
 
+  // Hosted checkout: we ask the backend for a payment URL and hand the browser
+  // over to Easebuzz. There is no client-side secret and no signature handling
+  // here — the result comes back server-to-server to /easebuzz/callback.
   const handlePay = async (plan) => {
     setPaying(plan.id);
     try {
-      const { data } = await api.post('/payments/create-order', { planId: plan.id, cycle });
-      await openRazorpay({
-        orderId: data.data.orderId, amount: data.data.amount, keyId: data.data.keyId,
-        description: `${data.data.planName} — ${cycle}`,
-        email: data.data.email, phone: data.data.phone,
-        onSuccess: async (response) => {
-          try {
-            const verify = await api.post('/payments/verify', {
-              razorpay_order_id:   response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature:  response.razorpay_signature,
-            });
-            setSuccess(verify.data.data);
-            toast.success('🎉 Subscription activated!');
-          } catch(err) { toast.error(err.response?.data?.message || 'Verification failed. Contact support.'); }
-          finally { setPaying(null); }
-        },
-        onFailure: (msg) => { toast.error(msg || 'Payment failed.'); setPaying(null); },
-      });
-    } catch(err) { toast.error(err.response?.data?.message || 'Could not initiate payment.'); setPaying(null); }
+      const { data } = await api.post('/payments/initiate', { planId: plan.id, cycle });
+      if (!data?.data?.paymentUrl) throw new Error('No payment URL returned');
+      // Full navigation, not a new tab: popup blockers and the Android WebView
+      // both handle a same-tab redirect reliably.
+      window.location.assign(data.data.paymentUrl);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not start the payment. Please try again.');
+      setPaying(null);
+    }
   };
 
   if (success) return <PaymentSuccess result={success} onDone={() => navigate('/hotel/dashboard', { replace:true })} />;
@@ -181,9 +176,9 @@ const UpgradePlan = () => {
         ))}
       </div>
 
-      {testMode && (
+      {!gatewayReady && (
         <div style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)', borderRadius: 10, padding: '12px 16px', margin: '0 0 20px', fontSize: 13.5, color: 'var(--accent-strong)', fontWeight: 600, textAlign: 'center' }}>
-          🧪 <strong>TEST MODE</strong> — payments are simulated (no real charge). Subscriptions still activate so you can verify the full flow. Add live Razorpay keys to switch to real payments.
+          ⚠️ Online payment is not available right now. Please contact support to activate your plan.
         </div>
       )}
 
@@ -205,10 +200,10 @@ const UpgradePlan = () => {
               <ul className="plan-features">
                 {plan.features?.map((f,i) => <li key={i}><span className="feat-check">✓</span> {f}</li>)}
               </ul>
-              <button className={`plan-btn ${plan.is_popular?'plan-btn-popular':''}`} onClick={()=> testMode ? handleTestPay(plan) : handlePay(plan)} disabled={!!paying}>
-                {isBusy ? <><span className="spinner-sm"/> Processing…</> : (testMode ? `🧪 Simulate ${plan.name}` : `Get ${plan.name} →`)}
+              <button className={`plan-btn ${plan.is_popular?'plan-btn-popular':''}`} onClick={()=> handlePay(plan)} disabled={!!paying}>
+                {isBusy ? <><span className="spinner-sm"/> Redirecting…</> : `Get ${plan.name} →`}
               </button>
-              <div className="plan-note">{testMode ? 'Test mode · simulated payment (no charge)' : 'Secured by Razorpay · Instant activation'}</div>
+              <div className="plan-note">Secured by Easebuzz · Instant activation</div>
             </div>
           );
         })}
@@ -222,7 +217,7 @@ const UpgradePlan = () => {
           { q:'When does my plan activate?',        a:'Immediately after payment — no waiting, no manual steps.' },
           { q:'Will I get an invoice?',              a:'Yes, a PDF invoice is automatically emailed to your registered address.' },
           { q:'What happens when my plan expires?',  a:'Your dashboard goes read-only. Renew anytime to restore full access.' },
-          { q:'Is my payment secure?',               a:'Yes. All payments are processed by Razorpay — PCI DSS compliant, bank-grade security.' },
+          { q:'Is my payment secure?',               a:'Yes. All payments are processed by Easebuzz — a PCI DSS compliant payment gateway. StayXPulse never sees your card details.' },
         ].map((item,i) => (
           <div key={i} className="faq-item">
             <div className="faq-q">Q: {item.q}</div>
