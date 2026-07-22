@@ -7,6 +7,7 @@ const { protect, authorize } = require('../middleware/auth');
 const supabase = require('../utils/supabase');
 const { generateInvoicePDF } = require('../utils/invoice');
 const { sendPaymentSuccessEmail } = require('../utils/email');
+const { activateSubscription } = require('../utils/activateSubscription');
 
 const HA = [protect, authorize('hoteladmin')];
 
@@ -162,81 +163,111 @@ router.post('/create-order', HA, async (req, res) => {
 });
 
 // ── VERIFY payment + auto-activate ───────────────────────────────────────────
+// The browser calls this immediately after checkout. It races the Razorpay
+// webhook below; activateSubscription() is idempotent so whichever lands first
+// wins and the other is a no-op.
 router.post('/verify', HA, async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Missing payment details.' });
+    }
 
     const expectedSig = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex');
 
-    if (expectedSig !== razorpay_signature) {
+    const a = Buffer.from(expectedSig, 'utf8');
+    const b = Buffer.from(String(razorpay_signature), 'utf8');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
       return res.status(400).json({ success: false, message: 'Invalid payment signature.' });
     }
 
-    const { data: rzpOrder, error: orderError } = await supabase
-      .from('razorpay_orders')
-      .select('*, hotels(*), plans(*)')
-      .eq('razorpay_order_id', razorpay_order_id)
-      .single();
-
-    if (orderError || !rzpOrder) return res.status(404).json({ success: false, message: 'Order not found.' });
-    if (rzpOrder.status === 'paid') return res.json({ success: true, message: 'Already activated.', data: rzpOrder });
-
-    const validFrom = new Date();
-    const validTo   = new Date();
-    validTo.setDate(validTo.getDate() + CYCLE_DAYS[rzpOrder.cycle]);
-
-    await supabase.from('razorpay_orders').update({
-      razorpay_payment_id, razorpay_signature,
-      status: 'paid', valid_from: validFrom.toISOString(), valid_to: validTo.toISOString(),
-    }).eq('id', rzpOrder.id);
-
-    const invoiceNumber = `INV-${Date.now()}`;
-    const { data: payment, error: payError } = await supabase.from('payments').insert({
-      hotel_id: rzpOrder.hotel_id, plan_id: rzpOrder.plan_id,
-      amount: rzpOrder.amount_display, payment_id: razorpay_payment_id,
-      valid_from: validFrom.toISOString(), valid_to: validTo.toISOString(),
-      invoice_number: invoiceNumber, razorpay_order_id,
-    }).select().single();
-    if (payError) throw payError;
-
-    await supabase.from('hotels').update({
-      subscription_status: 'active', current_plan_id: rzpOrder.plan_id,
-      plan_valid_from: validFrom.toISOString(), plan_valid_to: validTo.toISOString(),
-      is_active: true,
-    }).eq('id', rzpOrder.hotel_id);
-
-    const hotel = rzpOrder.hotels;
-    const plan  = rzpOrder.plans;
-
-    let pdfBuffer = null;
-    try {
-      pdfBuffer = await generateInvoicePDF({
-        invoice: invoiceNumber,
-        hotel: { hotelName: hotel.hotel_name, email: hotel.email, address: hotel.address, gstNumber: hotel.gst_number },
-        plan, cycle: rzpOrder.cycle, amount: rzpOrder.amount_display,
-        validFrom, validTo, paymentId: razorpay_payment_id,
-      });
-    } catch (pdfErr) {
-      console.error('PDF generation failed:', pdfErr.message);
-    }
-
-    await sendPaymentSuccessEmail({
-      hotelName: hotel.hotel_name, email: hotel.email,
-      plan: plan.name, cycle: rzpOrder.cycle, amount: rzpOrder.amount_display,
-      invoiceNumber, validFrom, validTo, paymentId: razorpay_payment_id, pdfBuffer,
+    const result = await activateSubscription({
+      razorpayOrderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+      signature: razorpay_signature,
+      source: 'verify',
     });
+
+    if (!result.ok && result.reason === 'order_not_found') {
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+    if (!result.ok) return res.status(500).json({ success: false, message: result.reason });
 
     res.json({
       success: true,
-      message: 'Payment verified and subscription activated!',
-      data: { invoiceNumber, planName: plan.name, cycle: rzpOrder.cycle, amount: rzpOrder.amount_display, validFrom, validTo },
+      message: result.already ? 'Already activated.' : 'Payment verified and subscription activated!',
+      data: {
+        invoiceNumber: result.invoiceNumber,
+        planName: result.plan?.name || result.rzpOrder?.plans?.name,
+        cycle: result.rzpOrder?.cycle,
+        amount: result.rzpOrder?.amount_display,
+        validFrom: result.validFrom,
+        validTo: result.validTo,
+      },
     });
   } catch (err) {
     console.error('Verify error:', err);
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── RAZORPAY WEBHOOK ─────────────────────────────────────────────────────────
+// Server-to-server confirmation. Without this, a guest who closes the tab after
+// paying is charged with nothing activated and no record — the browser callback
+// above is the only thing that would have recorded it.
+//
+// Public by design (no JWT): authenticity comes from the HMAC signature over the
+// RAW body, so server.js captures req.rawBody before JSON parsing.
+// Configure at Razorpay Dashboard > Settings > Webhooks:
+//   URL    https://stayxpulse.sunver.in/api/payments/webhook
+//   Events payment.captured, order.paid
+//   Secret must match RAZORPAY_WEBHOOK_SECRET
+router.post('/webhook', async (req, res) => {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error('Webhook received but RAZORPAY_WEBHOOK_SECRET is not set');
+    return res.status(500).json({ success: false, message: 'Webhook not configured' });
+  }
+
+  try {
+    const signature = req.headers['x-razorpay-signature'];
+    const raw = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+    const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+
+    const a = Buffer.from(expected, 'utf8');
+    const b = Buffer.from(String(signature || ''), 'utf8');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      console.warn('Webhook signature mismatch — ignoring');
+      return res.status(400).json({ success: false, message: 'Invalid signature' });
+    }
+
+    const event  = req.body?.event;
+    const entity = req.body?.payload?.payment?.entity || req.body?.payload?.order?.entity;
+    const orderId   = entity?.order_id || entity?.id;
+    const paymentId = req.body?.payload?.payment?.entity?.id;
+
+    // Acknowledge anything we don't act on, so Razorpay stops retrying.
+    if (!['payment.captured', 'order.paid'].includes(event) || !orderId || !paymentId) {
+      return res.json({ success: true, ignored: event || 'unknown' });
+    }
+
+    const result = await activateSubscription({
+      razorpayOrderId: orderId,
+      paymentId,
+      source: `webhook:${event}`,
+    });
+
+    if (!result.ok) console.error('Webhook activation failed:', result.reason, orderId);
+
+    // Always 200 on a validly signed event: a non-2xx makes Razorpay retry for
+    // hours, and a genuinely unknown order will never succeed on retry.
+    res.json({ success: true, handled: result.ok, already: !!result.already });
+  } catch (err) {
+    console.error('Webhook error:', err.message);
+    res.status(500).json({ success: false });
   }
 });
 

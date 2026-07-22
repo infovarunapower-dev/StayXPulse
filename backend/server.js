@@ -50,7 +50,13 @@ app.use(cors({
   credentials: false,
 }));
 
-app.use(express.json({ limit: '1mb' }));
+// The Razorpay webhook signs the RAW request body, so keep a copy before
+// JSON.parse rewrites it — re-stringifying the parsed object does not
+// byte-for-byte reproduce what was signed.
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, res, buf) => { if (buf && buf.length) req.rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
