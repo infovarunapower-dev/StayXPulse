@@ -91,10 +91,22 @@ const initiatePayment = async ({ txnid, amount, productinfo, firstname, email, p
   try { json = JSON.parse(text); }
   catch { throw new Error(`Easebuzz returned a non-JSON response (${res.status}): ${text.slice(0, 200)}`); }
 
-  // status 1 = success; anything else carries the reason in `data`.
+  // status 1 = success; anything else carries the reason in `data`. Easebuzz
+  // often returns a per-field object here ({"phone":["invalid"]}), so log the
+  // whole payload — "Parameter validation failed" alone is undebuggable.
   if (String(json.status) !== '1' || !json.data) {
-    const reason = typeof json.data === 'string' ? json.data : JSON.stringify(json.data || json);
-    throw new Error(`Easebuzz refused the payment request: ${reason.slice(0, 300)}`);
+    console.error('Easebuzz initiate rejected:', JSON.stringify(json), '| sent:', JSON.stringify({
+      txnid: t(txnid), amount: fmtAmount(amount), productinfo: t(productinfo),
+      firstname: t(firstname), email: t(email), phone: t(phone), surl, furl,
+    }));
+    let reason;
+    if (typeof json.data === 'string') reason = json.data;
+    else if (json.data && typeof json.data === 'object') {
+      // Flatten {field: [msg]} into "field: msg" so the user sees the cause.
+      reason = Object.entries(json.data)
+        .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' · ');
+    } else reason = JSON.stringify(json);
+    throw new Error(`Easebuzz refused the payment request — ${String(reason).slice(0, 300)}`);
   }
 
   return { accessKey: json.data, paymentUrl: `${PAY_BASE}/pay/${json.data}` };

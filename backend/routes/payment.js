@@ -70,6 +70,9 @@ router.post('/initiate', HA, async (req, res) => {
     if (pErr || !plan) return res.status(404).json({ success: false, message: 'Plan not found.' });
 
     const amount = amountFor(plan.price, cycle);
+    if (!Number.isFinite(amount) || amount < 1) {
+      return res.status(400).json({ success: false, message: 'This plan has no price set. Please contact support.' });
+    }
     // Easebuzz rejects a txnid it has seen before, so make it unique per attempt
     // rather than per order — a customer who abandons checkout must be able to
     // retry.
@@ -85,17 +88,33 @@ router.post('/initiate', HA, async (req, res) => {
     // branches on `status`.
     const callbackUrl = `${process.env.API_PUBLIC_URL || CLIENT_URL}/api/payments/easebuzz/callback`;
 
+    // Easebuzz validates these strictly and rejects the whole request with a
+    // generic "Parameter validation failed" if any of them carries punctuation
+    // or the wrong length — so normalise before sending, and fail with a useful
+    // message rather than handing the gateway something it will refuse.
+    const clean = (s, max) => String(s || '').replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+    const phone = String(hotel.phone || '').replace(/\D/g, '').slice(-10);
+
+    if (phone.length !== 10) {
+      return res.status(400).json({ success: false, message: 'Your hotel phone number must be a valid 10-digit number before you can pay. Update it under Hotel Profile.' });
+    }
+    if (!/^\S+@\S+\.\S+$/.test(String(hotel.email || ''))) {
+      return res.status(400).json({ success: false, message: 'Your hotel email address is not valid. Please contact support.' });
+    }
+
     const { paymentUrl } = await easebuzz.initiatePayment({
       txnid,
       amount,
-      productinfo: `StayXPulse ${plan.name} (${cycle})`,
-      // Easebuzz rejects several punctuation marks in firstname; keep it plain.
-      firstname: String(hotel.hotel_name || 'Hotel').replace(/[^a-zA-Z0-9 ]/g, '').slice(0, 60) || 'Hotel',
-      email: hotel.email,
-      phone: String(hotel.phone || '').replace(/\D/g, '').slice(-10),
+      productinfo: clean(`StayXPulse ${plan.name} ${cycle}`, 100) || 'StayXPulse Subscription',
+      firstname: clean(hotel.hotel_name, 60) || 'Hotel',
+      email: String(hotel.email).trim(),
+      phone,
       surl: callbackUrl,
       furl: callbackUrl,
-      udf: { udf1: hotel.id, udf2: plan.id, udf3: cycle },
+      // Deliberately no udf fields: they are part of BOTH hash sequences, so if
+      // the gateway ever trims or re-encodes one, the reverse hash silently
+      // stops matching and every payment looks tampered. txnid already links
+      // the callback back to our order.
     });
 
     res.json({ success: true, data: { paymentUrl, txnid, amount, planName: plan.name, cycle } });
