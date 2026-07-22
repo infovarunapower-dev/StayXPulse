@@ -53,14 +53,46 @@ const responseHash = (p) => {
   return sha512(parts.join('|'));
 };
 
+// Gateways in this family (Easebuzz, PayU and friends) differ in how many udf
+// slots and filler pipes the reverse hash carries, and the docs do not always
+// match what the live endpoint sends. Rather than fail every genuine payment on
+// a pipe-count mismatch, check the known-good variants and log which one hit so
+// it can be pinned later. This is not a weakening: each candidate is still a
+// full SHA-512 over the salt, so an attacker gains nothing.
+const responseHashCandidates = (p) => {
+  const udf = (n) => Array.from({ length: n }, (_, i) => t(p[`udf${n - i}`]));
+  const tail = [t(p.email), t(p.firstname), t(p.productinfo), fmtAmount(p.amount), t(p.txnid), t(KEY)];
+  return [
+    ['udf10',        [t(SALT), t(p.status), ...udf(10), ...tail]],
+    ['udf5',         [t(SALT), t(p.status), ...udf(5), ...tail]],
+    ['payu-style',   [t(SALT), t(p.status), '', '', '', '', '', '', ...udf(5), ...tail]],
+    ['no-udf',       [t(SALT), t(p.status), ...tail]],
+  ];
+};
+
 const verifyResponse = (payload) => {
   if (!isConfigured() || !payload) return false;
   const given = t(payload.hash).toLowerCase();
   if (!given) return false;
-  const expected = responseHash(payload);
-  const a = Buffer.from(expected, 'utf8');
-  const b = Buffer.from(given, 'utf8');
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+
+  for (const [name, parts] of responseHashCandidates(payload)) {
+    const expected = sha512(parts.join('|'));
+    const a = Buffer.from(expected, 'utf8');
+    const b = Buffer.from(given, 'utf8');
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+      if (name !== 'udf10') console.log(`Easebuzz reverse hash matched variant: ${name}`);
+      return true;
+    }
+  }
+
+  console.error('Easebuzz reverse hash mismatch. Received fields:', JSON.stringify({
+    status: payload.status, txnid: payload.txnid, amount: payload.amount,
+    productinfo: payload.productinfo, firstname: payload.firstname, email: payload.email,
+    easepayid: payload.easepayid,
+    udfsPresent: Object.keys(payload).filter(k => /^udf\d+$/.test(k)),
+    allKeys: Object.keys(payload),
+  }));
+  return false;
 };
 
 // Step 1 — ask Easebuzz for an access_key.

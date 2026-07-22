@@ -190,10 +190,19 @@ router.post('/easebuzz/webhook', async (req, res) => {
 // us to check with Easebuzz directly rather than paying twice.
 router.post('/reconcile', HA, async (req, res) => {
   try {
-    const { txnid } = req.body;
-    if (!txnid) return res.status(400).json({ success: false, message: 'txnid is required.' });
-
     const hotelId = req.user.hotel?.id || req.user.hotel;
+    let { txnid } = req.body;
+
+    // With no txnid, check this hotel's most recent unfinished attempt — that is
+    // what a customer means by "I paid but nothing happened".
+    if (!txnid) {
+      const { data: pending } = await supabase.from('payment_orders')
+        .select('txnid').eq('hotel_id', hotelId).eq('status', 'created')
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!pending) return res.json({ success: true, activated: false, status: 'no_pending_payment' });
+      txnid = pending.txnid;
+    }
+
     const { data: order } = await supabase.from('payment_orders').select('*').eq('txnid', txnid).single();
     if (!order || order.hotel_id !== hotelId) return res.status(404).json({ success: false, message: 'Order not found.' });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useFetch } from '../../utils/hooks';
@@ -13,6 +13,26 @@ const daysLeft = end => end ? Math.ceil((new Date(end) - Date.now()) / 86400000)
 const Subscription = () => {
   const navigate = useNavigate();
   const { data, loading } = useFetch('/hotel/subscription');
+  const [checking, setChecking] = useState(false);
+
+  // "I paid but nothing happened." A redirect flow can lose the customer on the
+  // way back, so ask the gateway directly rather than let them pay twice.
+  const checkPayment = async () => {
+    setChecking(true);
+    try {
+      const { data: r } = await api.post('/payments/reconcile', {});
+      if (r.activated) {
+        toast.success('Payment found — your subscription is now active!');
+        setTimeout(() => window.location.reload(), 1200);
+      } else if (r.status === 'no_pending_payment') {
+        toast('No pending payment found for your account.', { icon: 'ℹ️' });
+      } else {
+        toast.error(`Your last payment shows as "${r.status}". If you were charged, contact support with that reference.`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not check your payment.');
+    } finally { setChecking(false); }
+  };
 
   if (loading) return <PageSkeleton />;
 
@@ -102,7 +122,14 @@ const Subscription = () => {
       <PageHeader
         title="Subscription"
         subtitle="Your trial and plan history"
-        action={<button className="btn btn-brand" onClick={() => navigate('/hotel/upgrade')}>⬆ Upgrade / Renew</button>}
+        action={
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-outline btn-sm" onClick={checkPayment} disabled={checking}>
+              {checking ? 'Checking…' : 'Paid but not showing?'}
+            </button>
+            <button className="btn btn-brand" onClick={() => navigate('/hotel/upgrade')}>⬆ Upgrade / Renew</button>
+          </div>
+        }
       />
 
       {/* Current status */}
