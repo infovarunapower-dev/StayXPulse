@@ -99,7 +99,12 @@ const initiatePayment = async ({ txnid, amount, productinfo, firstname, email, p
       txnid: t(txnid), amount: fmtAmount(amount), productinfo: t(productinfo),
       firstname: t(firstname), email: t(email), phone: t(phone), surl, furl,
     }));
-    let reason;
+    // error_desc carries the actual cause ("Invalid merchant key."); `data` is
+    // usually just the generic "Parameter validation failed".
+    let reason = json.error_desc || json.error || json.message;
+    if (reason) {
+      throw new Error(`Easebuzz refused the payment request — ${String(reason).slice(0, 300)}`);
+    }
     if (typeof json.data === 'string') reason = json.data;
     else if (json.data && typeof json.data === 'object') {
       // Flatten {field: [msg]} into "field: msg" so the user sees the cause.
