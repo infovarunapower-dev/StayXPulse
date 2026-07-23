@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useFetch } from '../../utils/hooks';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { PageHeader, Card, CardHeader, Badge, Table, PageSkeleton } from '../../components/shared/UI';
 
@@ -12,7 +13,8 @@ const daysLeft = end => end ? Math.ceil((new Date(end) - Date.now()) / 86400000)
 
 const Subscription = () => {
   const navigate = useNavigate();
-  const { data, loading } = useFetch('/hotel/subscription');
+  const { data, loading, error } = useFetch('/hotel/subscription');
+  const { user } = useAuth();
   const [checking, setChecking] = useState(false);
 
   // "I paid but nothing happened." A redirect flow can lose the customer on the
@@ -55,7 +57,21 @@ const Subscription = () => {
 
   if (loading) return <PageSkeleton />;
 
-  const hotel    = data?.data?.hotel || {};
+  // Prefer the subscription endpoint (it carries payment history), but fall
+  // back to the auth-context hotel for the status card so this page can never
+  // show "Inactive" while the account is genuinely active. AuthContext uses
+  // camelCase; normalise it to the snake_case this page reads.
+  const fetched = data?.data?.hotel;
+  const authHotel = user?.hotel
+    ? {
+        subscription_status: user.hotel.subscriptionStatus,
+        trial_start_date:    user.hotel.trialStartDate,
+        trial_end_date:      user.hotel.trialEndDate,
+        plan_valid_from:     user.hotel.planValidFrom,
+        plan_valid_to:       user.hotel.planValidTo,
+      }
+    : {};
+  const hotel    = (fetched && fetched.subscription_status) ? fetched : authHotel;
   const payments = data?.data?.payments || [];
   const status   = hotel.subscription_status;
 
@@ -178,6 +194,11 @@ const Subscription = () => {
       {/* History */}
       <Card>
         <CardHeader title="Subscription History" />
+        {error && rows.length === 0 && (
+          <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#92400E' }}>
+            Couldn’t load your payment history just now. Your plan status above is current — please refresh in a moment.
+          </div>
+        )}
         <Table columns={columns} data={rows} emptyMessage="No subscription history yet" />
       </Card>
     </div>
