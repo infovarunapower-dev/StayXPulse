@@ -129,44 +129,58 @@ router.post('/initiate', HA, async (req, res) => {
 // is no JWT. Authenticity comes from the reverse hash — nothing in the payload
 // is trusted until that verifies.
 const handleEasebuzzResult = async (payload, source) => {
-  if (!easebuzz.verifyResponse(payload)) {
-    console.warn('Easebuzz callback failed hash verification — ignoring', { txnid: payload?.txnid, status: payload?.status });
-    return { ok: false, reason: 'bad_hash' };
+  const txnid = payload?.txnid;
+  if (!txnid) return { ok: false, reason: 'no_txnid' };
+
+  const hashOk = easebuzz.verifyResponse(payload);
+  const postedStatus = String(payload.status || '').toLowerCase();
+
+  // Trust the browser POST only when its hash verifies. When it does not — which
+  // is what happens if our reverse-hash sequence does not exactly match this
+  // merchant account — do NOT reject the payment. Ask Easebuzz's server directly
+  // whether it succeeded. That check depends only on our salt and the txnid, not
+  // on the posted payload, so a hash-format mismatch can never lose a real
+  // payment.
+  if (hashOk && postedStatus === 'success') {
+    return activateSubscription({ txnid, gatewayPaymentId: payload.easepayid, gateway: 'easebuzz', source });
   }
 
-  const status = String(payload.status || '').toLowerCase();
-  const txnid  = payload.txnid;
+  // Either the hash didn't verify, or it says non-success — confirm server-side.
+  let verified = null;
+  try {
+    const info = await easebuzz.retrieveTransaction(txnid);
+    const tx = Array.isArray(info?.msg) ? info.msg[0] : info?.msg;
+    if (tx) verified = { status: String(tx.status || '').toLowerCase(), easepayid: tx.easepayid };
+    console.log(`Easebuzz ${source} server-verify [${txnid}]: hashOk=${hashOk} posted=${postedStatus} confirmed=${verified?.status}`);
+  } catch (e) {
+    console.error(`Easebuzz ${source} retrieve failed [${txnid}]:`, e.message);
+  }
 
-  if (status !== 'success') {
+  if (verified?.status === 'success') {
+    return activateSubscription({ txnid, gatewayPaymentId: verified.easepayid || payload.easepayid, gateway: 'easebuzz', source: `${source}+verify` });
+  }
+
+  // Genuinely not paid.
+  const finalStatus = verified?.status || postedStatus || 'failed';
+  if (finalStatus !== 'success') {
     await supabase.from('payment_orders')
       .update({ status: 'failed', gateway_payment_id: payload.easepayid || null })
       .eq('txnid', txnid).eq('status', 'created');
-    console.log(`Easebuzz ${source}: txnid=${txnid} status=${status} — not activating`);
-    return { ok: false, reason: status || 'failed', failed: true };
   }
-
-  return activateSubscription({
-    txnid,
-    gatewayPaymentId: payload.easepayid,
-    gateway: 'easebuzz',
-    source,
-  });
+  return { ok: false, reason: hashOk ? finalStatus : 'unverified', failed: true };
 };
 
 router.post('/easebuzz/callback', async (req, res) => {
-  let redirect = `${CLIENT_URL}/hotel/subscription?payment=failed`;
+  let outcome = 'failed';
   try {
     const result = await handleEasebuzzResult(req.body, 'callback');
-    if (result.ok) {
-      redirect = `${CLIENT_URL}/hotel/subscription?payment=success`;
-    } else if (result.reason === 'bad_hash') {
-      redirect = `${CLIENT_URL}/hotel/subscription?payment=invalid`;
-    }
+    if (result.ok) outcome = 'success';
+    else if (result.reason === 'unverified') outcome = 'pending';   // paid at gateway but we couldn't confirm
   } catch (err) {
     console.error('Easebuzz callback error:', err.message);
   }
   // 303 so the browser follows with GET — this arrived as a form POST.
-  res.redirect(303, redirect);
+  res.redirect(303, `${CLIENT_URL}/hotel/subscription?payment=${outcome}`);
 });
 
 // ── EASEBUZZ WEBHOOK ─────────────────────────────────────────────────────────
@@ -176,8 +190,8 @@ router.post('/easebuzz/callback', async (req, res) => {
 router.post('/easebuzz/webhook', async (req, res) => {
   try {
     const result = await handleEasebuzzResult(req.body, 'webhook');
-    if (result.reason === 'bad_hash') return res.status(400).json({ success: false, message: 'Invalid hash' });
-    // Always 200 on a validly signed event so the gateway stops retrying.
+    // Always 200 — the handler already confirmed server-side, so retries add
+    // nothing, and a non-2xx just makes Easebuzz hammer us for hours.
     res.json({ success: true, handled: result.ok, already: !!result.already });
   } catch (err) {
     console.error('Easebuzz webhook error:', err.message);

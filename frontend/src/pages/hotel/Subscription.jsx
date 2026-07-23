@@ -34,6 +34,25 @@ const Subscription = () => {
     } finally { setChecking(false); }
   };
 
+  // Easebuzz returns the customer to this page with ?payment=... after checkout.
+  React.useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('payment');
+    if (!p) return;
+    window.history.replaceState({}, '', '/hotel/subscription');   // clear the param
+    if (p === 'success') {
+      toast.success('🎉 Payment successful — your subscription is now active!');
+      setTimeout(() => window.location.reload(), 1200);
+    } else if (p === 'pending') {
+      // Gateway took the money but our callback could not confirm it — check
+      // directly rather than leave the hotel stranded.
+      toast('Confirming your payment…', { icon: '⏳' });
+      checkPayment();
+    } else {
+      toast.error('Payment was not completed. If you were charged, click "Paid but not showing?".');
+    }
+    // eslint-disable-next-line
+  }, []);
+
   if (loading) return <PageSkeleton />;
 
   const hotel    = data?.data?.hotel || {};
