@@ -516,21 +516,37 @@ router.put('/profile', [...MW_OPEN, logoUpload.single('logo')], async (req, res)
 
 router.get('/subscription', MW_OPEN, async (req, res) => {
   try {
+    // Deliberately NO nested plans(...) embed. That relationship join throws
+    // whenever PostgREST cannot resolve the hotels->plans FK (it broke after the
+    // FK was recreated in migration 001), and a throw here blanked the whole
+    // Subscription page — showing "Inactive / no history" even on an active
+    // trial. Plan names are resolved with a plain follow-up lookup instead.
     const { data: hotel, error: hErr } = await supabase
       .from('hotels')
-      .select('subscription_status, trial_start_date, trial_end_date, plan_valid_from, plan_valid_to, current_plan_id, plans(name, price)')
+      .select('subscription_status, trial_start_date, trial_end_date, plan_valid_from, plan_valid_to, current_plan_id')
       .eq('id', req.hotelId)
       .single();
     if (hErr) throw hErr;
 
     const { data: payments, error: pErr } = await supabase
       .from('payments')
-      .select('id, amount, payment_id, invoice_number, valid_from, valid_to, paid_at, plans(name)')
+      .select('id, amount, payment_id, invoice_number, valid_from, valid_to, paid_at, plan_id')
       .eq('hotel_id', req.hotelId)
       .order('valid_from', { ascending: false });
     if (pErr) throw pErr;
 
-    res.json({ success: true, data: { hotel, payments: payments || [] } });
+    // One lookup for every plan id referenced, then stitch names in.
+    const planIds = [...new Set([hotel.current_plan_id, ...(payments || []).map(p => p.plan_id)].filter(Boolean))];
+    let planMap = {};
+    if (planIds.length) {
+      const { data: plans } = await supabase.from('plans').select('id, name, price').in('id', planIds);
+      planMap = Object.fromEntries((plans || []).map(p => [p.id, p]));
+    }
+
+    const hotelOut = { ...hotel, plans: planMap[hotel.current_plan_id] || null };
+    const paymentsOut = (payments || []).map(p => ({ ...p, plans: planMap[p.plan_id] ? { name: planMap[p.plan_id].name } : null }));
+
+    res.json({ success: true, data: { hotel: hotelOut, payments: paymentsOut } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
