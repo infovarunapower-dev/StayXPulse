@@ -158,12 +158,13 @@ const retrieveTransaction = async (txnid) => {
     key: KEY,
     hash: sha512(`${t(KEY)}|${t(txnid)}|${t(SALT)}`),
   });
-  const res = await fetch(`${DASH_BASE}/transaction/v1/retrieve`, {
+  const res = await fetch(`${DASH_BASE}/transaction/v2/retrieve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body,
   });
   const text = await res.text();
+  console.log(`Easebuzz retrieve [${txnid}] ${res.status}:`, text.slice(0, 400));
   try { return JSON.parse(text); }
   catch { throw new Error(`Easebuzz retrieve returned non-JSON (${res.status}): ${text.slice(0, 200)}`); }
 };
