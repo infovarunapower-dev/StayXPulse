@@ -14,6 +14,9 @@ const daysLeft = end => end ? Math.ceil((new Date(end) - Date.now()) / 86400000)
 const Subscription = () => {
   const navigate = useNavigate();
   const { data, loading, error } = useFetch('/hotel/subscription');
+  // History has its own dedicated source so it does not depend on the combined
+  // subscription endpoint resolving cleanly.
+  const { data: payData } = useFetch('/payments/my-payments');
   const { user } = useAuth();
   const [checking, setChecking] = useState(false);
 
@@ -72,7 +75,11 @@ const Subscription = () => {
       }
     : {};
   const hotel    = (fetched && fetched.subscription_status) ? fetched : authHotel;
-  const payments = data?.data?.payments || [];
+  // Prefer the dedicated payments endpoint; fall back to whatever the combined
+  // endpoint returned.
+  const payments = (Array.isArray(payData?.data) && payData.data.length)
+    ? payData.data
+    : (data?.data?.payments || []);
   const status   = hotel.subscription_status;
 
   // ── Build unified history rows (trial first, then each paid period) ──

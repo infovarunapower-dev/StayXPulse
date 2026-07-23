@@ -285,13 +285,24 @@ router.get('/invoice/:paymentId', HA, async (req, res) => {
 router.get('/my-payments', HA, async (req, res) => {
   try {
     const hotelId = req.user.hotel?.id || req.user.hotel;
+    // No plans(name) embed — a relationship-resolution failure would 500 the
+    // whole history. Resolve plan names with a plain lookup instead.
     const { data: payments, error } = await supabase
       .from('payments')
-      .select('*, plans(name)')
+      .select('id, amount, payment_id, invoice_number, valid_from, valid_to, paid_at, plan_id, gateway')
       .eq('hotel_id', hotelId)
       .order('paid_at', { ascending: false });
     if (error) throw error;
-    res.json({ success: true, data: payments || [] });
+
+    const planIds = [...new Set((payments || []).map(p => p.plan_id).filter(Boolean))];
+    let planMap = {};
+    if (planIds.length) {
+      const { data: plans } = await supabase.from('plans').select('id, name').in('id', planIds);
+      planMap = Object.fromEntries((plans || []).map(p => [p.id, p.name]));
+    }
+    const out = (payments || []).map(p => ({ ...p, plans: { name: planMap[p.plan_id] || 'Plan' } }));
+
+    res.json({ success: true, data: out });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
