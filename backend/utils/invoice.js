@@ -1,6 +1,7 @@
 const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
+const { SELLER, computeGst, rs } = require('./gstCalc');
 
 // Bundled with the deployment, so it is readable on Vercel's read-only FS.
 const LOGO_PATH = path.join(__dirname, '../assets/logo.png');
@@ -28,76 +29,101 @@ const generateInvoicePDF = ({ invoice, hotel, plan, cycle, amount, validFrom, va
       const BLACK = '#111827';
       const W     = 495;
 
-      // Header
-      doc.rect(50, 50, W, 70).fill(BRAND);
-      drawLogo(doc, 66, 70, 46);
-      doc.fillColor('#FFFFFF').fontSize(22).font('Helvetica-Bold').text('StayXPulse', 122, 66);
-      doc.fontSize(10).font('Helvetica').text('Smart Hotel Management Platform', 122, 92);
-      doc.fontSize(11).font('Helvetica-Bold').text('TAX INVOICE', 400, 66, { width: 130, align: 'right' });
-      doc.fontSize(9).font('Helvetica').text(invoice, 400, 84, { width: 130, align: 'right' });
-
-      // Invoice meta
-      doc.fillColor(BLACK).fontSize(10).font('Helvetica')
-         .text(`Date: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`, 50, 138)
-         .text(`Payment ID: ${paymentId}`, 50, 154);
-
-      // Bill To
-      doc.rect(50, 178, W, 80).fill(LIGHT);
-      doc.fillColor(GRAY).fontSize(9).font('Helvetica-Bold').text('BILL TO', 66, 190);
-      doc.fillColor(BLACK).fontSize(11).font('Helvetica-Bold').text(hotel.hotelName, 66, 204);
-      doc.fontSize(9).font('Helvetica').fillColor(GRAY)
-         .text(hotel.email, 66, 219)
-         .text(hotel.address || '', 66, 232)
-         .text(`GST: ${hotel.gstNumber}`, 66, 245);
-
-      // Validity badge
-      doc.rect(340, 190, 190, 56).fill(BRAND);
-      doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica').text('VALID FROM', 356, 198).text('VALID TO', 430, 198);
-      doc.fontSize(10).font('Helvetica-Bold')
-         .text(new Date(validFrom).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }), 356, 212)
-         .text(new Date(validTo).toLocaleDateString('en-IN',   { day: '2-digit', month: 'short', year: 'numeric' }), 430, 212);
-      doc.fontSize(9).font('Helvetica')
-         .text(cycle.charAt(0).toUpperCase() + cycle.slice(1) + ' Plan', 356, 232, { width: 174, align: 'center' });
-
-      // Line items
-      const tableTop = 278;
-      doc.rect(50, tableTop, W, 28).fill(BRAND);
-      doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold')
-         .text('DESCRIPTION', 66, tableTop + 9).text('CYCLE', 260, tableTop + 9)
-         .text('DURATION', 340, tableTop + 9).text('AMOUNT (₹)', 430, tableTop + 9, { width: 100, align: 'right' });
-
+      const g = computeGst(amount, hotel.gstNumber);
       const CYCLE_DAYS = { monthly: 30, quarterly: 90, yearly: 365 };
-      doc.rect(50, tableTop + 28, W, 32).fill('#FFFFFF');
-      doc.fillColor(BLACK).fontSize(10).font('Helvetica')
-         .text(`${plan.name} Plan — StayXPulse Subscription`, 66, tableTop + 38)
-         .text(cycle.charAt(0).toUpperCase() + cycle.slice(1), 260, tableTop + 38)
-         .text(`${CYCLE_DAYS[cycle] || 30} days`, 340, tableTop + 38)
-         .text(`₹${amount.toLocaleString('en-IN')}`, 430, tableTop + 38, { width: 100, align: 'right' });
+      const R = 50 + W; // right edge
 
-      // Totals
-      const totTop = tableTop + 80;
-      doc.rect(320, totTop, 225, 28).fill(LIGHT);
-      doc.fillColor(GRAY).fontSize(9).font('Helvetica').text('Subtotal', 330, totTop + 9).text(`₹${amount.toLocaleString('en-IN')}`, 430, totTop + 9, { width: 100, align: 'right' });
-      doc.rect(320, totTop + 28, 225, 28).fill(LIGHT);
-      doc.fillColor(GRAY).fontSize(9).font('Helvetica').text('GST (0%)', 330, totTop + 37).text('₹0', 430, totTop + 37, { width: 100, align: 'right' });
-      doc.rect(320, totTop + 56, 225, 32).fill(BRAND);
-      doc.fillColor('#FFFFFF').fontSize(11).font('Helvetica-Bold').text('TOTAL', 330, totTop + 65).text(`₹${amount.toLocaleString('en-IN')}`, 430, totTop + 65, { width: 100, align: 'right' });
+      // Header
+      doc.rect(50, 50, W, 74).fill(BRAND);
+      drawLogo(doc, 66, 72, 44);
+      doc.fillColor('#FFFFFF').fontSize(20).font('Helvetica-Bold').text('StayXPulse', 120, 64);
+      doc.fontSize(8.5).font('Helvetica').text('by ' + SELLER.name, 120, 88);
+      doc.fontSize(8.5).text('GSTIN: ' + SELLER.gstin + '  ·  SAC: ' + SELLER.sac, 120, 100);
+      doc.fontSize(12).font('Helvetica-Bold').text('TAX INVOICE', R - 146, 64, { width: 130, align: 'right' });
+      doc.fontSize(9).font('Helvetica').text(invoice, R - 146, 84, { width: 130, align: 'right' });
+      doc.fontSize(8).text(new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }), R - 146, 98, { width: 130, align: 'right' });
+
+      // Seller / Bill-To row
+      const boxTop = 138;
+      doc.fillColor(GRAY).fontSize(8).font('Helvetica-Bold').text('SELLER', 50, boxTop);
+      doc.fillColor(BLACK).fontSize(9.5).font('Helvetica-Bold').text(SELLER.name, 50, boxTop + 12, { width: 250 });
+      doc.fillColor(GRAY).fontSize(8.5).font('Helvetica')
+         .text('GSTIN: ' + SELLER.gstin, 50, boxTop + 26)
+         .text('State: ' + SELLER.stateName + ' (' + SELLER.state + ')', 50, boxTop + 38);
+
+      doc.fillColor(GRAY).fontSize(8).font('Helvetica-Bold').text('BILL TO', 310, boxTop);
+      doc.fillColor(BLACK).fontSize(9.5).font('Helvetica-Bold').text(hotel.hotelName || '—', 310, boxTop + 12, { width: 235 });
+      doc.fillColor(GRAY).fontSize(8.5).font('Helvetica')
+         .text(hotel.email || '', 310, boxTop + 26, { width: 235 })
+         .text('GSTIN: ' + (hotel.gstNumber || 'Unregistered'), 310, boxTop + 38, { width: 235 })
+         .text('Place of supply: ' + g.placeOfSupply, 310, boxTop + 50, { width: 235 });
+
+      // Period line
+      const periodTop = boxTop + 74;
+      doc.fillColor(BLACK).fontSize(9).font('Helvetica')
+         .text('Payment ID: ' + paymentId, 50, periodTop)
+         .text('Billing period: '
+            + new Date(validFrom).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+            + '  to  '
+            + new Date(validTo).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+            50, periodTop + 14);
+
+      // Line-item table
+      const tableTop = periodTop + 40;
+      doc.rect(50, tableTop, W, 26).fill(BRAND);
+      doc.fillColor('#FFFFFF').fontSize(8.5).font('Helvetica-Bold')
+         .text('DESCRIPTION', 60, tableTop + 8)
+         .text('SAC', 300, tableTop + 8)
+         .text('QTY', 350, tableTop + 8)
+         .text('TAXABLE VALUE', R - 130, tableTop + 8, { width: 120, align: 'right' });
+
+      doc.rect(50, tableTop + 26, W, 34).fill('#FFFFFF');
+      doc.fillColor(BLACK).fontSize(9).font('Helvetica')
+         .text(`${plan.name} Plan — StayXPulse Subscription`, 60, tableTop + 34, { width: 230 })
+         .text(SELLER.sac, 300, tableTop + 34)
+         .text('1', 352, tableTop + 34)
+         .text(rs(g.taxable), R - 130, tableTop + 34, { width: 120, align: 'right' });
+      doc.fillColor(GRAY).fontSize(7.5).font('Helvetica')
+         .text(`${(cycle || 'monthly').charAt(0).toUpperCase() + (cycle || 'monthly').slice(1)} · ${CYCLE_DAYS[cycle] || 30} days`, 60, tableTop + 46);
+
+      // Tax summary (right-aligned block)
+      let ty = tableTop + 72;
+      const rowW = 245, labelX = R - rowW + 10, valX = R - 130;
+      const taxRow = (label, val, opts = {}) => {
+        if (opts.fill) { doc.rect(R - rowW, ty, rowW, opts.h || 22).fill(opts.fill); }
+        doc.fillColor(opts.color || GRAY).font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(opts.size || 9)
+           .text(label, labelX, ty + 6).text(val, valX, ty + 6, { width: 120, align: 'right' });
+        ty += (opts.h || 22);
+      };
+
+      taxRow('Taxable Value', rs(g.taxable), { fill: LIGHT });
+      if (g.intra) {
+        taxRow(`CGST @ ${g.rate / 2}%`, rs(g.cgst), { fill: LIGHT });
+        taxRow(`SGST @ ${g.rate / 2}%`, rs(g.sgst), { fill: LIGHT });
+      } else {
+        taxRow(`IGST @ ${g.rate}%`, rs(g.igst), { fill: LIGHT });
+      }
+      taxRow('Total Tax', rs(g.totalTax), { fill: LIGHT });
+      taxRow('TOTAL (incl. GST)', rs(g.gross), { fill: BRAND, color: '#FFFFFF', bold: true, size: 10.5, h: 28 });
+
+      // Amount-in-words + inclusive note
+      doc.fillColor(GRAY).fontSize(8).font('Helvetica-Oblique')
+         .text('Amount charged is inclusive of GST at ' + g.rate + '%.', 50, ty + 4, { width: 250 });
 
       // Notes
-      doc.rect(50, totTop + 108, W, 56).fill(LIGHT);
-      doc.fillColor(GRAY).fontSize(9).font('Helvetica-Bold').text('NOTES', 66, totTop + 120);
-      doc.font('Helvetica').fontSize(9)
-         .text('Thank you for subscribing to StayXPulse. This is a computer-generated invoice.', 66, totTop + 133)
-         .text('For support: support@stayxpulse.com  |  www.stayxpulse.com', 66, totTop + 146);
+      const notesTop = Math.max(ty + 28, 660);
+      doc.rect(50, notesTop, W, 52).fill(LIGHT);
+      doc.fillColor(GRAY).fontSize(8.5).font('Helvetica-Bold').text('NOTES', 60, notesTop + 10);
+      doc.font('Helvetica').fontSize(8)
+         .text('Thank you for subscribing to StayXPulse. This is a computer-generated tax invoice and does not require a signature.', 60, notesTop + 23, { width: W - 20 })
+         .text('For support: support@stayxpulse.com', 60, notesTop + 36);
 
       // Footer
-      drawLogo(doc, 50, 726, 40);
-      doc.fillColor(GRAY).fontSize(8).font('Helvetica')
-         .text('A product of SUNVER CORESYNERGY', 96, 738);
-
-      doc.rect(50, 760, W, 32).fill(BRAND);
+      drawLogo(doc, 50, 728, 38);
+      doc.fillColor(GRAY).fontSize(8).font('Helvetica').text('A product of Sunver Coresynergy', 94, 739);
+      doc.rect(50, 762, W, 30).fill(BRAND);
       doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica')
-         .text(`${invoice}  ·  StayXPulse  ·  Powered by Razorpay  ·  support@stayxpulse.com`, 50, 771, { width: W, align: 'center' });
+         .text(`${invoice}  ·  ${SELLER.gstin}  ·  Paid via Easebuzz  ·  support@stayxpulse.com`, 50, 772, { width: W, align: 'center' });
 
       doc.end();
     } catch (err) { reject(err); }
