@@ -220,7 +220,21 @@ router.get('/payments/:id/order-record', SA, async (req, res) => {
       .single();
     if (error || !payment) return res.status(404).json({ success: false, message: 'Payment not found.' });
 
-    const pdf = await generateOrderRecordPDF({ payment, hotel: payment.hotels || {}, plan: payment.plans || {} });
+    // Checkout evidence (IP / user-agent / consent / timings) lives on the
+    // payment_orders row, matched by txnid.
+    let order = null;
+    if (payment.txnid) {
+      const { data: o } = await supabase.from('payment_orders').select('*').eq('txnid', payment.txnid).maybeSingle();
+      order = o || null;
+    }
+    // The account holder is the hotel's admin user.
+    let user = null;
+    if (payment.hotel_id) {
+      const { data: u } = await supabase.from('users').select('id, name, email, created_at').eq('hotel_id', payment.hotel_id).eq('role', 'hoteladmin').maybeSingle();
+      user = u || null;
+    }
+
+    const pdf = await generateOrderRecordPDF({ payment, hotel: payment.hotels || {}, plan: payment.plans || {}, order, user });
     const fname = `OrderRecord_${String(payment.invoice_number || payment.id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
     res.set({
       'Content-Type': 'application/pdf',

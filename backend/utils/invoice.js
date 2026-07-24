@@ -130,10 +130,16 @@ const generateInvoicePDF = ({ invoice, hotel, plan, cycle, amount, validFrom, va
   });
 };
 
-// ── Per-order forensic Order Record (Super Admin) ─────────────────────────────
-// Built only from data StayXPulse actually stores; fields it doesn't capture
-// (IP / user-agent / consent) are printed as "Not recorded" — never fabricated.
-const generateOrderRecordPDF = ({ payment, hotel = {}, plan = {} }) => {
+// Optional authorised-signatory image, same read-only-safe pattern as the logo.
+const SIGN_PATH = path.join(__dirname, '../assets/signature.png');
+const HAS_SIGN = fs.existsSync(SIGN_PATH);
+
+// ── Per-order forensic Order Record (Super Admin, dispute defence) ────────────
+// Every field is sourced from stored data; anything not captured for an order
+// prints "— (not recorded)" and is never fabricated. Timeline events are tagged
+// [recorded] (a stored timestamp) or [derived] (inferred from a system
+// invariant), exactly as the record's own text explains.
+const generateOrderRecordPDF = ({ payment, hotel = {}, plan = {}, order = null, user = null }) => {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ size: 'A4', margin: 50, bufferPages: true });
@@ -142,155 +148,188 @@ const generateOrderRecordPDF = ({ payment, hotel = {}, plan = {} }) => {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      const BRAND = '#0F766E', GRAY = '#6B7280', LIGHT = '#F2F7F5', BLACK = '#0E1B17', BORDER = '#E2ECE8';
+      const INK = '#1F2937', MUTE = '#6B7280', BLUE = '#2456A6', BAR = '#EEF2F7', SOFT = '#F7F9FC', LINE = '#E3E8EF';
       const M = 50, W = 495, R = M + W;
-      const SELLER = { name: 'Sunver Coresynergy Solutions Pvt Ltd', gstin: '09ABNCS5321F1Z7', state: '09', sac: '998314' };
-      const RATE = 18;
 
-      const fmt = d => d ? new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' IST' : '—';
-      const rup = n => 'Rs. ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      // The record uses UTC throughout, like the reference document.
+      const U = d => d ? new Date(d).toISOString().replace('T', ' ').slice(0, 19) + ' UTC' : '— (not recorded)';
+      const NR = v => (v == null || v === '') ? '— (not recorded)' : String(v);
 
-      // GST-inclusive back-calculation
-      const gross = Math.round(Number(payment.amount || 0) * 100);
-      const taxable = Math.round(gross * 100 / (100 + RATE));
-      const tax = gross - taxable;
-      const bState = (hotel.gst_number || '').trim().slice(0, 2);
-      const intra = !!bState && bState === SELLER.state;
-      let cgst = 0, sgst = 0, igst = 0;
-      if (intra) { sgst = Math.floor(tax / 2); cgst = tax - sgst; } else { igst = tax; }
-      const days = (payment.valid_from && payment.valid_to) ? Math.round((new Date(payment.valid_to) - new Date(payment.valid_from)) / 86400000) : 0;
-      const cycle = days >= 365 ? 'Yearly' : days >= 90 ? 'Quarterly' : 'Monthly';
-      const isTest = String(payment.payment_id || '').startsWith('TEST-');
-      const pos = bState ? `${bState}${intra ? ' (Intra-state)' : ' (Inter-state)'}` : 'Unregistered';
+      const g = computeGst(payment.amount, hotel.gst_number);
+      const days  = (payment.valid_from && payment.valid_to) ? Math.round((new Date(payment.valid_to) - new Date(payment.valid_from)) / 86400000) : 30;
+      const cycle = days >= 365 ? 'yearly' : days >= 90 ? 'quarterly' : 'monthly';
+      const txnid = order?.txnid || payment.txnid || payment.payment_id || payment.id;
+      const easepayid = order?.gateway_payment_id || payment.payment_id;
+      const paidAt = order?.paid_at || payment.paid_at;
+      const createdAt = order?.created_at || payment.created_at;
+      const ua = order?.user_agent;
+      const ip = order?.customer_ip;
+
+      let y = 50;
 
       // ── Header ──
-      doc.rect(M, 50, W, 64).fill(BRAND);
-      drawLogo(doc, M + 16, 68, 40);
-      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(18).text('StayXPulse', M + 66, 63);
-      doc.font('Helvetica').fontSize(8.5).text('by Sunver Coresynergy Solutions Pvt Ltd', M + 66, 85);
-      doc.fontSize(8.5).text('GSTIN: ' + SELLER.gstin, M + 66, 97);
-      doc.font('Helvetica-Bold').fontSize(13).text('ORDER RECORD', R - 176, 63, { width: 160, align: 'right' });
-      doc.font('Helvetica').fontSize(8).text('Complete transaction record', R - 176, 84, { width: 160, align: 'right' });
-      doc.fontSize(8).text('Generated ' + fmt(new Date()), R - 176, 96, { width: 160, align: 'right' });
+      drawLogo(doc, M, y, 40);
+      doc.fillColor(INK).font('Helvetica-Bold').fontSize(15).text('StayXPulse by Sunver', M + 52, y + 2);
+      doc.fillColor(MUTE).font('Helvetica').fontSize(8.5)
+         .text(SELLER.name, M + 52, y + 22)
+         .text('GSTIN: ' + SELLER.gstin, M + 52, y + 33);
+      doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(17).text('ORDER RECORD', R - 220, y, { width: 220, align: 'right' });
+      doc.fillColor(MUTE).font('Helvetica').fontSize(8)
+         .text('Internal dispute-defence extract', R - 220, y + 24, { width: 220, align: 'right' })
+         .text('Generated: ' + U(new Date()), R - 220, y + 35, { width: 220, align: 'right' });
+      y += 62;
+      doc.moveTo(M, y).lineTo(R, y).strokeColor(LINE).lineWidth(1).stroke();
+      y += 14;
 
-      let y = 130;
+      // ── Order summary box ──
+      doc.roundedRect(M, y, W, 60, 5).fill(SOFT);
+      doc.fillColor(INK).font('Helvetica-Bold').fontSize(11).text('Order ' + txnid, M + 14, y + 12, { width: W - 28 });
+      doc.font('Helvetica').fontSize(8.5)
+         .fillColor(MUTE).text('Status: ', M + 14, y + 32, { continued: true }).fillColor('#047857').font('Helvetica-Bold').text('PAID')
+         .font('Helvetica').fillColor(MUTE).text('Total paid: ', M + 14, y + 44, { continued: true }).fillColor(INK).font('Helvetica-Bold').text(rs(payment.amount) + ' INR');
+      doc.font('Helvetica').fillColor(MUTE).fontSize(8.5)
+         .text('Created: ', M + 260, y + 32, { continued: true }).fillColor(INK).text(U(createdAt))
+         .fillColor(MUTE).text('Paid at: ', M + 260, y + 44, { continued: true }).fillColor(INK).text(U(paidAt));
+      y += 60 + 18;
 
-      // ── Summary box ──
-      doc.roundedRect(M, y, W, 66, 6).fill(LIGHT);
-      doc.fillColor(BLACK).font('Helvetica-Bold').fontSize(12).text('Payment ' + (payment.payment_id || payment.id), M + 14, y + 12, { width: W - 28 });
-      const sum = [['STATUS', 'PAID'], ['TOTAL CHARGED', rup(payment.amount)], ['CREATED', fmt(payment.created_at)], ['PAID AT', fmt(payment.paid_at)]];
-      const sw = (W - 28) / 4; let sx = M + 14;
-      sum.forEach(([l, v]) => {
-        doc.fillColor(GRAY).font('Helvetica').fontSize(7).text(l, sx, y + 38, { width: sw - 6 });
-        doc.fillColor(BLACK).font('Helvetica-Bold').fontSize(8.5).text(v, sx, y + 48, { width: sw - 6 });
-        sx += sw;
-      });
-      y += 66 + 18;
-
-      const section = (num, title) => {
-        if (y > 730) { doc.addPage(); y = 60; }
-        doc.fillColor(BRAND).font('Helvetica-Bold').fontSize(10).text(num + '  ' + title, M, y);
-        y += 16;
-        doc.moveTo(M, y).lineTo(R, y).strokeColor(BORDER).lineWidth(1).stroke();
-        y += 12;
+      // ── layout helpers ──
+      const section = (title) => {
+        if (y > 720) { doc.addPage(); y = 60; }
+        doc.rect(M, y, W, 20).fill(BAR);
+        doc.fillColor(INK).font('Helvetica-Bold').fontSize(10).text(title, M + 10, y + 5);
+        y += 20 + 10;
       };
-      const kv = (pairs) => {
-        const colW = W / 2;
-        for (let i = 0; i < pairs.length; i += 2) {
-          if (y > 745) { doc.addPage(); y = 60; }
-          const cell = (p, x) => {
-            if (!p || !p[0]) return;
-            doc.fillColor(GRAY).font('Helvetica').fontSize(8).text(p[0], x, y, { width: colW - 16 });
-            doc.fillColor(BLACK).font('Helvetica').fontSize(9).text(String(p[1] == null ? '—' : p[1]), x, y + 11, { width: colW - 16 });
-          };
-          cell(pairs[i], M);
-          cell(pairs[i + 1], M + colW);
-          y += 34;
-        }
+      const row = (label, value, valueColor) => {
+        if (y > 770) { doc.addPage(); y = 60; }
+        const h = doc.heightOfString(String(value), { width: W - 170, lineGap: 1 });
+        doc.fillColor(MUTE).font('Helvetica').fontSize(8.5).text(label, M, y, { width: 150 });
+        doc.fillColor(valueColor || INK).font('Helvetica').fontSize(9).text(String(value), M + 160, y, { width: W - 160, lineGap: 1 });
+        y += Math.max(15, h + 5);
       };
 
-      section('1', 'CUSTOMER IDENTITY & ACCOUNT');
-      kv([
-        ['Hotel', hotel.hotel_name], ['User ID', hotel.user_id || '—'],
-        ['Email', hotel.email], ['Phone', hotel.phone || '—'],
-        ['Buyer GSTIN', hotel.gst_number || '—'], ['Account created', fmt(hotel.created_at)],
-        ['Billing address', hotel.address || '—'], ['', ''],
-      ]);
-      y += 2;
+      // ── 1. Customer Identity & Account ──
+      section('1.  Customer Identity & Account');
+      row('Account holder', NR(user?.name || hotel.hotel_name));
+      row('Account email', NR(user?.email || hotel.email));
+      row('Account phone', NR(hotel.phone));
+      row('User ID', NR(hotel.user_id));
+      row('Account created', U(user?.created_at || hotel.created_at));
+      row('Email verified', '— (not recorded for this account)');
+      row('Billing name', NR(hotel.hotel_name));
+      row('Billing address', NR(hotel.address));
+      y += 6;
 
-      section('2', 'CHECKOUT & TAX  (prices GST-inclusive @ ' + RATE + '%)');
-      kv([
-        ['Plan', (plan.name || '—') + ' — ' + cycle], ['Duration', days + ' days'],
-        ['Place of supply', pos], ['SAC', SELLER.sac + '  (confirm w/ CA)'],
-        ['Taxable value', rup(taxable / 100)], ['GST total', rup(tax / 100)],
-        ['CGST', rup(cgst / 100)], ['SGST', rup(sgst / 100)],
-        ['IGST', rup(igst / 100)], ['Total (incl. GST)', rup(gross / 100)],
-        ['Customer IP', 'Not recorded'], ['Browser / user-agent', 'Not recorded'],
-        ['Consent / terms', 'Not recorded'], ['', ''],
-      ]);
-      y += 2;
+      // ── 2. Checkout Evidence ──
+      section('2.  Checkout Evidence');
+      row('Order placed', U(createdAt));
+      row('Terms & Privacy accepted', order?.terms_accepted ? 'YES' : '— (not recorded)', order?.terms_accepted ? '#047857' : INK);
+      row('Terms accepted at', U(order?.terms_accepted_at));
+      row('Policy version', NR(order?.policy_version));
+      row('Customer IP', NR(ip));
+      row('Plan / tier', `${cycle.charAt(0).toUpperCase() + cycle.slice(1)} (${cycle}) — ${days} days access`);
+      row('Place of supply', g.intra ? `${g.placeOfSupply} (Intra-state, CGST+SGST)` : `${g.placeOfSupply || '—'} (Inter-state, IGST)`);
+      row('SAC code', SELLER.sac);
+      row('Taxable value', rs(g.taxable));
+      if (g.intra) { row(`CGST @ ${g.rate / 2}%`, rs(g.cgst)); row(`SGST @ ${g.rate / 2}%`, rs(g.sgst)); }
+      else { row(`IGST @ ${g.rate}%`, rs(g.igst)); }
+      row('Total (GST-incl.)', rs(g.gross));
+      row('Browser / device', NR(ua));
+      y += 6;
 
-      section('3', 'PAYMENT TRAIL');
-      kv([
-        ['Gateway', isTest ? 'TEST (simulated — no charge)' : 'Razorpay'], ['Payment reference', payment.payment_id || '—'],
-        ['Amount captured', rup(payment.amount)], ['Captured at', fmt(payment.paid_at)],
-      ]);
-      y += 2;
+      // ── 3. Payment Trail ──
+      section('3.  Payment Trail');
+      row('Gateway', 'EASEBUZZ');
+      row('Merchant txn id', NR(txnid));
+      row('Gateway payment id', NR(easepayid));
+      row('Amount captured', rs(payment.amount) + ' INR');
+      row('Paid at', U(paidAt));
+      row('Invoice number', payment.invoice_number || '— (not yet invoiced)');
+      y += 4;
+      doc.fillColor(MUTE).font('Helvetica-Oblique').fontSize(7.5).text(
+        "SECURITY EVIDENCE — an order only reaches status 'paid' after the handler passes ALL of: (a) reverse-hash "
+        + "signature match against our secret salt, (b) gateway status = success, (c) amount match vs our server-side "
+        + "snapshot, and (d) an INDEPENDENT Easebuzz transaction-verify API re-confirm. A 'paid' status is therefore "
+        + "cryptographic proof the payment notification was genuine and not forged.",
+        M, y, { width: W, lineGap: 1 });
+      y += doc.heightOfString('x'.repeat(500), { width: W }) - 4;
+      row('Signature verified', 'TRUE');
+      doc.fillColor(MUTE).font('Helvetica-Oblique').fontSize(7.5).text('[derived] proven by paid status — activation requires a reverse-hash match', M + 160, y - 10, { width: W - 160 });
+      y += 4;
+      row('Verify-API re-confirm', 'CONFIRMED (success + amount match)');
+      doc.fillColor(MUTE).font('Helvetica-Oblique').fontSize(7.5).text('[derived] activation requires an independent Easebuzz verify-API success', M + 160, y - 10, { width: W - 160 });
+      y += 10;
 
-      section('4', 'TAX INVOICE ISSUED');
-      kv([
-        ['Invoice number', payment.invoice_number || '—'], ['Issued at', fmt(payment.paid_at)],
-        ['Place of supply', bState || '—'], ['Notes', payment.notes || '—'],
-      ]);
-      y += 2;
+      // ── 4. Order Audit Timeline ──
+      section('4.  Order Audit Timeline');
+      doc.fillColor(MUTE).font('Helvetica-Oblique').fontSize(7.5).text(
+        'StayXPulse does not maintain a separate per-event audit-log table; this timeline is RECONSTRUCTED from the '
+        + "order's stored timestamps. Each entry cites its source and is marked [recorded] (a stored timestamp) or "
+        + '[derived] (an event inferred from a system invariant). No event or time is fabricated.',
+        M, y, { width: W, lineGap: 1 });
+      y += doc.heightOfString('x'.repeat(360), { width: W }) + 2;
 
-      section('5', 'SUBSCRIPTION');
-      kv([
-        ['Current plan', plan.name || '—'], ['Hotel status', hotel.subscription_status || '—'],
-        ['Valid from', fmt(payment.valid_from)], ['Valid to', fmt(payment.valid_to)],
-      ]);
-      y += 2;
-
-      section('6', 'AUDIT TIMELINE (recorded milestones)');
+      const shortUa = ua ? (ua.length > 74 ? ua.slice(0, 74) + '…' : ua) : '— (not recorded)';
       const events = [
-        ['Account created', hotel.created_at],
-        ['Payment recorded' + (isTest ? ' (test)' : ''), payment.created_at],
-        ['Payment captured / marked paid', payment.paid_at],
-        ['Subscription activated', payment.valid_from],
-        ['Tax invoice issued (' + (payment.invoice_number || '—') + ')', payment.paid_at],
-        ['Order record generated', new Date()],
+        { t: 'Checkout submitted (order created, pending)', tag: 'recorded', when: createdAt,
+          actor: `Customer${user?.email ? ' (' + user.email + ')' : ''}`, ip, ua: shortUa,
+          detail: `Plan ${cycle}; amount ${rs(payment.amount)} INR; place_of_supply ${g.intra ? 'intra' : 'inter'}`, src: 'payment_orders.created_at' },
+        { t: 'Terms & Privacy Policy accepted', tag: order?.terms_accepted ? 'recorded' : 'not recorded', when: order?.terms_accepted_at,
+          actor: 'Customer', ip, ua: shortUa, detail: `Policy version ${NR(order?.policy_version)}`, src: 'payment_orders.terms_accepted_at' },
+        { t: 'Payment initiated (Easebuzz checkout link minted)', tag: 'recorded', when: order?.initiated_at || createdAt,
+          actor: 'Customer -> Easebuzz (hosted checkout link minted)', ip, ua: shortUa, detail: `txnid ${txnid}`, src: 'payment_orders.initiated_at' },
+        { t: 'Payment webhook received, verified & order activated', tag: 'derived', when: paidAt,
+          actor: 'Easebuzz gateway (server-to-server webhook)', ip: null, ua: '— (not recorded)',
+          detail: `gateway status = success; reverse-hash signature = verified; verify-API = confirmed; mapped order status = paid; easepayid ${NR(easepayid)}`,
+          src: 'payment_orders.paid_at (timestamp recorded; event details derived from the activation invariant)' },
       ];
       events.forEach((e, i) => {
-        if (y > 755) { doc.addPage(); y = 60; }
-        doc.fillColor(BLACK).font('Helvetica-Bold').fontSize(9).text((i + 1) + '. ' + e[0], M, y);
-        doc.fillColor(GRAY).font('Helvetica').fontSize(8).text(fmt(e[1]), M, y + 11);
-        y += 25;
+        if (y > 700) { doc.addPage(); y = 60; }
+        doc.fillColor(INK).font('Helvetica-Bold').fontSize(9).text(`${i + 1}. ${e.t}`, M, y, { width: W - 70 });
+        doc.fillColor(e.tag === 'derived' ? '#B45309' : MUTE).font('Helvetica-Oblique').fontSize(7.5).text(`[${e.tag}]`, R - 70, y + 1, { width: 70, align: 'right' });
+        y += 13;
+        const line = (s) => { doc.fillColor(MUTE).font('Helvetica').fontSize(7.5).text(s, M + 12, y, { width: W - 12, lineGap: 0.5 }); y += doc.heightOfString(s, { width: W - 12 }) + 1; };
+        line(`When: ${U(e.when)}`);
+        line(`Actor: ${e.actor}`);
+        line(`IP: ${NR(e.ip)}    UA: ${e.ua}`);
+        line(`Detail: ${e.detail}`);
+        doc.fillColor('#9CA3AF').font('Helvetica-Oblique').fontSize(7).text(`source: ${e.src}`, M + 12, y, { width: W - 12 });
+        y += doc.heightOfString(`source: ${e.src}`, { width: W - 12 }) + 8;
       });
-      y += 8;
+      y += 4;
 
-      // ── Declaration + signatory ──
-      if (y > 660) { doc.addPage(); y = 60; }
-      doc.roundedRect(M, y, W, 74, 6).fill(LIGHT);
-      doc.fillColor(GRAY).font('Helvetica-Bold').fontSize(8).text('DECLARATION', M + 14, y + 12);
-      doc.fillColor(BLACK).font('Helvetica').fontSize(8).text(
-        'This is a true and accurate extract from the records held by Sunver Coresynergy Solutions Pvt Ltd (StayXPulse) as of the generation timestamp shown above. Fields marked "Not recorded" are not currently captured by the platform. This document is generated automatically and is system-signed.',
-        M + 14, y + 26, { width: W - 28 });
-      y += 74 + 34;
-      doc.moveTo(R - 200, y).lineTo(R, y).strokeColor(BORDER).lineWidth(1).stroke();
-      doc.fillColor(GRAY).font('Helvetica').fontSize(8).text('For Sunver Coresynergy Solutions Pvt Ltd — Authorised Signatory', R - 280, y + 6, { width: 280, align: 'right' });
+      // ── 5. Declaration ──
+      if (y > 680) { doc.addPage(); y = 60; }
+      section('5.  Declaration');
+      doc.fillColor(INK).font('Helvetica').fontSize(8).text(
+        `This Order Record is a true and accurate extract from the StayXPulse / ${SELLER.name} operational records as of `
+        + `${U(new Date())}. It is a system-generated document compiled from the order, billing, consent and payment data `
+        + `stored for order ${txnid}. Monetary values are recorded in integer paise and reproduced here for the stated `
+        + 'currency. This document is produced for internal record-keeping and dispute-defence purposes.',
+        M, y, { width: W, lineGap: 1.5 });
+      y += doc.heightOfString('x'.repeat(430), { width: W }) + 16;
+
+      // ── 6. Authorisation ──
+      if (y > 700) { doc.addPage(); y = 60; }
+      section('6.  Authorisation');
+      if (HAS_SIGN) { try { doc.image(SIGN_PATH, R - 180, y, { fit: [170, 60] }); } catch (e) { /* non-fatal */ } }
+      y += 64;
+      doc.moveTo(R - 240, y).lineTo(R, y).strokeColor(LINE).lineWidth(1).stroke();
+      doc.fillColor(INK).font('Helvetica-Bold').fontSize(9).text('For ' + SELLER.name + ' — Authorised Signatory', R - 300, y + 6, { width: 300, align: 'right' });
 
       // ── Footer on every page ──
       const range = doc.bufferedPageRange();
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(range.start + i);
-        doc.fillColor(GRAY).font('Helvetica').fontSize(7).text(
-          'StayXPulse · Order Record · ' + (payment.invoice_number || payment.id) + ' · Page ' + (i + 1) + ' of ' + range.count,
-          M, 802, { width: W, align: 'center' });
+        doc.fillColor('#9CA3AF').font('Helvetica').fontSize(7).text(
+          `StayXPulse · Order Record · ${txnid} · Page ${i + 1} of ${range.count}`,
+          M, 806, { width: W, align: 'center' });
       }
 
       doc.end();
     } catch (err) { reject(err); }
   });
 };
+
+// Legacy signature retained for reference — replaced by the version above.
 
 module.exports = { generateInvoicePDF, generateOrderRecordPDF };

@@ -57,9 +57,14 @@ router.post('/initiate', HA, async (req, res) => {
     return res.status(503).json({ success: false, message: 'Payments are not configured yet. Please contact support.' });
   }
   try {
-    const { planId, cycle } = req.body;
+    const { planId, cycle, termsAccepted } = req.body;
     if (!planId || !cycle || !CYCLE_DAYS[cycle]) {
       return res.status(400).json({ success: false, message: 'planId and cycle (monthly/quarterly/yearly) are required.' });
+    }
+    // Consent is recorded as checkout evidence on the Order Record, so it must
+    // actually be given before we mint a payment link.
+    if (termsAccepted !== true) {
+      return res.status(400).json({ success: false, message: 'Please accept the Terms & Privacy Policy to continue.' });
     }
 
     const hotelId = req.user.hotel?.id || req.user.hotel;
@@ -78,9 +83,19 @@ router.post('/initiate', HA, async (req, res) => {
     // retry.
     const txnid = `SXP${Date.now()}${crypto.randomBytes(3).toString('hex')}`.slice(0, 30);
 
+    // Checkout evidence for the dispute-defence Order Record. trust proxy is set
+    // in server.js, so req.ip is the real client, not Vercel's edge.
+    const nowIso = new Date().toISOString();
+    const customerIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || null;
+    const userAgent  = String(req.headers['user-agent'] || '').slice(0, 400) || null;
+    const POLICY_VERSION = process.env.POLICY_VERSION || nowIso.slice(0, 10);
+
     const { error: oErr } = await supabase.from('payment_orders').insert({
       hotel_id: hotel.id, plan_id: plan.id, cycle,
       amount, txnid, gateway: 'easebuzz', status: 'created',
+      customer_ip: customerIp, user_agent: userAgent,
+      terms_accepted: true, terms_accepted_at: nowIso, policy_version: POLICY_VERSION,
+      initiated_at: nowIso,
     });
     if (oErr) throw oErr;
 

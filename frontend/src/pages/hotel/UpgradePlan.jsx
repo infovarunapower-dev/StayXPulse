@@ -90,6 +90,7 @@ const UpgradePlan = () => {
   const [paying,   setPaying]  = useState(null);
   const [success,  setSuccess] = useState(null);
   const [gatewayReady, setGatewayReady] = useState(true);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
     api.get('/payments/plans')
@@ -121,9 +122,13 @@ const UpgradePlan = () => {
   // over to Easebuzz. There is no client-side secret and no signature handling
   // here — the result comes back server-to-server to /easebuzz/callback.
   const handlePay = async (plan) => {
+    if (!termsAccepted) {
+      toast.error('Please accept the Terms & Privacy Policy first.');
+      return;
+    }
     setPaying(plan.id);
     try {
-      const { data } = await api.post('/payments/initiate', { planId: plan.id, cycle });
+      const { data } = await api.post('/payments/initiate', { planId: plan.id, cycle, termsAccepted: true });
       if (!data?.data?.paymentUrl) throw new Error('No payment URL returned');
       // Full navigation, not a new tab: popup blockers and the Android WebView
       // both handle a same-tab redirect reliably.
@@ -182,6 +187,13 @@ const UpgradePlan = () => {
         </div>
       )}
 
+      {/* Consent — required before any plan button enables. Recorded as
+          checkout evidence on the Order Record. */}
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, maxWidth: 560, margin: '0 auto 22px', padding: '12px 16px', background: 'var(--gray-50)', border: '1.5px solid var(--border)', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, color: 'var(--gray-700)' }}>
+        <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)} style={{ marginTop: 2, flexShrink: 0, width: 16, height: 16, cursor: 'pointer' }} />
+        <span>I have read and accept the <strong>Terms of Service</strong> and <strong>Privacy Policy</strong>, and I authorise this subscription payment.</span>
+      </label>
+
       <div className="plans-grid">
         {plans.map(plan => {
           const pricing = plan.pricing[cycle];
@@ -200,7 +212,7 @@ const UpgradePlan = () => {
               <ul className="plan-features">
                 {plan.features?.map((f,i) => <li key={i}><span className="feat-check">✓</span> {f}</li>)}
               </ul>
-              <button className={`plan-btn ${plan.is_popular?'plan-btn-popular':''}`} onClick={()=> handlePay(plan)} disabled={!!paying}>
+              <button className={`plan-btn ${plan.is_popular?'plan-btn-popular':''}`} onClick={()=> handlePay(plan)} disabled={!!paying || !termsAccepted}>
                 {isBusy ? <><span className="spinner-sm"/> Redirecting…</> : `Get ${plan.name} →`}
               </button>
               <div className="plan-note">Secured by Easebuzz · Instant activation</div>

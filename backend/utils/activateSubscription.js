@@ -36,7 +36,7 @@ const activateSubscription = async ({ txnid, gatewayPaymentId, gateway = 'easebu
   // (2) Claim the order. Only one caller can move it out of 'created'.
   const { data: claimed } = await supabase
     .from('payment_orders')
-    .update({ gateway_payment_id: gatewayPaymentId || null, status: 'paid' })
+    .update({ gateway_payment_id: gatewayPaymentId || null, status: 'paid', paid_at: new Date().toISOString() })
     .eq('id', order.id).eq('status', 'created')
     .select();
 
