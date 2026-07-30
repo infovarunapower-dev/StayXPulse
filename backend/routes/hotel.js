@@ -17,6 +17,10 @@ const val = (req, res) => {
 
 const memUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
+// Hotels whose Russian menu is being translated right now (per-lambda). Prevents
+// a stampede of concurrent guest views each firing a billed Opus call.
+const translatingHotels = new Set();
+
 const withHotel = (req, res, next) => {
   if (!req.user.hotel) return res.status(403).json({ success: false, message: 'No hotel associated with this account.' });
   req.hotelId = req.user.hotel.id || req.user.hotel;
@@ -572,14 +576,30 @@ router.get('/guest/:qrToken', async (req, res) => {
     const lang = String(req.query.lang || 'en').toLowerCase();
     if (lang === 'ru') {
       const missing = foodItems.filter(i => !i.name_ru);
-      if (missing.length) {
-        const { translateItemsToRu } = require('../utils/translateMenu');
-        const tr = await translateItemsToRu(missing);
-        if (tr.size) {
-          await Promise.all([...tr.entries()].map(([id, t]) =>
-            supabase.from('food_items').update({ name_ru: t.name_ru, description_ru: t.description_ru, category_ru: t.category_ru }).eq('id', id)
-          ));
-          foodItems = foodItems.map(i => tr.has(i.id) ? { ...i, ...tr.get(i.id) } : i);
+      // Guard against a stampede: many Russian guests hitting an untranslated
+      // menu at once would each fire a separate (billed) Opus call and
+      // double-write the same rows. Only one translation per hotel runs at a
+      // time; concurrent loads serve English and pick up the cache next time.
+      if (missing.length && !translatingHotels.has(hotel.id)) {
+        translatingHotels.add(hotel.id);
+        try {
+          const { translateItemsToRu } = require('../utils/translateMenu');
+          // Never let the guest block on a slow model call — Vercel would 504
+          // and GuestLanding renders any failure as "Invalid QR Code". Cap the
+          // wait; on timeout the guest gets English and the cache fills for the
+          // next view.
+          const tr = await Promise.race([
+            translateItemsToRu(missing),
+            new Promise(resolve => setTimeout(() => resolve(new Map()), 12000)),
+          ]);
+          if (tr.size) {
+            await Promise.all([...tr.entries()].map(([id, t]) =>
+              supabase.from('food_items').update({ name_ru: t.name_ru, description_ru: t.description_ru, category_ru: t.category_ru }).eq('id', id)
+            ));
+            foodItems = foodItems.map(i => tr.has(i.id) ? { ...i, ...tr.get(i.id) } : i);
+          }
+        } finally {
+          translatingHotels.delete(hotel.id);
         }
       }
     }

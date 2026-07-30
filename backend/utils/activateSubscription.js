@@ -25,42 +25,49 @@ const activateSubscription = async ({ txnid, gatewayPaymentId, gateway = 'easebu
   if (orderError || !order) return { ok: false, reason: 'order_not_found' };
 
   const paymentRef = gatewayPaymentId || txnid;
-
-  // (1) Already recorded — nothing to do.
-  const { data: existing } = await supabase
-    .from('payments').select('id, invoice_number').eq('payment_id', paymentRef).maybeSingle();
-  if (existing) {
-    return { ok: true, already: true, invoiceNumber: existing.invoice_number, order };
-  }
-
-  // (2) Claim the order. Only one caller can move it out of 'created'.
-  const { data: claimed } = await supabase
-    .from('payment_orders')
-    .update({ gateway_payment_id: gatewayPaymentId || null, status: 'paid', paid_at: new Date().toISOString() })
-    .eq('id', order.id).eq('status', 'created')
-    .select();
-
-  if (!claimed || claimed.length === 0) {
-    return { ok: true, already: true, order };
-  }
-
   const hotel = order.hotels;
   const plan  = order.plans;
   const days  = CYCLE_DAYS[order.cycle] || 30;
 
-  // Renewing must EXTEND the existing term, not restart it. Previously a hotel
-  // with 300 days remaining who renewed lost every one of them — while the
-  // upgrade page promised "Renewing extends from your current expiry".
+  // Idempotent activation of the hotel + order. Safe to call on every re-entry,
+  // which is what makes this crash-safe: if any step after the payments insert
+  // fails, the next callback/webhook/reconcile re-runs it and completes.
+  const finishActivation = async (validFrom, validTo) => {
+    // Only move the expiry forward — never let a re-applied older payment
+    // shorten a term a newer payment already extended. NULL (fresh hotel) or a
+    // current end at/before the new end both qualify.
+    await supabase.from('hotels').update({
+      subscription_status: 'active',
+      current_plan_id: order.plan_id,
+      plan_valid_from: validFrom,
+      plan_valid_to: validTo,
+      is_active: true,
+    }).eq('id', order.hotel_id).or(`plan_valid_to.is.null,plan_valid_to.lte.${validTo}`);
+    await supabase.from('payment_orders')
+      .update({ gateway_payment_id: gatewayPaymentId || order.gateway_payment_id || null, status: 'paid', paid_at: new Date().toISOString(), valid_from: validFrom, valid_to: validTo })
+      .eq('id', order.id).neq('status', 'paid');
+  };
+
+  // (1) Already recorded. Re-apply activation (self-heal) in case a prior run
+  // recorded the payment but crashed before flipping the hotel/order — the old
+  // code returned "already" and left the hotel inactive forever.
+  const { data: existing } = await supabase
+    .from('payments').select('id, invoice_number, valid_from, valid_to').eq('payment_id', paymentRef).maybeSingle();
+  if (existing) {
+    if (existing.valid_from && existing.valid_to) await finishActivation(existing.valid_from, existing.valid_to);
+    return { ok: true, already: true, invoiceNumber: existing.invoice_number, order };
+  }
+
+  // Renewing must EXTEND the existing term, not restart it.
   const now = new Date();
   const currentEnd = hotel?.plan_valid_to ? new Date(hotel.plan_valid_to) : null;
   const base = (currentEnd && currentEnd > now) ? currentEnd : now;
-  const validFrom = now;
-  const validTo   = new Date(base.getTime() + days * 86400000);
+  const validFrom = now.toISOString();
+  const validTo   = new Date(base.getTime() + days * 86400000).toISOString();
 
-  await supabase.from('payment_orders')
-    .update({ valid_from: validFrom.toISOString(), valid_to: validTo.toISOString() })
-    .eq('id', order.id);
-
+  // (2) The payments insert IS the atomic claim — UNIQUE(payment_id) means only
+  // one caller can create it. Doing this BEFORE the hotel/order writes means a
+  // crash can never leave the order 'paid' with no payment row (the old wedge).
   const { data: payment, error: payError } = await supabase.from('payments').insert({
     hotel_id: order.hotel_id,
     plan_id: order.plan_id,
@@ -68,13 +75,18 @@ const activateSubscription = async ({ txnid, gatewayPaymentId, gateway = 'easebu
     payment_id: paymentRef,
     gateway,
     txnid,
-    valid_from: validFrom.toISOString(),
-    valid_to: validTo.toISOString(),
+    valid_from: validFrom,
+    valid_to: validTo,
   }).select().single();
 
   if (payError) {
-    // A unique violation here means the other caller won the race after all.
-    if (String(payError.code) === '23505') return { ok: true, already: true, order };
+    // Another caller won the race and already inserted — self-heal and report.
+    if (String(payError.code) === '23505') {
+      const { data: winner } = await supabase.from('payments').select('invoice_number, valid_from, valid_to').eq('payment_id', paymentRef).maybeSingle();
+      if (winner?.valid_from) await finishActivation(winner.valid_from, winner.valid_to);
+      return { ok: true, already: true, invoiceNumber: winner?.invoice_number, order };
+    }
+    // Nothing was committed (order still 'created') — safe to retry.
     return { ok: false, reason: payError.message };
   }
 
@@ -83,13 +95,7 @@ const activateSubscription = async ({ txnid, gatewayPaymentId, gateway = 'easebu
   // PDF than the one stored and exported to the GST register.
   const invoiceNumber = payment.invoice_number;
 
-  await supabase.from('hotels').update({
-    subscription_status: 'active',
-    current_plan_id: order.plan_id,
-    plan_valid_from: validFrom.toISOString(),
-    plan_valid_to: validTo.toISOString(),
-    is_active: true,
-  }).eq('id', order.hotel_id);
+  await finishActivation(validFrom, validTo);
 
   // Neither the PDF nor the email may fail the activation — the money is taken
   // and the subscription is live regardless.

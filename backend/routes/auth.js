@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { logoUpload, uploadHotelLogo } = require('../utils/logoUpload');
+const { isValidGstin } = require('../utils/gst');
 const supabase = require('../utils/supabase');
 
 // POST /api/auth/login
@@ -70,6 +71,10 @@ router.post('/register', optionalLogo, async (req, res) => {
     if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email address is required.' });
     if (!address?.trim()) return res.status(400).json({ success: false, message: 'Address is required.' });
     if (!gstNumber?.trim()) return res.status(400).json({ success: false, message: 'GST number is required.' });
+    // The first two digits of the GSTIN drive the CGST/SGST-vs-IGST split on
+    // every invoice, so a malformed value silently mis-taxes the customer.
+    // Profile-edit already enforced this; registration did not.
+    if (!isValidGstin(gstNumber)) return res.status(400).json({ success: false, message: 'That GST number is not a valid GSTIN (e.g. 29ABCDE1234F1Z5).' });
 
     const cleanEmail = email.toLowerCase().trim();
     const { data: existing } = await supabase.from('users').select('id').eq('email', cleanEmail);

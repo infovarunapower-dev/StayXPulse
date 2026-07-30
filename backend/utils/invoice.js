@@ -246,17 +246,18 @@ const generateOrderRecordPDF = ({ payment, hotel = {}, plan = {}, order = null, 
       row('Invoice number', payment.invoice_number || '— (not yet invoiced)');
       y += 4;
       doc.fillColor(MUTE).font('Helvetica-Oblique').fontSize(7.5).text(
-        "SECURITY EVIDENCE — an order only reaches status 'paid' after the handler passes ALL of: (a) reverse-hash "
-        + "signature match against our secret salt, (b) gateway status = success, (c) amount match vs our server-side "
-        + "snapshot, and (d) an INDEPENDENT Easebuzz transaction-verify API re-confirm. A 'paid' status is therefore "
-        + "cryptographic proof the payment notification was genuine and not forged.",
+        "SECURITY EVIDENCE — an order reaches status 'paid' only after one of two authenticated gates: (a) a SHA-512 "
+        + "reverse-hash signature match against our secret salt on the gateway's notification, or (b) an independent "
+        + "Easebuzz transaction-verify API confirmation of success, queried by us using that same salt. The charged amount "
+        + "is fixed inside the salt-signed checkout link, so a payer cannot alter it. A 'paid' status is therefore "
+        + "cryptographic or gateway-authoritative proof the payment was genuine and not forged.",
         M, y, { width: W, lineGap: 1 });
-      y += doc.heightOfString('x'.repeat(500), { width: W }) - 4;
-      row('Signature verified', 'TRUE');
-      doc.fillColor(MUTE).font('Helvetica-Oblique').fontSize(7.5).text('[derived] proven by paid status — activation requires a reverse-hash match', M + 160, y - 10, { width: W - 160 });
+      y += doc.heightOfString('x'.repeat(560), { width: W }) - 4;
+      row('Authentication gate', 'PASSED');
+      doc.fillColor(MUTE).font('Helvetica-Oblique').fontSize(7.5).text("[derived] 'paid' requires a salt-based reverse-hash match or an independent verify-API success", M + 160, y - 10, { width: W - 160 });
       y += 4;
-      row('Verify-API re-confirm', 'CONFIRMED (success + amount match)');
-      doc.fillColor(MUTE).font('Helvetica-Oblique').fontSize(7.5).text('[derived] activation requires an independent Easebuzz verify-API success', M + 160, y - 10, { width: W - 160 });
+      row('Amount integrity', 'PROTECTED');
+      doc.fillColor(MUTE).font('Helvetica-Oblique').fontSize(7.5).text('[derived] the charged amount is fixed in the salt-signed checkout link and cannot be altered by the payer', M + 160, y - 10, { width: W - 160 });
       y += 10;
 
       // ── 4. Order Audit Timeline ──

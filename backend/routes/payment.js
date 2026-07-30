@@ -165,13 +165,21 @@ const handleEasebuzzResult = async (payload, source) => {
   try {
     const info = await easebuzz.retrieveTransaction(txnid);
     const tx = Array.isArray(info?.msg) ? info.msg[0] : info?.msg;
-    if (tx) verified = { status: String(tx.status || '').toLowerCase(), easepayid: tx.easepayid };
+    if (tx) verified = { status: String(tx.status || '').toLowerCase(), easepayid: tx.easepayid, amount: tx.amount };
     console.log(`Easebuzz ${source} server-verify [${txnid}]: hashOk=${hashOk} posted=${postedStatus} confirmed=${verified?.status}`);
   } catch (e) {
     console.error(`Easebuzz ${source} retrieve failed [${txnid}]:`, e.message);
   }
 
   if (verified?.status === 'success') {
+    // Amount integrity: the gateway must have captured exactly what our order
+    // asked for. The hash path proves this cryptographically (amount is in the
+    // signed payload); on this server-verify path we check it explicitly.
+    const { data: ord } = await supabase.from('payment_orders').select('amount').eq('txnid', txnid).maybeSingle();
+    if (ord && verified.amount != null && Number(verified.amount).toFixed(2) !== Number(ord.amount).toFixed(2)) {
+      console.error(`Easebuzz ${source} AMOUNT MISMATCH [${txnid}]: gateway=${verified.amount} order=${ord.amount} — not activating`);
+      return { ok: false, reason: 'amount_mismatch' };
+    }
     return activateSubscription({ txnid, gatewayPaymentId: verified.easepayid || payload.easepayid, gateway: 'easebuzz', source: `${source}+verify` });
   }
 
