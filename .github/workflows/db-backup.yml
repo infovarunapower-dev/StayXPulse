@@ -1,0 +1,64 @@
+name: Supabase DB backup
+
+# Twice-daily logical backup of the Supabase Postgres database.
+# Runs pg_dump inside a Postgres 17 container (matches Supabase's server
+# version) and stores the compressed dump as a GitHub artifact — off Supabase,
+# so it survives a database-level failure.
+#
+# SETUP (one-time): add a repository secret named SUPABASE_DB_URL containing the
+# Supabase "Session pooler" connection string (Supabase → Project Settings →
+# Database → Connection string → "Session pooler", URI, with your DB password).
+# The session pooler is IPv4 and pg_dump-compatible; the transaction pooler is
+# NOT — do not use that one.
+
+on:
+  schedule:
+    # 06:30 and 18:30 IST (01:00 and 13:00 UTC), every day.
+    - cron: '0 1 * * *'
+    - cron: '0 13 * * *'
+  workflow_dispatch: {}   # allow a manual run from the Actions tab
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    container:
+      image: postgres:17-alpine   # provides pg_dump 17
+    steps:
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set. Add it in repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          STAMP="$(date -u +%Y%m%d-%H%M)"
+          OUT="stayxpulse-${STAMP}.dump"
+          echo "Dumping to ${OUT} ..."
+          # -Fc = compressed custom format (restore with pg_restore).
+          # --no-owner/--no-privileges keep the dump portable across projects.
+          pg_dump "${SUPABASE_DB_URL}" \
+            --no-owner --no-privileges --format=custom \
+            --file="${OUT}"
+          SIZE=$(stat -c%s "${OUT}")
+          echo "Dump size: ${SIZE} bytes"
+          # Sanity gate: a real dump of this schema is well over 10 KB. A tiny
+          # file means the dump failed silently — fail the run so we get alerted.
+          if [ "${SIZE}" -lt 10240 ]; then
+            echo "::error::Dump is suspiciously small (${SIZE} bytes) — treating as a failure."
+            exit 1
+          fi
+          echo "OUT=${OUT}" >> "$GITHUB_ENV"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: ${{ env.OUT }}
+          retention-days: 30
+          if-no-files-found: error
