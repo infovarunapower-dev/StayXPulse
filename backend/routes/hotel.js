@@ -159,6 +159,9 @@ router.put('/food/:id', MW, async (req, res) => {
       is_veg: req.body.isVeg,
       image_emoji: req.body.imageEmoji,
       sort_order: req.body.sortOrder,
+      // Invalidate the cached Russian translation — it will be regenerated on the
+      // next Russian guest view from the new text.
+      name_ru: null, description_ru: null, category_ru: null,
     }).eq('id', req.params.id).eq('hotel_id', req.hotelId).select().single();
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, message: 'Item not found' });
@@ -559,10 +562,35 @@ router.get('/guest/:qrToken', async (req, res) => {
     if (roomError || !room) return res.status(404).json({ success: false, message: 'Invalid or inactive QR code.' });
 
     const hotel = room.hotels;
-    const { data: foodItems } = await supabase.from('food_items').select('*').eq('hotel_id', hotel.id).eq('is_available', true).order('category').order('sort_order');
+    let { data: foodItems } = await supabase.from('food_items').select('*').eq('hotel_id', hotel.id).eq('is_available', true).order('category').order('sort_order');
+    foodItems = foodItems || [];
+
+    // Russian guests get the menu translated. Each item is translated once by
+    // Claude and cached on the row (name_ru/description_ru/category_ru); later
+    // views reuse the cache. A translation failure falls back to English, so
+    // the menu never breaks over it.
+    const lang = String(req.query.lang || 'en').toLowerCase();
+    if (lang === 'ru') {
+      const missing = foodItems.filter(i => !i.name_ru);
+      if (missing.length) {
+        const { translateItemsToRu } = require('../utils/translateMenu');
+        const tr = await translateItemsToRu(missing);
+        if (tr.size) {
+          await Promise.all([...tr.entries()].map(([id, t]) =>
+            supabase.from('food_items').update({ name_ru: t.name_ru, description_ru: t.description_ru, category_ru: t.category_ru }).eq('id', id)
+          ));
+          foodItems = foodItems.map(i => tr.has(i.id) ? { ...i, ...tr.get(i.id) } : i);
+        }
+      }
+    }
+
+    const pick = (item) => lang === 'ru'
+      ? { ...item, name: item.name_ru || item.name, description: item.description_ru || item.description, category: item.category_ru || item.category }
+      : item;
 
     const menu = {};
-    (foodItems || []).forEach(item => {
+    foodItems.forEach(raw => {
+      const item = pick(raw);
       if (!menu[item.category]) menu[item.category] = [];
       menu[item.category].push(item);
     });

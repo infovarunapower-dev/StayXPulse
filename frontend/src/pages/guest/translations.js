@@ -11,6 +11,7 @@ export const LANG_KEY = 'gl_lang';
 
 const en = {
   loading: 'Loading…',
+  translatingMenu: 'Translating menu…',
   invalidTitle: 'Invalid QR Code',
   invalidBody: 'This QR code is inactive or invalid. Please ask the hotel staff for assistance.',
   language: 'Language',
@@ -83,6 +84,7 @@ const en = {
 
 const ru = {
   loading: 'Загрузка…',
+  translatingMenu: 'Переводим меню…',
   invalidTitle: 'Недействительный QR-код',
   invalidBody: 'Этот QR-код неактивен или недействителен. Пожалуйста, обратитесь к персоналу отеля.',
   language: 'Язык',
@@ -156,3 +158,16 @@ const ru = {
 const DICT = { en, ru };
 
 export const getDict = (code) => DICT[code] || en;
+
+// Room types are a fixed enum, so a dictionary translates them instantly with no
+// AI. Unknown values fall back to the original text.
+const ROOM_TYPES_RU = {
+  'Standard': 'Стандарт',
+  'Deluxe': 'Люкс',
+  'Suite': 'Сьют',
+  'Executive Suite': 'Люкс-апартаменты',
+  'Villa': 'Вилла',
+};
+
+export const translateRoomType = (type, code) =>
+  code === 'ru' ? (ROOM_TYPES_RU[type] || type) : type;

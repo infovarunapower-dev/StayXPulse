@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE } from '../../config';
-import { LANGUAGES, LANG_KEY, getDict } from './translations';
+import { LANGUAGES, LANG_KEY, getDict, translateRoomType } from './translations';
 import './GuestLanding.css';
 
 const BASE = API_BASE;
@@ -77,15 +77,21 @@ const GuestLanding = () => {
   const [menuSearch,setMenuSearch]= useState('');
   const [vegFilter, setVegFilter] = useState('all');  // all | veg | nonveg
   const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || 'en');
+  const [menuLoading, setMenuLoading] = useState(false);
 
   const t = getDict(lang);
   const changeLang = (code) => { setLang(code); localStorage.setItem(LANG_KEY, code); };
 
+  // Re-fetch the menu whenever the language changes — the backend returns item
+  // names/descriptions/categories translated to the requested language (Russian
+  // is AI-translated once and cached server-side).
   useEffect(() => {
-    axios.get(`${BASE}/hotel/guest/${qrToken}`)
+    setMenuLoading(true);
+    axios.get(`${BASE}/hotel/guest/${qrToken}`, { params: { lang } })
       .then(r => { setHotel(r.data.data.hotel); setRoom(r.data.data.room); setMenu(r.data.data.menu); setPage('app'); })
-      .catch(() => setPage('error'));
-  }, [qrToken]);
+      .catch(() => setPage(p => p === 'app' ? 'app' : 'error'))
+      .finally(() => setMenuLoading(false));
+  }, [qrToken, lang]);
 
   const loadOrders = () => {
     axios.get(`${BASE}/hotel/guest/${qrToken}/orders`)
@@ -187,7 +193,7 @@ const GuestLanding = () => {
             : <div className="gl-logo-placeholder">🏨</div>}
           <div>
             <div className="gl-hotel-name">{hotel.hotelName}</div>
-            <div className="gl-room-info">{t.room} {room.number} &nbsp;·&nbsp; {room.type}</div>
+            <div className="gl-room-info">{t.room} {room.number} &nbsp;·&nbsp; {translateRoomType(room.type, lang)}</div>
             <div className="gl-hotel-phone">📞 {hotel.phone}</div>
           </div>
         </div>
@@ -243,6 +249,11 @@ const GuestLanding = () => {
 
           return (
           <div>
+            {menuLoading && (
+              <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'8px 0 12px',fontSize:13,color:'#0D9488',fontWeight:600}}>
+                <span className="gl-spinner" style={{width:15,height:15,borderWidth:2,margin:0}}/> {t.translatingMenu}
+              </div>
+            )}
             <div className="gl-menu-tools">
               <div className="gl-menu-tools-row">
                 <div className="gl-search-wrap">
