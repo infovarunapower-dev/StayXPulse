@@ -10,7 +10,7 @@ const protect = async (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Not authorised. No token provided.' });
   }
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
 
     const { data: user, error } = await supabase
       .from('users')

@@ -80,17 +80,31 @@ const GuestLanding = () => {
   const [menuLoading, setMenuLoading] = useState(false);
 
   const t = getDict(lang);
-  const changeLang = (code) => { setLang(code); localStorage.setItem(LANG_KEY, code); };
+  const langRef = React.useRef(lang);
+  const changeLang = (code) => {
+    setLang(code);
+    langRef.current = code;
+    localStorage.setItem(LANG_KEY, code);
+    // The category chip holds a translated string; after a language switch the
+    // menu keys change and the old selection matches nothing. Reset to All.
+    setMenuCat('all');
+  };
 
   // Re-fetch the menu whenever the language changes — the backend returns item
   // names/descriptions/categories translated to the requested language (Russian
-  // is AI-translated once and cached server-side).
+  // is AI-translated once and cached server-side). RU can take several seconds
+  // while EN returns fast, so guard against an out-of-order response applying
+  // the wrong language's menu.
   useEffect(() => {
+    const reqLang = lang;
     setMenuLoading(true);
     axios.get(`${BASE}/hotel/guest/${qrToken}`, { params: { lang } })
-      .then(r => { setHotel(r.data.data.hotel); setRoom(r.data.data.room); setMenu(r.data.data.menu); setPage('app'); })
+      .then(r => {
+        if (reqLang !== langRef.current) return;   // a newer switch superseded this
+        setHotel(r.data.data.hotel); setRoom(r.data.data.room); setMenu(r.data.data.menu); setPage('app');
+      })
       .catch(() => setPage(p => p === 'app' ? 'app' : 'error'))
-      .finally(() => setMenuLoading(false));
+      .finally(() => { if (reqLang === langRef.current) setMenuLoading(false); });
   }, [qrToken, lang]);
 
   const loadOrders = () => {

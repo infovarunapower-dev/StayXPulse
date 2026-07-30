@@ -108,7 +108,7 @@ const forgotPasswordTemplate = ({ name, resetUrl }) =>
     <p class="text">Hi <strong>${name}</strong>,</p>
     <p class="text">We received a request to reset the password for your StayXPulse account.</p>
     <div class="btn-wrap"><a class="btn" href="${resetUrl}">Reset My Password →</a></div>
-    <div class="note">🔒 This link expires in <strong>15 minutes</strong>. If you did not request this, you can safely ignore this email.</div>
+    <div class="note">🔒 This link expires in <strong>1 hour</strong>. If you did not request this, you can safely ignore this email.</div>
   `);
 
 // ── 3. Trial Reminder ──────────────────────────────────────────────────────────

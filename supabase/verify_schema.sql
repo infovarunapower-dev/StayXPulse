@@ -39,6 +39,7 @@ WITH expected(table_name, column_name) AS (VALUES
   ('food_items','hotel_id'),('food_items','name'),('food_items','description'),('food_items','price'),
   ('food_items','category'),('food_items','is_veg'),('food_items','is_available'),
   ('food_items','image_emoji'),('food_items','sort_order'),
+  ('food_items','name_ru'),('food_items','description_ru'),('food_items','category_ru'),
   -- food_orders
   ('food_orders','hotel_id'),('food_orders','room_id'),('food_orders','room_number'),
   ('food_orders','items'),('food_orders','total_amount'),('food_orders','guest_note'),

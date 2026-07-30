@@ -60,7 +60,7 @@ const MyPayments = () => {
           <tbody>{payments.map(p=>(
             <tr key={p.id} style={{ borderBottom:'1px solid var(--border)' }}>
               <td style={{ padding:'12px 14px' }}><code style={{ fontFamily:'var(--font-mono)', fontSize:12, background:'var(--gray-100)', padding:'2px 6px', borderRadius:4 }}>{p.invoice_number}</code></td>
-              <td style={{ padding:'12px 14px', fontWeight:600 }}>{p.plan?.name}</td>
+              <td style={{ padding:'12px 14px', fontWeight:600 }}>{p.plans?.name || '—'}</td>
               <td style={{ padding:'12px 14px', fontWeight:700, color:'var(--success)' }}>₹{p.amount?.toLocaleString('en-IN')}</td>
               <td style={{ padding:'12px 14px' }}>{fmtDate(p.valid_from)}</td>
               <td style={{ padding:'12px 14px' }}>{fmtDate(p.valid_to)}</td>

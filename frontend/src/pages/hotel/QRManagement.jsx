@@ -5,7 +5,13 @@ import api from '../../utils/api';
 import { PageHeader, Spinner, Modal } from '../../components/shared/UI';
 
 const ROOM_TYPES = ['Standard','Deluxe','Suite','Executive Suite','Villa'];
-const CLIENT_URL = process.env.REACT_APP_CLIENT_URL || 'http://localhost:3000';
+// QR codes get physically printed and stuck on doors, so a wrong base URL is
+// unrecoverable. Mirror the backend guard: ignore an unset value or a
+// vercel.app/localhost preview URL and fall back to the real domain.
+const _envUrl = process.env.REACT_APP_CLIENT_URL;
+const CLIENT_URL = (_envUrl && !/vercel\.app|localhost/i.test(_envUrl))
+  ? _envUrl.replace(/\/+$/, '')
+  : 'https://stayxpulse.sunver.in';
 
 // Single QR Card component
 const QRCard = ({ room, hotel, onDelete }) => {
