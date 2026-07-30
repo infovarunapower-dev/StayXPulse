@@ -29,7 +29,11 @@ const TRANSLATION_SCHEMA = {
 // falls back to the English text, so a translation outage never breaks the menu.
 const translateItemsToRu = async (items) => {
   const out = new Map();
-  if (!process.env.ANTHROPIC_API_KEY || !items || items.length === 0) return out;
+  if (!items || items.length === 0) return out;
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('[menu-translate] ANTHROPIC_API_KEY is not set — menu stays English. Add it in Vercel (same key the AI menu-scan uses).');
+    return out;
+  }
 
   try {
     const Anthropic = require('@anthropic-ai/sdk');
@@ -42,9 +46,14 @@ const translateItemsToRu = async (items) => {
       category: i.category || '',
     }));
 
+    console.log(`[menu-translate] translating ${payload.length} item(s) to Russian…`);
+
+    // Same call shape as the working AI menu-scan: adaptive thinking + json_schema
+    // structured output on Opus 4.8.
     const response = await client.messages.create({
       model: 'claude-opus-4-8',
       max_tokens: 8000,
+      thinking: { type: 'adaptive' },
       output_config: { effort: 'low', format: { type: 'json_schema', schema: TRANSLATION_SCHEMA } },
       messages: [{
         role: 'user',
@@ -57,9 +66,13 @@ const translateItemsToRu = async (items) => {
       }],
     });
 
-    if (response.stop_reason === 'refusal' || response.stop_reason === 'max_tokens') return out;
+    if (response.stop_reason === 'refusal' || response.stop_reason === 'max_tokens') {
+      console.error(`[menu-translate] model stopped early: ${response.stop_reason}`);
+      return out;
+    }
 
     const textBlock = response.content.find(b => b.type === 'text');
+    if (!textBlock) { console.error('[menu-translate] no text block in response'); return out; }
     const parsed = JSON.parse(textBlock.text);
     (parsed.items || []).forEach(t => {
       out.set(String(t.id), {
@@ -68,8 +81,9 @@ const translateItemsToRu = async (items) => {
         category_ru: t.category_ru || null,
       });
     });
+    console.log(`[menu-translate] translated ${out.size} item(s).`);
   } catch (e) {
-    console.error('Menu translation failed:', e.message);
+    console.error('[menu-translate] failed:', e.status || '', e.message);
   }
   return out;
 };
