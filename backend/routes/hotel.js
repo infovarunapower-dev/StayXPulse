@@ -664,13 +664,22 @@ router.post('/guest/:qrToken/service', async (req, res) => {
     const { data: room, error } = await supabase.from('rooms').select('*').eq('qr_token', req.params.qrToken).eq('is_active', true).single();
     if (error || !room) return res.status(404).json({ success: false, message: 'Invalid QR' });
 
-    const { type, note = '' } = req.body;
+    const { type, note = '', scheduledFor } = req.body;
     if (!type || typeof type !== 'string' || !type.trim()) return res.status(400).json({ success: false, message: 'Request type required' });
 
-    const { data: sr, error: srError } = await supabase.from('service_requests').insert({
+    const insert = {
       hotel_id: room.hotel_id, room_id: room.id, room_number: room.number,
       type: type.trim().slice(0, 100), note: String(note).slice(0, 500),
-    }).select().single();
+    };
+    // Optional scheduled moment (e.g. a wake-up call). Accept only a valid date
+    // that is not absurdly far out (guard against a bad client clock).
+    if (scheduledFor) {
+      const when = new Date(scheduledFor);
+      const ok = !isNaN(when.getTime()) && when.getTime() < Date.now() + 7 * 86400000;
+      if (ok) insert.scheduled_for = when.toISOString();
+    }
+
+    const { data: sr, error: srError } = await supabase.from('service_requests').insert(insert).select().single();
     if (srError) throw srError;
     res.status(201).json({ success: true, data: sr, message: 'Request submitted!' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }

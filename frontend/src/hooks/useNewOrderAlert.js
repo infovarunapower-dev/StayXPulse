@@ -22,6 +22,7 @@ const notify = (title, body) => {
 export default function useNewOrderAlert(enabled) {
   const seenOrders   = useRef(null); // null = not seeded yet
   const seenRequests = useRef(null);
+  const remindedWake = useRef(new Set()); // wake-up request ids already reminded
 
   useEffect(() => {
     if (!enabled) return;
@@ -42,11 +43,29 @@ export default function useNewOrderAlert(enabled) {
       try {
         const [ordRes, reqRes] = await Promise.all([
           api.get('/hotel/food-orders',      { params: { status: 'pending', limit: 20 } }),
-          api.get('/hotel/service-requests', { params: { status: 'pending', limit: 20 } }),
+          api.get('/hotel/service-requests', { params: { status: 'pending', limit: 50 } }),
         ]);
         if (cancelled) return;
         const orders   = ordRes.data?.data || [];
         const requests = reqRes.data?.data || [];
+
+        // Wake-up reminders: alert staff from ~10 minutes before the requested
+        // time (up to 2 min after, in case the tab was just opened), once each.
+        // Runs every tick, independent of the "new item" seeding below.
+        const now = Date.now();
+        requests.forEach((r) => {
+          if (r.type !== 'Wake-up Call' || !r.scheduled_for || remindedWake.current.has(r.id)) return;
+          const when = new Date(r.scheduled_for).getTime();
+          if (isNaN(when)) return;
+          if (now >= when - 10 * 60000 && now <= when + 2 * 60000) {
+            remindedWake.current.add(r.id);
+            const at = new Date(when).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+            const label = `Wake-up call due — Room ${r.room_number} at ${at}`;
+            playServiceChime();
+            toast(label, { icon: '⏰', duration: 12000 });
+            notify('StayXPulse — wake-up call reminder', label);
+          }
+        });
 
         if (seenOrders.current === null) {
           seenOrders.current   = new Set(orders.map((o) => o.id));

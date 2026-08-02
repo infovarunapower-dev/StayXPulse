@@ -46,7 +46,8 @@ WITH expected(table_name, column_name) AS (VALUES
   ('food_orders','status'),('food_orders','created_at'),
   -- service_requests
   ('service_requests','hotel_id'),('service_requests','room_id'),('service_requests','room_number'),
-  ('service_requests','type'),('service_requests','note'),('service_requests','status'),('service_requests','created_at')
+  ('service_requests','type'),('service_requests','note'),('service_requests','status'),
+  ('service_requests','scheduled_for'),('service_requests','created_at')
 )
 SELECT e.table_name, e.column_name AS missing_column
 FROM expected e

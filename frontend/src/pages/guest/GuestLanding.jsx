@@ -80,6 +80,9 @@ const GuestLanding = () => {
   const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || 'en');
   const [menuLoading, setMenuLoading] = useState(false);
 
+  const [wakeOpen, setWakeOpen] = useState(false);
+  const [wakeTime, setWakeTime] = useState('07:00');
+
   const t = getDict(lang);
   const langRef = React.useRef(lang);
   const changeLang = (code) => {
@@ -156,10 +159,13 @@ const GuestLanding = () => {
     finally { setPlace(false); }
   };
 
-  const placeService = async (type) => {
+  const placeService = async (type, opts = {}) => {
     try {
-      // `type` stays English — the hotel admin dashboard reads it
-      await axios.post(`${BASE}/hotel/guest/${qrToken}/service`, { type });
+      // `type` (and the note for scheduled requests) stays English — the hotel
+      // admin dashboard reads it.
+      await axios.post(`${BASE}/hotel/guest/${qrToken}/service`, {
+        type, note: opts.note, scheduledFor: opts.scheduledFor,
+      });
       setSuccess(t.requestSent(t.services[type] || type));
       setTimeout(()=>setSuccess(''),5000);
     } catch(err) {
@@ -168,6 +174,25 @@ const GuestLanding = () => {
       setSuccess(`❌ ${msg}`);
       setTimeout(()=>setSuccess(''),4000);
     }
+  };
+
+  // Wake-up Call opens a time picker instead of submitting immediately. The
+  // chosen time becomes the next upcoming occurrence of that clock time (if it
+  // has already passed today, it rolls to tomorrow), so 6:30 always means the
+  // next 6:30. The note is kept in English for the admin dashboard.
+  const submitWake = () => {
+    if (!wakeTime) return;
+    const [hh, mm] = wakeTime.split(':').map(Number);
+    const target = new Date();
+    target.setHours(hh, mm, 0, 0);
+    const tomorrow = target.getTime() <= Date.now();
+    if (tomorrow) target.setDate(target.getDate() + 1);
+    const friendly = target.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    setWakeOpen(false);
+    placeService('Wake-up Call', {
+      note: `Wake-up at ${friendly}${tomorrow ? ' (tomorrow)' : ''}`,
+      scheduledFor: target.toISOString(),
+    });
   };
 
   if (!page) return <div className="gl-loading"><div className="gl-spinner"/><div>{t.loading}</div></div>;
@@ -238,7 +263,8 @@ const GuestLanding = () => {
             <div className="gl-section-title">{t.helpTitle}</div>
             <div className="gl-service-grid">
               {SERVICE_OPTIONS.map(s => (
-                <button key={s.label} className="gl-service-btn" onClick={()=>placeService(s.label)}>
+                <button key={s.label} className="gl-service-btn"
+                  onClick={()=> s.label==='Wake-up Call' ? setWakeOpen(true) : placeService(s.label)}>
                   <span className="gl-service-icon">{s.icon}</span>
                   <span className="gl-service-label">{t.services[s.label] || s.label}</span>
                 </button>
@@ -446,6 +472,34 @@ const GuestLanding = () => {
                 {placing ? t.placing : `${t.placeOrder} · ${fmtCur(cartTotal)}`}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wake-up Call time picker */}
+      {wakeOpen && (
+        <div className="gl-cart-overlay" onClick={e=>e.target===e.currentTarget&&setWakeOpen(false)}>
+          <div className="gl-cart-sheet" style={{maxWidth:420}}>
+            <div className="gl-cart-header">
+              <div style={{fontWeight:700,fontSize:17}}>⏰ {t.wakeTitle}</div>
+              <button className="gl-cart-close" onClick={()=>setWakeOpen(false)}>✕</button>
+            </div>
+            <div style={{fontSize:13.5,color:'#6B7280',lineHeight:1.6,margin:'4px 0 18px'}}>{t.wakeBody}</div>
+            <input
+              type="time"
+              value={wakeTime}
+              onChange={e=>setWakeTime(e.target.value)}
+              style={{width:'100%',padding:'14px 16px',border:'1.5px solid #E5E7EB',borderRadius:10,
+                fontFamily:'inherit',fontSize:22,fontWeight:700,textAlign:'center',color:'#0F2952',letterSpacing:'.04em'}}
+            />
+            <button className="gl-place-btn" style={{marginTop:18}} onClick={submitWake} disabled={!wakeTime}>
+              {t.wakeConfirm}
+            </button>
+            <button onClick={()=>setWakeOpen(false)}
+              style={{width:'100%',marginTop:10,padding:'12px',background:'none',border:'none',
+                color:'#6B7280',fontWeight:600,fontSize:14,cursor:'pointer'}}>
+              {t.wakeCancel}
+            </button>
           </div>
         </div>
       )}

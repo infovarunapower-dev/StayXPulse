@@ -57,7 +57,16 @@ export const ServiceRequests = () => {
   const columns = [
     { label:'Ref',     render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.id}</code> },
     { label:'Room',    sort: r => r.room_number, render: r => <strong>Room {r.room_number}</strong> },
-    { label:'Request', sort: r => r.type, render: r => <div><div style={{fontWeight:600}}>{r.type}</div>{r.note&&<div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{r.note}</div>}</div> },
+    { label:'Request', sort: r => r.type, render: r => (
+      <div>
+        <div style={{fontWeight:600}}>{r.type}</div>
+        {r.scheduled_for
+          ? <div style={{display:'inline-block',marginTop:3,fontSize:12,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'2px 8px',borderRadius:6}}>
+              ⏰ {new Date(r.scheduled_for).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})}
+            </div>
+          : r.note && <div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{r.note}</div>}
+      </div>
+    )},
     { label:'Time',    sort: r => new Date(r.created_at).getTime(), render: r => <div style={{fontSize:12}}><div>{fmtDate(r.created_at)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.created_at)}</div></div> },
     { label:'Status',  sort: r => r.status, render: r => <Badge status={r.status} /> },
     { label:'Action',  render: r => (

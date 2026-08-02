@@ -60,6 +60,11 @@ const en = {
   requestSent: (type) => `✅ "${type}" request submitted! Our team will assist you shortly.`,
   requestFailed: 'Failed',
 
+  wakeTitle: 'Set your wake-up time',
+  wakeBody: 'Pick a time and our team will give your room a wake-up call.',
+  wakeConfirm: 'Request wake-up call',
+  wakeCancel: 'Cancel',
+
   steps: { Placed: 'Placed', Preparing: 'Preparing', Delivered: 'Delivered' },
   cancelledNote: '✕ This order was cancelled',
   status: {
@@ -133,6 +138,11 @@ const ru = {
   orderFailed: 'Не удалось оформить заказ',
   requestSent: (type) => `✅ Заявка «${type}» принята! Наша команда скоро вам поможет.`,
   requestFailed: 'Ошибка',
+
+  wakeTitle: 'Укажите время пробуждения',
+  wakeBody: 'Выберите время, и наша команда позвонит вам в номер для пробуждения.',
+  wakeConfirm: 'Заказать звонок-будильник',
+  wakeCancel: 'Отмена',
 
   steps: { Placed: 'Принят', Preparing: 'Готовится', Delivered: 'Доставлен' },
   cancelledNote: '✕ Этот заказ был отменён',
