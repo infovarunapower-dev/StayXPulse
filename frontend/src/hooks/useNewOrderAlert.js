@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
-import { playOrderChime, playServiceChime, unlockAudio } from '../utils/chime';
+import { playOrderChime, playServiceChime, playWakeAlarm, unlockAudio } from '../utils/chime';
 
 const POLL_MS = 5000;
 
@@ -65,7 +65,7 @@ export default function useNewOrderAlert(enabled) {
             const label = overdue
               ? `Wake-up call OVERDUE — Room ${r.room_number} was due at ${at}`
               : `Wake-up call due soon — Room ${r.room_number} at ${at}`;
-            playServiceChime();
+            playWakeAlarm();
             toast(label, {
               icon: '⏰',
               duration: 60000, // stays a full minute so it isn't missed
