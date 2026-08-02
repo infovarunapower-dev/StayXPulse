@@ -49,7 +49,7 @@ router.post('/test', SA, async (req, res) => {
     planName:      'Professional',
     cycle:         'monthly',
     amount:        2499,
-    invoiceNumber: 'INV-2026-0001',
+    invoiceNumber: 'SXP2026001',
     paymentId:     'pay_MockPaymentId123',
     validFrom:     new Date(),
     validTo:       new Date(Date.now() + 30 * 86400000),

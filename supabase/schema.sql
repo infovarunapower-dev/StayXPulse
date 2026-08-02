@@ -168,13 +168,18 @@ CREATE TRIGGER update_food_items_updated_at    BEFORE UPDATE ON food_items    FO
 CREATE TRIGGER update_food_orders_updated_at   BEFORE UPDATE ON food_orders   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_service_requests_updated BEFORE UPDATE ON service_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Auto-generate invoice number
+-- Auto-generate invoice number  →  SXP2026001
+-- Uses a sequence (not COUNT(*)) so concurrent inserts can't collide/overwrite.
+CREATE SEQUENCE IF NOT EXISTS payments_invoice_seq START 1;
+
 CREATE OR REPLACE FUNCTION generate_invoice_number()
 RETURNS TRIGGER AS $$
-DECLARE count INTEGER;
 BEGIN
-  SELECT COUNT(*) INTO count FROM payments;
-  NEW.invoice_number := 'INV-' || EXTRACT(YEAR FROM NOW())::TEXT || '-' || LPAD((count + 1)::TEXT, 4, '0');
+  IF NEW.invoice_number IS NULL OR NEW.invoice_number = '' THEN
+    NEW.invoice_number := 'SXP'
+      || to_char(NOW() AT TIME ZONE 'Asia/Kolkata', 'YYYY')
+      || LPAD(nextval('payments_invoice_seq')::text, 3, '0');
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
