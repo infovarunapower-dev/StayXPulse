@@ -134,12 +134,12 @@ const layout = (eyebrowText, content, preheader = '') => `<!DOCTYPE html>
         <tr>
           <td style="background:${K.page};border:1px solid ${K.line};border-top:none;border-radius:0 0 5px 5px;padding:28px 44px 32px;text-align:center;">
             <div style="font-family:${SANS};font-size:12.5px;color:${K.mut};line-height:1.7;">
-              Questions? Write to <a href="mailto:support@stayxpulse.com" style="color:${K.gold};text-decoration:none;">support@stayxpulse.com</a>
+              Questions? Write to <a href="mailto:stayxpulse@sunver.in" style="color:${K.gold};text-decoration:none;">stayxpulse@sunver.in</a>
             </div>
             <div style="margin-top:14px;">
               <a href="${CLIENT_URL}" style="font-family:${SANS};font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:${K.goldDim};text-decoration:none;margin:0 12px;">Dashboard</a>
               <a href="${CLIENT_URL}/hotel/upgrade" style="font-family:${SANS};font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:${K.goldDim};text-decoration:none;margin:0 12px;">Plans</a>
-              <a href="mailto:support@stayxpulse.com" style="font-family:${SANS};font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:${K.goldDim};text-decoration:none;margin:0 12px;">Support</a>
+              <a href="mailto:stayxpulse@sunver.in" style="font-family:${SANS};font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:${K.goldDim};text-decoration:none;margin:0 12px;">Support</a>
             </div>
             <div style="margin-top:20px;font-family:${SERIF};font-size:11px;color:${K.mut};line-height:1.7;font-style:italic;">
               &copy; ${YEAR} StayXPulse &mdash; A product of Sunver Coresynergy. All rights reserved.

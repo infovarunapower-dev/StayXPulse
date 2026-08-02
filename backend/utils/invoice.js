@@ -116,14 +116,14 @@ const generateInvoicePDF = ({ invoice, hotel, plan, cycle, amount, validFrom, va
       doc.fillColor(GRAY).fontSize(8.5).font('Helvetica-Bold').text('NOTES', 60, notesTop + 10);
       doc.font('Helvetica').fontSize(8)
          .text('Thank you for subscribing to StayXPulse. This is a computer-generated tax invoice and does not require a signature.', 60, notesTop + 23, { width: W - 20 })
-         .text('For support: support@stayxpulse.com', 60, notesTop + 36);
+         .text('For support: stayxpulse@sunver.in', 60, notesTop + 36);
 
       // Footer
       drawLogo(doc, 50, 728, 38);
       doc.fillColor(GRAY).fontSize(8).font('Helvetica').text('A product of Sunver Coresynergy', 94, 739);
       doc.rect(50, 762, W, 30).fill(BRAND);
       doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica')
-         .text(`${invoice}  ·  ${SELLER.gstin}  ·  Paid via Easebuzz  ·  support@stayxpulse.com`, 50, 772, { width: W, align: 'center' });
+         .text(`${invoice}  ·  ${SELLER.gstin}  ·  Paid via Easebuzz  ·  stayxpulse@sunver.in`, 50, 772, { width: W, align: 'center' });
 
       doc.end();
     } catch (err) { reject(err); }
