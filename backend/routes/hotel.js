@@ -117,6 +117,35 @@ router.delete('/rooms/:id', MW, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// All food orders + service requests for one room (admin view). Returns the
+// full recent history regardless of the guest-view clear — the admin keeps
+// everything.
+router.get('/rooms/:id/activity', MW, async (req, res) => {
+  try {
+    const { data: room } = await supabase.from('rooms').select('id, number, guest_cleared_at')
+      .eq('id', req.params.id).eq('hotel_id', req.hotelId).maybeSingle();
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+
+    const [{ data: orders }, { data: requests }] = await Promise.all([
+      supabase.from('food_orders').select('*').eq('room_id', room.id).order('created_at', { ascending: false }).limit(50),
+      supabase.from('service_requests').select('*').eq('room_id', room.id).order('created_at', { ascending: false }).limit(50),
+    ]);
+    res.json({ success: true, data: { room, orders: orders || [], requests: requests || [] } });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Reset what THIS room's guest sees under "My Orders" (checkout/turnover).
+// Non-destructive: stamps guest_cleared_at; nothing is deleted.
+router.post('/rooms/:id/clear-guest', MW, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('rooms')
+      .update({ guest_cleared_at: new Date().toISOString() })
+      .eq('id', req.params.id).eq('hotel_id', req.hotelId).select('id, guest_cleared_at').single();
+    if (error) throw error;
+    res.json({ success: true, data, message: 'Guest view cleared' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // ════════════════════════════════════════════════════════════════════
 // FOOD ITEMS
 // ════════════════════════════════════════════════════════════════════
@@ -690,8 +719,12 @@ router.get('/guest/:qrToken/orders', async (req, res) => {
     const { data: room, error } = await supabase.from('rooms').select('*').eq('qr_token', req.params.qrToken).eq('is_active', true).single();
     if (error || !room) return res.status(404).json({ success: false, message: 'Invalid QR' });
 
-    // Only show this guest's activity since the daily 12:00-noon-IST reset
-    const cutoff = dailyResetCutoffIso();
+    // Only show this guest's activity since the later of: the daily
+    // 12:00-noon-IST reset, or a manual "clear guest view" the admin triggered
+    // on this room (checkout/turnover). Both are ISO-8601 UTC, so a string
+    // comparison picks the more recent one correctly.
+    const dayCut = dailyResetCutoffIso();
+    const cutoff = room.guest_cleared_at && room.guest_cleared_at > dayCut ? room.guest_cleared_at : dayCut;
     const [{ data: orders }, { data: requests }] = await Promise.all([
       supabase.from('food_orders').select('*').eq('room_id', room.id).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(20),
       supabase.from('service_requests').select('*').eq('room_id', room.id).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(20),

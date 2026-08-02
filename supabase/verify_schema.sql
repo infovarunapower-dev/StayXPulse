@@ -34,7 +34,7 @@ WITH expected(table_name, column_name) AS (VALUES
   ('payment_orders','initiated_at'),('payment_orders','paid_at'),('payment_orders','created_at'),
   -- rooms
   ('rooms','hotel_id'),('rooms','number'),('rooms','type'),('rooms','floor'),
-  ('rooms','is_active'),('rooms','qr_token'),('rooms','created_at'),
+  ('rooms','is_active'),('rooms','qr_token'),('rooms','guest_cleared_at'),('rooms','created_at'),
   -- food_items
   ('food_items','hotel_id'),('food_items','name'),('food_items','description'),('food_items','price'),
   ('food_items','category'),('food_items','is_veg'),('food_items','is_available'),

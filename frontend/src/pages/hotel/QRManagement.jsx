@@ -14,7 +14,7 @@ const CLIENT_URL = (_envUrl && !/vercel\.app|localhost/i.test(_envUrl))
   : 'https://stayxpulse.sunver.in';
 
 // Single QR Card component
-const QRCard = ({ room, hotel, onDelete }) => {
+const QRCard = ({ room, hotel, onDelete, onView }) => {
   const canvasRef = useRef(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
 
@@ -140,9 +140,10 @@ const QRCard = ({ room, hotel, onDelete }) => {
 
   return (
     <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:16,padding:20,textAlign:'center',position:'relative'}}>
-      <div style={{display:'inline-block',padding:'4px 14px',background:'var(--brand-light)',color:'var(--brand)',borderRadius:20,fontSize:13,fontWeight:700,marginBottom:12}}>
-        Room {room.number}
-      </div>
+      <button onClick={() => onView(room)} title="View this room's orders & requests"
+        style={{display:'inline-block',padding:'4px 14px',background:'var(--brand-light)',color:'var(--brand)',border:'none',borderRadius:20,fontSize:13,fontWeight:700,marginBottom:12,cursor:'pointer'}}>
+        Room {room.number} ›
+      </button>
       <div style={{width:160,height:160,margin:'0 auto 12px',border:'2px solid var(--border)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',background:'#fff'}}>
         {qrDataUrl
           ? <img src={qrDataUrl} alt="QR" style={{width:148,height:148}} />
@@ -168,6 +169,36 @@ const QRManagement = () => {
   const [delRoom, setDelRoom] = useState(null);
   const [saving,  setSaving]  = useState(false);
   const [form,    setForm]    = useState({ number:'', floor:'', type:'Standard' });
+
+  // Per-room activity viewer
+  const [viewRoom,     setViewRoom]     = useState(null);
+  const [activity,     setActivity]     = useState({ orders: [], requests: [] });
+  const [actLoading,   setActLoading]   = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing,     setClearing]     = useState(false);
+
+  const openActivity = async (room) => {
+    setViewRoom(room); setConfirmClear(false); setActLoading(true);
+    setActivity({ orders: [], requests: [] });
+    try {
+      const r = await api.get(`/hotel/rooms/${room.id}/activity`);
+      setActivity({ orders: r.data.data.orders || [], requests: r.data.data.requests || [] });
+    } catch { toast.error('Failed to load room activity'); }
+    finally { setActLoading(false); }
+  };
+
+  const handleClearGuest = async () => {
+    setClearing(true);
+    try {
+      await api.post(`/hotel/rooms/${viewRoom.id}/clear-guest`);
+      toast.success(`Room ${viewRoom.number}: guest's My Orders cleared (your records are kept)`);
+      setConfirmClear(false);
+    } catch { toast.error('Failed to clear'); }
+    finally { setClearing(false); }
+  };
+
+  const fmtDT = d => d ? new Date(d).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
+  const inr   = n => `₹${Number(n||0).toLocaleString('en-IN')}`;
 
   const loadRooms = async () => {
     try {
@@ -220,7 +251,7 @@ const QRManagement = () => {
         </div>
       ) : (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:16}}>
-          {rooms.map(r => <QRCard key={r.id} room={r} hotel={hotel} onDelete={setDelRoom} />)}
+          {rooms.map(r => <QRCard key={r.id} room={r} hotel={hotel} onDelete={setDelRoom} onView={openActivity} />)}
         </div>
       )}
 
@@ -253,6 +284,64 @@ const QRManagement = () => {
             <button type="submit" className="btn btn-brand" disabled={saving}>{saving ? 'Generating…' : '📱 Generate QR'}</button>
           </div>
         </form>
+      </Modal>
+
+      {/* Room Activity + Clear */}
+      <Modal open={!!viewRoom} onClose={() => setViewRoom(null)} title={viewRoom ? `Room ${viewRoom.number} · Orders & Requests` : ''}>
+        {actLoading ? <div style={{padding:'30px 0',textAlign:'center'}}><Spinner /></div> : (
+          <div>
+            {/* Food Orders */}
+            <div style={{fontSize:13,fontWeight:700,color:'var(--gray-700)',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 8px'}}>🍽 Food Orders</div>
+            {activity.orders.length === 0
+              ? <div style={{fontSize:13,color:'var(--gray-400)',padding:'4px 0 16px'}}>No food orders.</div>
+              : <div style={{marginBottom:18}}>{activity.orders.map(o => (
+                  <div key={o.id} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+                    <div>
+                      <div style={{fontSize:13.5,fontWeight:600}}>{(o.items||[]).map(i=>`${i.name} ×${i.quantity}`).join(', ') || 'Order'}</div>
+                      <div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{fmtDT(o.created_at)} · {o.status}</div>
+                    </div>
+                    <div style={{fontSize:13.5,fontWeight:700,color:'var(--brand)',whiteSpace:'nowrap',marginLeft:10}}>{inr(o.total_amount)}</div>
+                  </div>
+                ))}</div>}
+
+            {/* Service Requests */}
+            <div style={{fontSize:13,fontWeight:700,color:'var(--gray-700)',textTransform:'uppercase',letterSpacing:'.04em',margin:'8px 0 8px'}}>🛎 Service Requests</div>
+            {activity.requests.length === 0
+              ? <div style={{fontSize:13,color:'var(--gray-400)',padding:'4px 0 8px'}}>No service requests.</div>
+              : <div>{activity.requests.map(s => (
+                  <div key={s.id} style={{padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+                    <div style={{fontSize:13.5,fontWeight:600}}>{s.type}</div>
+                    <div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>
+                      {fmtDT(s.created_at)} · {s.status}
+                      {s.scheduled_for && <span style={{color:'#B45309',fontWeight:700}}> · ⏰ {fmtDT(s.scheduled_for)}</span>}
+                    </div>
+                  </div>
+                ))}</div>}
+
+            {/* Clear guest view */}
+            <div style={{marginTop:22,borderTop:'1px solid var(--border)',paddingTop:16}}>
+              {!confirmClear ? (
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  <div style={{fontSize:12.5,color:'var(--gray-400)',lineHeight:1.5,flex:1,minWidth:180}}>
+                    Emptying the guest's <strong>My Orders</strong> gives the next guest a clean slate. Your dashboard, analytics and revenue keep everything.
+                  </div>
+                  <button className="btn btn-sm" style={{background:'var(--danger-light)',color:'var(--danger)',border:'1px solid var(--danger)'}}
+                    onClick={() => setConfirmClear(true)}>Clear guest view</button>
+                </div>
+              ) : (
+                <div style={{background:'var(--danger-light)',borderRadius:8,padding:'12px 14px'}}>
+                  <div style={{fontSize:13,color:'var(--gray-700)',marginBottom:12}}>
+                    Clear the guest's My Orders for <strong>Room {viewRoom?.number}</strong>? This only resets what the guest sees — nothing is deleted from your side.
+                  </div>
+                  <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+                    <button className="btn btn-sm btn-outline" onClick={() => setConfirmClear(false)} disabled={clearing}>Cancel</button>
+                    <button className="btn btn-sm btn-danger" onClick={handleClearGuest} disabled={clearing}>{clearing ? 'Clearing…' : 'Yes, clear guest view'}</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Delete Confirm */}
