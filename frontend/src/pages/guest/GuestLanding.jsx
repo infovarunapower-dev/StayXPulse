@@ -20,6 +20,7 @@ const SERVICE_OPTIONS = [
   { icon:'🧺', label:'Laundry Service'           },
   { icon:'🔇', label:'Noise Complaint'           },
   { icon:'📡', label:'TV / WiFi Issue'           },
+  { icon:'🚕', label:'Cab Request'               },
 ];
 
 // Guest page is light-only (public), so status colors are fixed light tints.

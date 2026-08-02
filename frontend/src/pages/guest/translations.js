@@ -79,6 +79,7 @@ const en = {
     'Laundry Service': 'Laundry Service',
     'Noise Complaint': 'Noise Complaint',
     'TV / WiFi Issue': 'TV / WiFi Issue',
+    'Cab Request': 'Cab Request',
   },
 };
 
@@ -152,6 +153,7 @@ const ru = {
     'Laundry Service': 'Прачечная',
     'Noise Complaint': 'Жалоба на шум',
     'TV / WiFi Issue': 'Проблема с ТВ / Wi-Fi',
+    'Cab Request': 'Заказ такси',
   },
 };
 
