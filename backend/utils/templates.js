@@ -4,169 +4,238 @@ const CLIENT_URL = require('./clientUrl');
 // strips them), so the logo has to be a plain hosted URL. /logo.png is routed
 // explicitly in vercel.json ahead of the SPA catch-all.
 const LOGO_URL = process.env.EMAIL_LOGO_URL || `${CLIENT_URL}/logo.png`;
+const YEAR = new Date().getFullYear();
+const HOST = CLIENT_URL.replace(/^https?:\/\//, '');
 
-// ── Base layout wrapper ────────────────────────────────────────────────────────
-const layout = (content) => `<!DOCTYPE html>
-<html lang="en">
+// ─────────────────────────────────────────────────────────────────────────────
+//  StayXPulse transactional email — "Luxe" identity
+//
+//  Five-star hospitality treatment: deep charcoal ground, champagne-gold
+//  accents, a centred serif wordmark and hairline ornaments. Built entirely
+//  with TABLES + inline styles (never flexbox/grid) so Gmail, Outlook and Apple
+//  Mail all render it identically. Intentionally dark-themed for a premium feel;
+//  every colour is tuned for contrast on the charcoal ground.
+// ─────────────────────────────────────────────────────────────────────────────
+const K = {
+  page:'#131217', card:'#1B1A21', panel:'#211F28', ivory:'#ECE6D8', body:'#A69F8E', mut:'#6F6A5E',
+  gold:'#C6A15B', goldLt:'#E4C888', goldDim:'#8C7746', line:'#2C2A32', goldLine:'rgba(198,161,91,0.34)',
+  ink:'#141319',
+  okBg:'#1A2320',  okInk:'#8FBFA0',  okBd:'rgba(120,170,140,.30)',
+  warnBg:'#241F19', warnInk:'#D8B77E', warnBd:'rgba(198,161,91,.35)',
+  dangBg:'#241A1A', dangInk:'#D79C8F', dangBd:'rgba(190,110,90,.35)',
+};
+const SANS  = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+const SERIF = "Georgia,'Times New Roman','Hoefler Text',serif";
+const MONO  = "'SFMono-Regular',Consolas,'Liberation Mono',Menlo,'Courier New',monospace";
+const DIA   = '◆'; // ◆
+
+// ── Gold call-to-action button (bulletproof in Outlook) ─────────────────────
+const button = (href, label) => `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:12px auto 4px;">
+    <tr>
+      <td align="center" bgcolor="${K.gold}" style="border-radius:3px;">
+        <a href="${href}" target="_blank"
+           style="display:inline-block;padding:16px 46px;font-family:${SANS};font-size:12px;line-height:1;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:${K.ink};text-decoration:none;border-radius:3px;">
+          ${label}
+        </a>
+      </td>
+    </tr>
+  </table>`;
+
+// ── Key/value detail card ───────────────────────────────────────────────────
+// rows: [{ label, value, mono? }]
+const detailCard = (rows) => {
+  const body = rows.map((r, i) => {
+    const bb = i === rows.length - 1 ? '' : `border-bottom:1px solid ${K.line};`;
+    const vf = r.mono ? `font-family:${MONO};` : `font-family:${SANS};`;
+    return `
+      <tr>
+        <td style="padding:15px 0;${bb}font-family:${SANS};font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:${K.gold};font-weight:700;vertical-align:top;white-space:nowrap;">${r.label}</td>
+        <td style="padding:15px 0 15px 22px;${bb}${vf}font-size:14px;color:${K.ivory};font-weight:600;text-align:right;word-break:break-word;">${r.value}</td>
+      </tr>`;
+  }).join('');
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="background:${K.panel};border:1px solid ${K.goldLine};border-radius:5px;margin:26px 0;">
+      <tr><td style="padding:4px 28px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${body}</table>
+      </td></tr>
+    </table>`;
+};
+
+// ── Notice strip ────────────────────────────────────────────────────────────
+const notice = (html, kind = 'warn') => {
+  const m = {
+    warn:    { bg: K.warnBg, ink: K.warnInk, bd: K.warnBd },
+    success: { bg: K.okBg,   ink: K.okInk,   bd: K.okBd },
+    danger:  { bg: K.dangBg, ink: K.dangInk, bd: K.dangBd },
+  }[kind] || {};
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+      <tr><td style="background:${m.bg};border:1px solid ${m.bd};border-left:3px solid ${K.gold};border-radius:3px;padding:15px 20px;font-family:${SANS};font-size:13px;line-height:1.65;color:${m.ink};">
+        ${html}
+      </td></tr>
+    </table>`;
+};
+
+const eyebrow  = (t) => `<div style="font-family:${SANS};font-size:10.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:${K.gold};text-align:center;margin-bottom:10px;">${t}</div>`;
+const h1       = (t) => `<h1 style="margin:0 0 16px;font-family:${SERIF};font-size:30px;line-height:1.18;font-weight:700;color:${K.ivory};letter-spacing:-0.2px;text-align:center;">${t}</h1>`;
+const para     = (t) => `<p style="margin:0 0 15px;font-family:${SANS};font-size:15px;line-height:1.8;color:${K.body};text-align:center;">${t}</p>`;
+const ornament = `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:2px auto 22px;">
+    <tr>
+      <td style="width:56px;border-bottom:1px solid ${K.goldLine};font-size:0;line-height:0;">&nbsp;</td>
+      <td style="padding:0 12px;color:${K.gold};font-size:9px;line-height:1;">${DIA}</td>
+      <td style="width:56px;border-bottom:1px solid ${K.goldLine};font-size:0;line-height:0;">&nbsp;</td>
+    </tr>
+  </table>`;
+
+// ── Base layout wrapper ─────────────────────────────────────────────────────
+const layout = (eyebrowText, content, preheader = '') => `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="x-apple-disable-message-reformatting" />
+  <meta name="color-scheme" content="dark only" />
   <title>StayXPulse</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #F0F4F8; color: #111827; }
-    .wrapper { max-width: 580px; margin: 32px auto; padding: 0 16px 40px; }
-    .card { background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
-    .header { background: linear-gradient(135deg, #0F2952 0%, #1A4D8F 100%); padding: 28px 36px; }
-    .header-logo { font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
-    .header-logo span { color: #F59E0B; }
-    .header-sub { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 3px; }
-    .body { padding: 36px; }
-    .title { font-size: 22px; font-weight: 700; color: #111827; margin-bottom: 10px; }
-    .text  { font-size: 15px; color: #374151; line-height: 1.7; margin-bottom: 14px; }
-    .btn-wrap { text-align: center; margin: 28px 0; }
-    .btn { display: inline-block; background: #1A4D8F; color: #ffffff !important; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-size: 15px; font-weight: 700; }
-    .btn-green { background: #10B981; }
-    .box { background: #F0F4F8; border-radius: 10px; padding: 18px 20px; margin: 18px 0; }
-    .box-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #E5E7EB; font-size: 14px; }
-    .box-row:last-child { border-bottom: none; }
-    .box-label { color: #6B7280; font-weight: 600; }
-    .box-val   { color: #111827; font-weight: 700; font-family: 'Courier New', monospace; }
-    .badge { display: inline-block; background: #D1FAE5; color: #065F46; padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
-    .badge-warn { background: #FEF3C7; color: #92400E; }
-    .badge-red  { background: #FEE2E2; color: #991B1B; }
-    .divider { border: none; border-top: 1px solid #E5E7EB; margin: 24px 0; }
-    .footer { padding: 20px 36px; background: #F9FAFB; border-top: 1px solid #E5E7EB; }
-    .footer-text { font-size: 12px; color: #9CA3AF; line-height: 1.6; text-align: center; }
-    .footer-links { text-align: center; margin-top: 10px; }
-    .footer-links a { font-size: 12px; color: #6B7280; text-decoration: none; margin: 0 8px; }
-    .note { font-size: 13px; color: #6B7280; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 12px 16px; margin-top: 16px; line-height: 1.6; }
-    .highlight { color: #1A4D8F; font-weight: 700; }
-  </style>
 </head>
-<body>
-  <div class="wrapper">
-    <div class="card">
-      <div class="header">
-        <!-- Table layout, not flexbox: Outlook ignores flex entirely.
-             The wordmark stays as live text so branding survives when the
-             recipient's client blocks images, which most do by default. -->
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-          <tr>
-            <td style="padding-right:12px; vertical-align:middle;">
-              <img src="${LOGO_URL}" alt="" width="44" height="22" style="display:block; border:0; outline:none; text-decoration:none;" />
-            </td>
-            <td style="vertical-align:middle;">
-              <div class="header-logo">Stay<span>X</span>Pulse</div>
-              <div class="header-sub">Smart Hotel Management Platform</div>
-            </td>
-          </tr>
-        </table>
-      </div>
-      <div class="body">${content}</div>
-      <div class="footer">
-        <div class="footer-text">
-          This email was sent by StayXPulse. Please do not reply to this email.<br/>
-          If you have questions, contact us at <strong>support@stayxpulse.com</strong>
-        </div>
-        <div class="footer-links">
-          <a href="${CLIENT_URL}">Dashboard</a>
-          <a href="mailto:support@stayxpulse.com">Support</a>
-        </div>
-        <div style="text-align:center; margin-top:16px;">
-          <img src="${LOGO_URL}" alt="" width="52" height="26" style="display:inline-block; border:0; opacity:0.75;" />
-          <div style="font-size:11px; color:#9CA3AF; letter-spacing:0.08em; margin-top:5px;">A PRODUCT OF SUNVER CORESYNERGY</div>
-        </div>
-      </div>
-    </div>
-  </div>
+<body style="margin:0;padding:0;background:${K.page};-webkit-font-smoothing:antialiased;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${preheader}</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${K.page};">
+    <tr><td align="center" style="padding:44px 14px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;">
+
+        <!-- Gold rail -->
+        <tr><td style="height:3px;background:${K.gold};background:linear-gradient(90deg,${K.goldDim},${K.goldLt},${K.goldDim});border-radius:3px 3px 0 0;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+        <!-- Header (centred wordmark) -->
+        <tr>
+          <td style="background:${K.card};padding:34px 44px 26px;border-left:1px solid ${K.line};border-right:1px solid ${K.line};text-align:center;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+              <tr>
+                <td style="padding-right:11px;vertical-align:middle;"><img src="${LOGO_URL}" alt="" width="32" height="32" style="display:block;border:0;border-radius:6px;"/></td>
+                <td style="vertical-align:middle;"><div style="font-family:${SERIF};font-size:22px;font-weight:700;color:${K.ivory};letter-spacing:.5px;line-height:1;">Stay<span style="color:${K.gold};">X</span>Pulse</div></td>
+              </tr>
+            </table>
+            <div style="font-family:${SANS};font-size:9.5px;letter-spacing:.28em;text-transform:uppercase;color:${K.mut};margin-top:12px;">Smart Hotel Management</div>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="background:${K.card};padding:14px 44px 36px;border-left:1px solid ${K.line};border-right:1px solid ${K.line};">
+            ${eyebrowText ? eyebrow(eyebrowText) : ''}${content}
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:${K.page};border:1px solid ${K.line};border-top:none;border-radius:0 0 5px 5px;padding:28px 44px 32px;text-align:center;">
+            <div style="font-family:${SANS};font-size:12.5px;color:${K.mut};line-height:1.7;">
+              Questions? Write to <a href="mailto:support@stayxpulse.com" style="color:${K.gold};text-decoration:none;">support@stayxpulse.com</a>
+            </div>
+            <div style="margin-top:14px;">
+              <a href="${CLIENT_URL}" style="font-family:${SANS};font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:${K.goldDim};text-decoration:none;margin:0 12px;">Dashboard</a>
+              <a href="${CLIENT_URL}/hotel/upgrade" style="font-family:${SANS};font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:${K.goldDim};text-decoration:none;margin:0 12px;">Plans</a>
+              <a href="mailto:support@stayxpulse.com" style="font-family:${SANS};font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:${K.goldDim};text-decoration:none;margin:0 12px;">Support</a>
+            </div>
+            <div style="margin-top:20px;font-family:${SERIF};font-size:11px;color:${K.mut};line-height:1.7;font-style:italic;">
+              &copy; ${YEAR} StayXPulse &mdash; A product of Sunver Coresynergy. All rights reserved.
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
 </body>
 </html>`;
 
-// ── 1. Welcome Email ───────────────────────────────────────────────────────────
+// ── 1. Welcome Email ────────────────────────────────────────────────────────
 const welcomeTemplate = ({ hotelName, email, userId, password, trialEndDate }) =>
-  layout(`
-    <div class="badge">🎉 Registration Successful</div>
-    <div class="title">Welcome to StayXPulse, ${hotelName}!</div>
-    <p class="text">Your hotel has been registered successfully. You can start using StayXPulse right away with your <span class="highlight">3-day free trial</span>.</p>
-    <p class="text">Here are your login credentials — please save them securely:</p>
-    <div class="box">
-      <div class="box-row"><span class="box-label">Login URL</span>   <span class="box-val">${CLIENT_URL}/login</span></div>
-      <div class="box-row"><span class="box-label">User ID</span>     <span class="box-val">${userId}</span></div>
-      <div class="box-row"><span class="box-label">Email</span>       <span class="box-val">${email}</span></div>
-      <div class="box-row"><span class="box-label">Password</span>    <span class="box-val">${password}</span></div>
-      <div class="box-row"><span class="box-label">Trial Ends</span>  <span class="box-val">${new Date(trialEndDate).toDateString()}</span></div>
-    </div>
-    <div class="btn-wrap"><a class="btn" href="${CLIENT_URL}/login">Login to Your Dashboard →</a></div>
-    <div class="note">⚠️ Please change your password after first login. Your trial expires on <strong>${new Date(trialEndDate).toDateString()}</strong>.</div>
-  `);
+  layout('Registration Successful', `
+    ${h1('Welcome to StayXPulse')}
+    ${ornament}
+    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, your account is ready. Begin with a <strong style="color:${K.ivory};">3-day complimentary trial</strong> &mdash; no card required.`)}
+    ${para('Here are your sign-in credentials. Please keep them somewhere safe:')}
+    ${detailCard([
+      { label: 'Login URL', value: `<a href="${CLIENT_URL}/login" style="color:${K.goldLt};text-decoration:none;">${HOST}/login</a>` },
+      { label: 'User ID',   value: userId, mono: true },
+      { label: 'Email',     value: email,  mono: true },
+      { label: 'Password',  value: password, mono: true },
+      { label: 'Trial Ends',value: new Date(trialEndDate).toDateString() },
+    ])}
+    ${button(`${CLIENT_URL}/login`, 'Enter your dashboard')}
+    ${notice(`For your security, please change your password after your first sign-in. Your trial ends on <strong>${new Date(trialEndDate).toDateString()}</strong>.`, 'warn')}
+  `, `Welcome to StayXPulse — your ${hotelName} account and trial are ready.`);
 
-// ── 2. Forgot Password ─────────────────────────────────────────────────────────
+// ── 2. Forgot Password ──────────────────────────────────────────────────────
 const forgotPasswordTemplate = ({ name, resetUrl }) =>
-  layout(`
-    <div class="title">Reset Your Password</div>
-    <p class="text">Hi <strong>${name}</strong>,</p>
-    <p class="text">We received a request to reset the password for your StayXPulse account.</p>
-    <div class="btn-wrap"><a class="btn" href="${resetUrl}">Reset My Password →</a></div>
-    <div class="note">🔒 This link expires in <strong>1 hour</strong>. If you did not request this, you can safely ignore this email.</div>
-  `);
+  layout('Account Security', `
+    ${h1('Reset your password')}
+    ${ornament}
+    ${para(`Hi <strong style="color:${K.ivory};">${name}</strong>, we received a request to reset the password for your StayXPulse account. Choose a new one below.`)}
+    ${button(resetUrl, 'Reset my password')}
+    ${notice(`This link expires in <strong>1 hour</strong>. If you didn&rsquo;t request a reset, you can safely ignore this email &mdash; your password won&rsquo;t change.`, 'warn')}
+  `, 'Reset your StayXPulse password (link valid for 1 hour).');
 
-// ── 3. Trial Reminder ──────────────────────────────────────────────────────────
+// ── 3. Trial Reminder ───────────────────────────────────────────────────────
 const trialReminderTemplate = ({ hotelName, daysLeft, trialEndDate }) =>
-  layout(`
-    <div class="badge badge-warn">⏰ Trial Ending ${daysLeft <= 1 ? 'Tomorrow' : `in ${daysLeft} Days`}</div>
-    <div class="title">Your free trial is ending soon</div>
-    <p class="text">Hi <strong>${hotelName}</strong>,</p>
-    <p class="text">Your StayXPulse free trial ends on <span class="highlight">${new Date(trialEndDate).toDateString()}</span>.</p>
-    <p class="text">Upgrade now to keep access to all your rooms, QR codes, food menu, and order history.</p>
-    <div class="btn-wrap"><a class="btn" href="${CLIENT_URL}/hotel/upgrade">View Plans & Upgrade →</a></div>
-    <div class="note">💡 Plans start at just <strong>₹999/month</strong>. Instant activation after payment.</div>
-  `);
+  layout(`Trial ending ${daysLeft <= 1 ? 'tomorrow' : `in ${daysLeft} days`}`, `
+    ${h1('Your free trial is ending soon')}
+    ${ornament}
+    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, your StayXPulse trial ends on <strong style="color:${K.ivory};">${new Date(trialEndDate).toDateString()}</strong>. Upgrade now to keep uninterrupted access to your rooms, QR codes, menu and order history.`)}
+    ${button(`${CLIENT_URL}/hotel/upgrade`, 'View plans & upgrade')}
+    ${notice(`Plans start at just <strong>&#8377;999/month</strong>, with instant activation the moment your payment succeeds.`, 'warn')}
+  `, `Your StayXPulse trial ends ${new Date(trialEndDate).toDateString()}.`);
 
-// ── 4. Subscription Expiry Reminder ───────────────────────────────────────────
+// ── 4. Subscription Expiry Reminder ─────────────────────────────────────────
 const expiryReminderTemplate = ({ hotelName, planName, daysLeft, expiryDate }) =>
-  layout(`
-    <div class="badge ${daysLeft <= 2 ? 'badge-red' : 'badge-warn'}">⚠️ Subscription Expiring ${daysLeft <= 1 ? 'Tomorrow' : `in ${daysLeft} Days`}</div>
-    <div class="title">Your subscription is expiring soon</div>
-    <p class="text">Hi <strong>${hotelName}</strong>,</p>
-    <p class="text">Your <span class="highlight">${planName}</span> subscription expires on <span class="highlight">${new Date(expiryDate).toDateString()}</span>.</p>
-    <div class="btn-wrap"><a class="btn" href="${CLIENT_URL}/hotel/upgrade">Renew Subscription →</a></div>
-  `);
+  layout(`Subscription expiring ${daysLeft <= 1 ? 'tomorrow' : `in ${daysLeft} days`}`, `
+    ${h1('Your subscription is expiring')}
+    ${ornament}
+    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, your <strong style="color:${K.ivory};">${planName}</strong> subscription expires on <strong style="color:${K.ivory};">${new Date(expiryDate).toDateString()}</strong>. Renew now to avoid any interruption to your guests&rsquo; service.`)}
+    ${button(`${CLIENT_URL}/hotel/upgrade`, 'Renew subscription')}
+    ${notice(`Renew before it lapses to keep your rooms, menu and orders live without a break.`, daysLeft <= 2 ? 'danger' : 'warn')}
+  `, `Your ${planName} plan expires ${new Date(expiryDate).toDateString()}.`);
 
-// ── 5. Payment Success ─────────────────────────────────────────────────────────
-const paymentSuccessTemplate = ({ hotelName, planName, cycle, amount, invoiceNumber, paymentId, validFrom, validTo }) =>
-  layout(`
-    <div class="badge">✅ Payment Confirmed</div>
-    <div class="title">Subscription Activated!</div>
-    <p class="text">Hi <strong>${hotelName}</strong>,</p>
-    <p class="text">Your payment was successful and your <span class="highlight">${planName} (${cycle.charAt(0).toUpperCase() + cycle.slice(1)})</span> plan is now active on StayXPulse.</p>
-    <div class="box">
-      <div class="box-row"><span class="box-label">Plan</span>         <span class="box-val">${planName} — ${cycle.charAt(0).toUpperCase() + cycle.slice(1)}</span></div>
-      <div class="box-row"><span class="box-label">Amount Paid</span>  <span class="box-val">₹${Number(amount).toLocaleString('en-IN')}</span></div>
-      <div class="box-row"><span class="box-label">Invoice No.</span>  <span class="box-val">${invoiceNumber}</span></div>
-      <div class="box-row"><span class="box-label">Payment ID</span>   <span class="box-val">${paymentId}</span></div>
-      <div class="box-row"><span class="box-label">Valid From</span>   <span class="box-val">${new Date(validFrom).toDateString()}</span></div>
-      <div class="box-row"><span class="box-label">Valid To</span>     <span class="box-val">${new Date(validTo).toDateString()}</span></div>
-    </div>
-    <div class="btn-wrap"><a class="btn btn-green" href="${CLIENT_URL}/hotel/dashboard">Go to Dashboard →</a></div>
-    <div class="note">📄 Your invoice PDF is attached to this email.</div>
-  `);
+// ── 5. Payment Success ──────────────────────────────────────────────────────
+const paymentSuccessTemplate = ({ hotelName, planName, cycle, amount, invoiceNumber, paymentId, validFrom, validTo }) => {
+  const Cyc = cycle.charAt(0).toUpperCase() + cycle.slice(1);
+  return layout('Payment Confirmed', `
+    ${h1('Your subscription is active')}
+    ${ornament}
+    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, thank you. Your payment succeeded and your <strong style="color:${K.ivory};">${planName} (${Cyc})</strong> plan is now live.`)}
+    ${detailCard([
+      { label: 'Plan',        value: `${planName} — ${Cyc}` },
+      { label: 'Amount Paid', value: `&#8377;${Number(amount).toLocaleString('en-IN')}` },
+      { label: 'Invoice No.', value: invoiceNumber, mono: true },
+      { label: 'Payment ID',  value: paymentId, mono: true },
+      { label: 'Valid From',  value: new Date(validFrom).toDateString() },
+      { label: 'Valid To',    value: new Date(validTo).toDateString() },
+    ])}
+    ${button(`${CLIENT_URL}/hotel/dashboard`, 'Go to dashboard')}
+    ${notice('Your GST tax invoice (PDF) is attached to this email for your records.', 'success')}
+  `, `Payment confirmed — ${planName} plan active. Invoice ${invoiceNumber}.`);
+};
 
-// ── 6. Password Reset by Admin ─────────────────────────────────────────────────
+// ── 6. Password Reset by Admin ──────────────────────────────────────────────
 const passwordResetByAdminTemplate = ({ hotelName, userId, email, newPassword }) =>
-  layout(`
-    <div class="title">Your Password Has Been Reset</div>
-    <p class="text">Hi <strong>${hotelName}</strong>,</p>
-    <p class="text">Your StayXPulse account password has been reset by the administrator.</p>
-    <div class="box">
-      <div class="box-row"><span class="box-label">Login URL</span>   <span class="box-val">${CLIENT_URL}/login</span></div>
-      <div class="box-row"><span class="box-label">User ID</span>     <span class="box-val">${userId}</span></div>
-      <div class="box-row"><span class="box-label">Email</span>       <span class="box-val">${email}</span></div>
-      <div class="box-row"><span class="box-label">New Password</span><span class="box-val">${newPassword}</span></div>
-    </div>
-    <div class="btn-wrap"><a class="btn" href="${CLIENT_URL}/login">Login Now →</a></div>
-    <div class="note">🔒 Please change your password immediately after logging in.</div>
-  `);
+  layout('Account Security', `
+    ${h1('Your password has been reset')}
+    ${ornament}
+    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, an administrator has reset the password for your StayXPulse account. Use the new credentials below to sign in.`)}
+    ${detailCard([
+      { label: 'Login URL',    value: `<a href="${CLIENT_URL}/login" style="color:${K.goldLt};text-decoration:none;">${HOST}/login</a>` },
+      { label: 'User ID',      value: userId, mono: true },
+      { label: 'Email',        value: email, mono: true },
+      { label: 'New Password', value: newPassword, mono: true },
+    ])}
+    ${button(`${CLIENT_URL}/login`, 'Sign in now')}
+    ${notice('Please change this password immediately after signing in.', 'warn')}
+  `, 'Your StayXPulse password has been reset.');
 
 module.exports = {
   welcomeTemplate,
