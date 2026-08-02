@@ -6,6 +6,7 @@ const {
   expiryReminderTemplate,
   paymentSuccessTemplate,
   passwordResetByAdminTemplate,
+  appUpdateTemplate,
 } = require('./templates');
 
 // ── 1. Welcome email after hotel registration ──────────────────────────────────
@@ -57,6 +58,14 @@ const sendPasswordResetByAdminEmail = ({ hotelName, email, userId, newPassword }
     html:    passwordResetByAdminTemplate({ hotelName, userId, email, newPassword }),
   });
 
+// ── 7. New app version available ───────────────────────────────────────────────
+const sendAppUpdateEmail = ({ hotelName, email, version, downloadUrl, notes }) =>
+  sendEmail({
+    to:      email,
+    subject: `📱 StayXPulse — A new app version${version ? ` (v${String(version).replace(/^v/i,'')})` : ''} is available`,
+    html:    appUpdateTemplate({ hotelName, version, downloadUrl, notes }),
+  });
+
 module.exports = {
   sendWelcomeEmail,
   sendForgotPasswordEmail,
@@ -64,5 +73,6 @@ module.exports = {
   sendExpiryReminderEmail,
   sendPaymentSuccessEmail,
   sendPasswordResetByAdminEmail,
+  sendAppUpdateEmail,
   TEST_MODE,
 };

@@ -28,6 +28,28 @@ const EmailSettings = () => {
   const [sending,  setSending]  = useState(null);
   const [results,  setResults]  = useState({});
 
+  // App-update broadcast
+  const [appVersion,    setAppVersion]    = useState('');
+  const [appNotes,      setAppNotes]      = useState('');
+  const [notifying,     setNotifying]     = useState(false);
+  const [confirmNotify, setConfirmNotify] = useState(false);
+  const [notifyResult,  setNotifyResult]  = useState(null);
+
+  const sendAppUpdate = async () => {
+    setNotifying(true);
+    try {
+      const notes = appNotes.split('\n').map(s => s.trim()).filter(Boolean);
+      const r = await api.post('/superadmin/notify-app-update', { version: appVersion.trim(), notes });
+      setNotifyResult({ success: true, message: r.data.message });
+      toast.success(r.data.message);
+      setConfirmNotify(false);
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to send';
+      setNotifyResult({ success: false, message: msg });
+      toast.error(msg);
+    } finally { setNotifying(false); }
+  };
+
   const loadStatus = async () => {
     setLoading(true);
     try {
@@ -130,6 +152,45 @@ const EmailSettings = () => {
               6. Set <code style={{ background: '#FEF3C7', padding: '1px 5px', borderRadius: 4 }}>EMAIL_TEST_MODE=false</code> to go live<br/>
               7. Restart backend
             </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Notify hotels of a new app version */}
+      <Card style={{ marginBottom: 20 }}>
+        <div className="card-title" style={{ marginBottom: 6 }}>📱 Notify Hotels — New App Version</div>
+        <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 16 }}>
+          Emails every hotel a “new app is ready” message with the download link. Send this right after you release a new APK.
+        </div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14, alignItems: 'flex-start' }}>
+          <div style={{ width: 150 }}>
+            <label className="form-label">Version (optional)</label>
+            <input className="form-control" placeholder="e.g. 1.2" value={appVersion} onChange={e => setAppVersion(e.target.value)} />
+          </div>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <label className="form-label">What’s new (optional — one per line)</label>
+            <textarea className="form-control" rows={3}
+              placeholder={"Wake-up call reminders\nCab request option"}
+              value={appNotes} onChange={e => setAppNotes(e.target.value)}
+              style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+          </div>
+        </div>
+        {!confirmNotify ? (
+          <button className="btn btn-brand" onClick={() => setConfirmNotify(true)} disabled={notifying}>📣 Notify all hotels</button>
+        ) : (
+          <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ fontSize: 13, color: '#92400E', marginBottom: 12 }}>
+              This will email <strong>every hotel</strong> the download link{status?.testMode ? ' (TEST MODE — logged to backend console only)' : ''}. Continue?
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-sm btn-outline" onClick={() => setConfirmNotify(false)} disabled={notifying}>Cancel</button>
+              <button className="btn btn-sm btn-brand" onClick={sendAppUpdate} disabled={notifying}>{notifying ? 'Sending…' : 'Yes, send to all hotels'}</button>
+            </div>
+          </div>
+        )}
+        {notifyResult && (
+          <div style={{ marginTop: 12, fontSize: 13, fontWeight: 600, color: notifyResult.success ? 'var(--success)' : 'var(--danger)' }}>
+            {notifyResult.success ? '✅ ' : '❌ '}{notifyResult.message}
           </div>
         )}
       </Card>

@@ -4,8 +4,9 @@ const bcrypt  = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const { protect, authorize }     = require('../middleware/auth');
 const supabase = require('../utils/supabase');
-const { sendTrialReminderEmail, sendExpiryReminderEmail, sendPasswordResetByAdminEmail } = require('../utils/email');
+const { sendTrialReminderEmail, sendExpiryReminderEmail, sendPasswordResetByAdminEmail, sendAppUpdateEmail } = require('../utils/email');
 const { generateOrderRecordPDF } = require('../utils/invoice');
+const CLIENT_URL = require('../utils/clientUrl');
 
 const SA = [protect, authorize('superadmin')];
 
@@ -381,6 +382,42 @@ router.post('/hotels/:id/reset-password', SA, async (req, res) => {
     res.json({ success: true, data: { hotelName: hotel.hotel_name, userId: hotel.user_id, email: hotel.email, password: newPassword } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── NOTIFY ALL HOTELS OF A NEW APP VERSION ───────────────────────────────────
+// Superadmin-triggered broadcast: emails every hotel a "new app is ready"
+// message with the download link. Run this right after releasing a new APK.
+router.post('/notify-app-update', SA, async (req, res) => {
+  try {
+    const version = (req.body.version || '').toString().trim().slice(0, 20);
+    const notes = Array.isArray(req.body.notes)
+      ? req.body.notes.map(n => String(n).trim()).filter(Boolean).slice(0, 10).map(n => n.slice(0, 160))
+      : [];
+    const downloadUrl = `${CLIENT_URL.replace(/\/+$/, '')}/stayxpulse.apk`;
+
+    const { data: hotels, error } = await supabase.from('hotels').select('hotel_name, email');
+    if (error) throw error;
+    const recipients = (hotels || []).filter(h => h.email && /\S+@\S+\.\S+/.test(h.email));
+
+    let sent = 0, failed = 0;
+    for (const h of recipients) {
+      try {
+        await sendAppUpdateEmail({ hotelName: h.hotel_name || 'there', email: h.email, version, downloadUrl, notes });
+        sent++;
+      } catch (e) {
+        failed++;
+        console.error('[notify-app-update] failed for', h.email, e.message);
+      }
+      await new Promise(r => setTimeout(r, 200)); // gentle pacing for the SMTP/API provider
+    }
+    res.json({
+      success: true,
+      sent, failed, total: recipients.length,
+      message: `Sent to ${sent} hotel${sent !== 1 ? 's' : ''}${failed ? `, ${failed} failed` : ''}.`,
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
   }
 });
 

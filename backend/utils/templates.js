@@ -237,6 +237,27 @@ const passwordResetByAdminTemplate = ({ hotelName, userId, email, newPassword })
     ${notice('Please change this password immediately after signing in.', 'warn')}
   `, 'Your StayXPulse password has been reset.');
 
+// ── 7. New App Version Available ────────────────────────────────────────────
+const bulletList = (items) => (items && items.length) ? `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0;">
+      ${items.map(it => `<tr>
+        <td style="padding:6px 12px 6px 0;vertical-align:top;color:${K.gold};font-size:9px;line-height:2;">${DIA}</td>
+        <td style="padding:6px 0;font-family:${SANS};font-size:14px;line-height:1.6;color:${K.body};">${it}</td>
+      </tr>`).join('')}
+    </table>` : '';
+
+const appUpdateTemplate = ({ hotelName, version, downloadUrl, notes = [] }) => {
+  const v = (version || '').toString().replace(/^v/i, '').trim();
+  return layout('App Update', `
+    ${h1('A new app version is ready')}
+    ${ornament}
+    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, an updated StayXPulse Android app${v ? ` (<strong style="color:${K.ivory};">v${v}</strong>)` : ''} is now available. Install it to get the latest features and improvements.`)}
+    ${bulletList(notes)}
+    ${button(downloadUrl, 'Download the latest app')}
+    ${notice('Install it over your current app — your data and login stay exactly the same. On the phone you may need to allow installs from your browser.', 'success')}
+  `, `A new StayXPulse app version${v ? ` (v${v})` : ''} is ready to download.`);
+};
+
 module.exports = {
   welcomeTemplate,
   forgotPasswordTemplate,
@@ -244,4 +265,5 @@ module.exports = {
   expiryReminderTemplate,
   paymentSuccessTemplate,
   passwordResetByAdminTemplate,
+  appUpdateTemplate,
 };
