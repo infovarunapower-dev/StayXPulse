@@ -49,21 +49,29 @@ export default function useNewOrderAlert(enabled) {
         const orders   = ordRes.data?.data || [];
         const requests = reqRes.data?.data || [];
 
-        // Wake-up reminders: alert staff from ~10 minutes before the requested
-        // time (up to 2 min after, in case the tab was just opened), once each.
-        // Runs every tick, independent of the "new item" seeding below.
+        // Wake-up reminders: alert staff from ~10 minutes BEFORE the requested
+        // time until 30 minutes AFTER (so a dashboard opened late still catches
+        // a due/overdue call), once each. Runs every tick, independent of the
+        // "new item" seeding below. Requires the dashboard to be open.
         const now = Date.now();
         requests.forEach((r) => {
           if (r.type !== 'Wake-up Call' || !r.scheduled_for || remindedWake.current.has(r.id)) return;
           const when = new Date(r.scheduled_for).getTime();
           if (isNaN(when)) return;
-          if (now >= when - 10 * 60000 && now <= when + 2 * 60000) {
+          if (now >= when - 10 * 60000 && now <= when + 30 * 60000) {
             remindedWake.current.add(r.id);
             const at = new Date(when).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-            const label = `Wake-up call due — Room ${r.room_number} at ${at}`;
+            const overdue = now > when + 60000;
+            const label = overdue
+              ? `Wake-up call OVERDUE — Room ${r.room_number} was due at ${at}`
+              : `Wake-up call due soon — Room ${r.room_number} at ${at}`;
             playServiceChime();
-            toast(label, { icon: '⏰', duration: 12000 });
-            notify('StayXPulse — wake-up call reminder', label);
+            toast(label, {
+              icon: '⏰',
+              duration: 60000, // stays a full minute so it isn't missed
+              style: { border: '2px solid #F59E0B', fontWeight: 700, background: '#FFFBEB', color: '#92400E' },
+            });
+            notify('StayXPulse — wake-up call', label);
           }
         });
 
