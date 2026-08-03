@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import api from '../../utils/api';
 import { PageHeader, Spinner, Modal } from '../../components/shared/UI';
 
@@ -131,9 +134,40 @@ const QRCard = ({ room, hotel, onDelete, onView }) => {
     ctx.font = 'bold 12px Arial';
     ctx.fillText('Powered by StayXPulse', cx, H - 26);
 
+    const fileName = `QR_Room_${room.number}_${(hotel?.hotelName || 'Hotel').replace(/[^a-z0-9]/gi, '_')}.png`;
+    const dataUrl  = canvas.toDataURL('image/png');
+
+    // Native (Android/iOS): the browser <a download> trick does nothing inside a
+    // Capacitor WebView, so write the PNG to cache and open the OS share/save
+    // sheet — from there the user taps "Save to Photos"/gallery, WhatsApp, etc.
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const written = await Filesystem.writeFile({
+          path: fileName,
+          data: dataUrl.split(',')[1],   // strip the data: prefix → raw base64
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: `QR — Room ${room.number}`,
+          text: `QR code for Room ${room.number}`,
+          files: [written.uri],
+          dialogTitle: 'Save or share QR code',
+        });
+        toast.success('Tap “Save to Photos” to add it to your gallery');
+      } catch (e) {
+        // The user dismissing the share sheet throws a "canceled" error — ignore.
+        if (!/cancel/i.test(e?.message || '')) {
+          console.error('QR save error:', e);
+          toast.error('Could not save QR: ' + (e?.message || 'unknown error'));
+        }
+      }
+      return;
+    }
+
+    // Web: normal browser download.
     const link = document.createElement('a');
-    link.download = `QR_Room_${room.number}_${(hotel?.hotelName || 'Hotel').replace(/[^a-z0-9]/gi, '_')}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.download = fileName;
+    link.href = dataUrl;
     link.click();
     toast.success(`QR for Room ${room.number} downloaded!`);
   };
