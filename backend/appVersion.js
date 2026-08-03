@@ -8,10 +8,10 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '1.4',
-  versionCode: 5,
-  releasedAt:  '2026-08-03T20:40:00Z',
+  version:     '1.5',
+  versionCode: 6,
+  releasedAt:  '2026-08-03T21:10:00Z',
   notes: [
-    'QR codes now save straight to your phone gallery in one tap',
+    'Redesigned Service Requests & Food Orders for phones — tap-friendly cards, no more sideways scrolling to update status',
   ],
 };

@@ -6,6 +6,19 @@ import { PageHeader, Badge, Card, Table, FilterBar, TableSkeleton } from '../../
 const fmtTime = d => d ? new Date(d).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—';
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—';
 
+// Icon per service-request type + a status colour for the premium card's rail.
+const REQ_ICON = {
+  'Extra Towels / Toiletries':'🛁','Room Cleaning':'🧹','AC / Heating Issue':'❄️','Extra Pillow / Blanket':'🛏',
+  'Electrical Issue':'💡','Wake-up Call':'⏰','Room Key Issue':'🔒','Hot Water Issue':'🚿',
+  'Dining Table Setup':'🍽','Laundry Service':'🧺','Noise Complaint':'🔇','TV / WiFi Issue':'📡','Cab Request':'🚕',
+};
+const reqIcon = t => REQ_ICON[t] || '🛎';
+const railColor = s =>
+  s === 'pending' ? '#F59E0B'
+  : (s === 'in-progress' || s === 'preparing') ? '#2563EB'
+  : (s === 'completed' || s === 'delivered') ? '#059669'
+  : s === 'cancelled' ? '#DC2626' : '#9CA3AF';
+
 const DATE_FILTERS = [
   { value:'all',       label:'📅 All Dates' },
   { value:'today',     label:'Today'     },
@@ -108,23 +121,27 @@ export const ServiceRequests = () => {
             {data.length === 0
               ? <div style={{textAlign:'center',padding:'24px 0',color:'var(--gray-400)'}}>No service requests found</div>
               : data.map(r => (
-                <div key={r.id} className="sxp-mcard">
-                  <div className="sxp-mcard-head">
-                    <strong style={{fontSize:15}}>Room {r.room_number}</strong>
+                <div key={r.id} className="sxp-pcard">
+                  <div className="sxp-prail" style={{background:railColor(r.status)}} />
+                  <div className="sxp-ptop">
+                    <div className="sxp-pav"><span className="rn">{r.room_number}</span><span className="rl">Room</span></div>
+                    <div className="sxp-pmid">
+                      <div className="sxp-preq">{reqIcon(r.type)} {r.type}</div>
+                      <div className="sxp-ptime">{fmtDate(r.created_at)} · {fmtTime(r.created_at)}</div>
+                    </div>
                     <Badge status={r.status} />
                   </div>
-                  <div style={{fontWeight:600,fontSize:14}}>{r.type}</div>
                   {r.scheduled_for
-                    ? <div style={{display:'inline-block',marginTop:6,fontSize:12,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'2px 8px',borderRadius:6}}>⏰ {new Date(r.scheduled_for).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})}</div>
-                    : r.note && <div style={{fontSize:13,color:'var(--gray-500)',marginTop:4}}>{r.note}</div>}
-                  <div style={{fontSize:12,color:'var(--gray-400)',marginTop:6}}>{fmtDate(r.created_at)} · {fmtTime(r.created_at)}</div>
-                  <div className="sxp-mcard-actions">
+                    ? <div className="sxp-pchip">⏰ Due {new Date(r.scheduled_for).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})}</div>
+                    : r.note && <div className="sxp-pnote">{r.note}</div>}
+                  <div className="sxp-pdiv" />
+                  <div className="sxp-pactions">
                     {r.status === 'pending' && <>
-                      <button className="btn btn-sm btn-outline" style={{borderColor:'var(--brand)',color:'var(--brand)'}} onClick={()=>updateStatus(r.id,'in-progress')}>In Progress</button>
+                      <button className="btn btn-sm sxp-pghost" onClick={()=>updateStatus(r.id,'in-progress')}>In Progress</button>
                       <button className="btn btn-sm btn-success" onClick={()=>updateStatus(r.id,'completed')}>✓ Done</button>
                     </>}
                     {r.status === 'in-progress' && <button className="btn btn-sm btn-success" onClick={()=>updateStatus(r.id,'completed')}>✓ Complete</button>}
-                    {r.status === 'completed' && <span style={{fontSize:12,color:'var(--gray-400)',alignSelf:'center'}}>Completed {r.completed_at ? fmtTime(r.completed_at) : ''}</span>}
+                    {r.status === 'completed' && <span style={{fontSize:12,color:'var(--gray-400)',alignSelf:'center',flex:1,textAlign:'center'}}>✓ Completed {r.completed_at ? fmtTime(r.completed_at) : ''}</span>}
                   </div>
                 </div>
               ))}
@@ -232,16 +249,18 @@ export const FoodOrders = () => {
             {data.length === 0
               ? <div style={{textAlign:'center',padding:'24px 0',color:'var(--gray-400)'}}>No food orders found</div>
               : data.map(r => (
-                <div key={r.id} className="sxp-mcard">
-                  <div className="sxp-mcard-head">
-                    <strong style={{fontSize:15}}>Room {r.room_number}</strong>
+                <div key={r.id} className="sxp-pcard">
+                  <div className="sxp-prail" style={{background:railColor(r.status)}} />
+                  <div className="sxp-ptop">
+                    <div className="sxp-pav"><span className="rn">{r.room_number}</span><span className="rl">Room</span></div>
+                    <div className="sxp-pmid" onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
+                      <div className="sxp-preq" style={{fontWeight:600,fontSize:13.5}}>🍽 {r.items?.slice(0,2).map(i=>`${i.name} ×${i.quantity}`).join(', ')}{r.items?.length>2?` +${r.items.length-2}`:''} <span style={{color:'var(--gray-400)'}}>{expanded===r.id?'▲':'▼'}</span></div>
+                      <div className="sxp-ptime">{fmtDate(r.created_at)} · {fmtTime(r.created_at)}</div>
+                    </div>
                     <Badge status={r.status} />
                   </div>
-                  <div style={{fontSize:13.5}} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
-                    {r.items?.slice(0,2).map(i=>`${i.name} ×${i.quantity}`).join(', ')}{r.items?.length>2?` +${r.items.length-2} more`:''} <span style={{color:'var(--gray-400)'}}>{expanded===r.id?'▲':'▼'}</span>
-                  </div>
                   {expanded===r.id && (
-                    <div style={{marginTop:8,background:'var(--gray-50)',borderRadius:8,padding:10}}>
+                    <div style={{marginTop:10,background:'var(--gray-50)',borderRadius:10,padding:12}}>
                       {r.items?.map((i,idx)=>(
                         <div key={idx} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'3px 0',borderBottom:idx<r.items.length-1?'1px solid var(--border)':'none'}}>
                           <span>{i.name} × {i.quantity}</span><span style={{fontWeight:600}}>{fmtCur(i.price*i.quantity)}</span>
@@ -250,11 +269,12 @@ export const FoodOrders = () => {
                       {r.guest_note && <div style={{marginTop:8,fontSize:12,color:'var(--gray-500)'}}>Note: {r.guest_note}</div>}
                     </div>
                   )}
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}}>
-                    <span style={{fontSize:12,color:'var(--gray-400)'}}>{fmtDate(r.created_at)} · {fmtTime(r.created_at)}</span>
-                    <strong style={{color:'var(--success)',fontSize:15}}>{fmtCur(r.total_amount)}</strong>
+                  <div className="sxp-pdiv" />
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:10}}>
+                    <span className="sxp-preq" style={{fontSize:13,color:'var(--gray-500)',fontWeight:600}}>Total</span>
+                    <strong style={{color:'var(--success)',fontSize:17}}>{fmtCur(r.total_amount)}</strong>
                   </div>
-                  <div className="sxp-mcard-actions">
+                  <div className="sxp-pactions">
                     <select className="form-control" value={r.status} onChange={e=>updateStatus(r.id,e.target.value)}>
                       {STATUS_OPTS.map(s=><option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
                     </select>
