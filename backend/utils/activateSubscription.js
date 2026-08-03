@@ -117,7 +117,7 @@ const activateSubscription = async ({ txnid, gatewayPaymentId, gateway = 'easebu
     });
   } catch (e) { console.error('Payment email failed:', e.message); }
 
-  console.log(`💰 Activated via ${source}: hotel=${order.hotel_id} txnid=${txnid} payment=${paymentRef} invoice=${invoiceNumber} until=${validTo.toISOString()}`);
+  console.log(`💰 Activated via ${source}: hotel=${order.hotel_id} txnid=${txnid} payment=${paymentRef} invoice=${invoiceNumber} until=${validTo}`);
 
   return { ok: true, already: false, invoiceNumber, validFrom, validTo, order, plan };
 };

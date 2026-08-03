@@ -83,11 +83,17 @@ router.post('/test', SA, async (req, res) => {
         return res.status(400).json({ success: false, message: `Unknown email type: ${type}` });
     }
 
+    // sendEmail returns {success:false, error} on failure (it never throws), so
+    // report the true delivery outcome — this endpoint's whole job is to confirm
+    // email actually works.
+    const delivered = TEST_MODE || result?.success;
     res.json({
-      success: true,
+      success: delivered,
       message: TEST_MODE
         ? `✅ Test mode: Email logged to console (not sent). Check your backend terminal.`
-        : `✅ Email sent to ${to}`,
+        : delivered
+          ? `✅ Email sent to ${to}`
+          : `❌ Delivery failed: ${result?.error || 'unknown error'}`,
       data: result,
       testMode: TEST_MODE,
     });

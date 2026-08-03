@@ -226,7 +226,7 @@ router.get('/me', async (req, res) => {
     // so it has to repeat protect's deactivated-account check — otherwise a
     // hotel disabled by the superadmin keeps getting its profile back until
     // the token expires.
-    if (user.is_active === false) return res.status(403).json({ success: false, message: 'Account is deactivated.' });
+    if (!user.is_active) return res.status(403).json({ success: false, message: 'Account is deactivated.' });
 
     let hotel = null;
     if (user.hotel_id) {

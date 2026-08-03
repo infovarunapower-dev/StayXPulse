@@ -29,6 +29,15 @@ const STATUS_FILTERS = [
   { value:'pending',   label:'Pending'   },
   { value:'completed', label:'Completed' },
 ];
+// Food orders never have status 'completed' — they go pending → preparing →
+// delivered. A "Completed" filter would query status=completed and always
+// return nothing, so food orders get their own set.
+const FOOD_STATUS_FILTERS = [
+  { value:'all',       label:'Any Status' },
+  { value:'pending',   label:'Pending'   },
+  { value:'preparing', label:'Preparing' },
+  { value:'delivered', label:'Delivered' },
+];
 
 // ── Service Requests ──────────────────────────────────────────────────────────
 export const ServiceRequests = () => {
@@ -230,7 +239,7 @@ export const FoodOrders = () => {
       />
       <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:16}}>
         <FilterBar filters={DATE_FILTERS}   active={dateFilter}   onChange={v=>{setDateF(v);setFrom('');setTo('');}} />
-        <FilterBar filters={STATUS_FILTERS} active={statusFilter} onChange={setStatusF} />
+        <FilterBar filters={FOOD_STATUS_FILTERS} active={statusFilter} onChange={setStatusF} />
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <input type="date" className="form-control" style={{width:140,padding:'6px 10px',fontSize:13}} value={customFrom} onChange={e=>{setFrom(e.target.value);setDateF('custom');}} />
           <span style={{color:'var(--gray-400)',fontSize:13}}>to</span>

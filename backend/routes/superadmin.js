@@ -430,13 +430,13 @@ router.post('/notify-app-update', SA, async (req, res) => {
 
     let sent = 0, failed = 0;
     for (const h of recipients) {
-      try {
-        await sendAppUpdateEmail({ hotelName: h.hotel_name || 'there', email: h.email, version, downloadUrl, notes });
-        sent++;
-      } catch (e) {
-        failed++;
-        console.error('[notify-app-update] failed for', h.email, e.message);
-      }
+      // sendEmail never throws — it returns {success:false} on failure, so
+      // check the result rather than assuming success.
+      let r;
+      try { r = await sendAppUpdateEmail({ hotelName: h.hotel_name || 'there', email: h.email, version, downloadUrl, notes }); }
+      catch (e) { r = { success: false, error: e.message }; }
+      if (r?.success) sent++;
+      else { failed++; console.error('[notify-app-update] not delivered for', h.email, r?.error); }
       await new Promise(r => setTimeout(r, 200)); // gentle pacing for the SMTP/API provider
     }
     res.json({

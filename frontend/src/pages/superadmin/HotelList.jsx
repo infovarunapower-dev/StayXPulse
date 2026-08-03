@@ -221,7 +221,7 @@ const HotelList = () => {
         ? `Trial (${Math.max(0, Math.ceil((new Date(r.trial_end_date) - Date.now()) / 86400000))}d left)`
         : r.subscription_status
     } /> },
-    { label:'Plan',   render: r => r.current_plan ? <Badge status="active" label={r.current_plan.name} /> : <span style={{ color:'var(--gray-300)' }}>—</span> },
+    { label:'Plan',   render: r => (r.currentPlan || r.plans) ? <Badge status="active" label={(r.currentPlan || r.plans).name} /> : <span style={{ color:'var(--gray-300)' }}>—</span> },
     { label:'Registered', sort: r => new Date(r.created_at).getTime(), render: r => new Date(r.created_at).toLocaleDateString('en-IN') },
     { label:'Actions', render: r => (
       <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>

@@ -47,7 +47,10 @@ WITH expected(table_name, column_name) AS (VALUES
   -- service_requests
   ('service_requests','hotel_id'),('service_requests','room_id'),('service_requests','room_number'),
   ('service_requests','type'),('service_requests','note'),('service_requests','status'),
-  ('service_requests','scheduled_for'),('service_requests','created_at')
+  ('service_requests','scheduled_for'),('service_requests','created_at'),
+  -- app_versions (migration 010)
+  ('app_versions','version'),('app_versions','version_code'),('app_versions','notes'),
+  ('app_versions','released_at'),('app_versions','created_at')
 )
 SELECT e.table_name, e.column_name AS missing_column
 FROM expected e
