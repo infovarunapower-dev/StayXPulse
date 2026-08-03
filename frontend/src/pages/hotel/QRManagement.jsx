@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { Media } from '@capacitor-community/media';
 import api from '../../utils/api';
 import { PageHeader, Spinner, Modal } from '../../components/shared/UI';
 
@@ -138,27 +139,24 @@ const QRCard = ({ room, hotel, onDelete, onView }) => {
     const dataUrl  = canvas.toDataURL('image/png');
 
     // Native (Android/iOS): the browser <a download> trick does nothing inside a
-    // Capacitor WebView, so write the PNG to cache and open the OS share/save
-    // sheet — from there the user taps "Save to Photos"/gallery, WhatsApp, etc.
+    // Capacitor WebView. Save the PNG straight to the photo gallery in one tap.
     if (Capacitor.isNativePlatform()) {
       try {
-        const written = await Filesystem.writeFile({
-          path: fileName,
-          data: dataUrl.split(',')[1],   // strip the data: prefix → raw base64
-          directory: Directory.Cache,
-        });
-        await Share.share({
-          title: `QR — Room ${room.number}`,
-          text: `QR code for Room ${room.number}`,
-          files: [written.uri],
-          dialogTitle: 'Save or share QR code',
-        });
-        toast.success('Tap “Save to Photos” to add it to your gallery');
+        await Media.savePhoto({ path: dataUrl });   // accepts a base64 data URI
+        toast.success(`QR for Room ${room.number} saved to your gallery ✅`);
       } catch (e) {
-        // The user dismissing the share sheet throws a "canceled" error — ignore.
-        if (!/cancel/i.test(e?.message || '')) {
-          console.error('QR save error:', e);
-          toast.error('Could not save QR: ' + (e?.message || 'unknown error'));
+        // If a direct gallery save is blocked (e.g. permission denied), fall
+        // back to the OS share/save sheet so the QR is never stuck in the app.
+        console.error('Gallery save failed, falling back to share:', e);
+        try {
+          const written = await Filesystem.writeFile({
+            path: fileName, data: dataUrl.split(',')[1], directory: Directory.Cache,
+          });
+          await Share.share({ title: `QR — Room ${room.number}`, files: [written.uri], dialogTitle: 'Save or share QR code' });
+        } catch (e2) {
+          if (!/cancel/i.test(e2?.message || '')) {
+            toast.error('Could not save QR: ' + (e2?.message || e?.message || 'unknown error'));
+          }
         }
       }
       return;

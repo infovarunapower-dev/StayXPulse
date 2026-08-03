@@ -8,10 +8,10 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '1.3',
-  versionCode: 4,
-  releasedAt:  '2026-08-03T20:20:00Z',
+  version:     '1.4',
+  versionCode: 5,
+  releasedAt:  '2026-08-03T20:40:00Z',
   notes: [
-    'Save QR codes to your phone gallery from the app',
+    'QR codes now save straight to your phone gallery in one tap',
   ],
 };
