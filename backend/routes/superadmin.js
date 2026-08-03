@@ -449,4 +449,37 @@ router.post('/notify-app-update', SA, async (req, res) => {
   }
 });
 
+// ─── ANDROID APK VERSION HISTORY ──────────────────────────────────────────────
+router.get('/app-versions', SA, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('app_versions')
+      .select('*')
+      .order('version_code', { ascending: false, nullsFirst: false })
+      .order('released_at', { ascending: false });
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.post('/app-versions', SA, async (req, res) => {
+  try {
+    const version = (req.body.version || '').toString().trim().slice(0, 20);
+    if (!version) return res.status(400).json({ success: false, message: 'Version is required' });
+    const vc = req.body.versionCode;
+    const version_code = (vc === 0 || vc) && !isNaN(parseInt(vc, 10)) ? parseInt(vc, 10) : null;
+    const notes = Array.isArray(req.body.notes)
+      ? req.body.notes.map(n => String(n).trim()).filter(Boolean).slice(0, 20).map(n => n.slice(0, 200))
+      : [];
+
+    const { data, error } = await supabase.from('app_versions')
+      .insert({ version, version_code, notes })
+      .select().single();
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ success: false, message: `Version ${version} already exists` });
+      throw error;
+    }
+    res.status(201).json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 module.exports = router;

@@ -20,6 +20,7 @@ const SuperAdminMenu = [
     { to: '/admin/plans',          icon: '💎', label: 'Manage Plans'    },
     { to: '/admin/reminders',      icon: '🔔', label: 'Email Reminders' },
     { to: '/admin/email-settings', icon: '📧', label: 'Email Settings'  },
+    { to: '/admin/app',            icon: '🤖', label: 'Android APK'     },
   ]},
 ];
 
