@@ -188,7 +188,6 @@ const trialReminderTemplate = ({ hotelName, daysLeft, trialEndDate }) =>
     ${ornament}
     ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, your StayXPulse trial ends on <strong style="color:${K.ivory};">${new Date(trialEndDate).toDateString()}</strong>. Upgrade now to keep uninterrupted access to your rooms, QR codes, menu and order history.`)}
     ${button(`${CLIENT_URL}/hotel/upgrade`, 'View plans & upgrade')}
-    ${notice(`Plans start at just <strong>&#8377;999/month</strong>, with instant activation the moment your payment succeeds.`, 'warn')}
   `, `Your StayXPulse trial ends ${new Date(trialEndDate).toDateString()}.`);
 
 // ── 4. Subscription Expiry Reminder ─────────────────────────────────────────
