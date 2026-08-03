@@ -450,8 +450,26 @@ router.post('/notify-app-update', SA, async (req, res) => {
 });
 
 // ─── ANDROID APK VERSION HISTORY ──────────────────────────────────────────────
+const CURRENT_APP = require('../appVersion');
+
 router.get('/app-versions', SA, async (req, res) => {
   try {
+    // Auto-sync: make sure the current release (from appVersion.js, bumped on
+    // every APK rebuild) is in the history, so a new version appears without
+    // anyone clicking "Add version".
+    if (CURRENT_APP?.version) {
+      const { data: exists } = await supabase.from('app_versions')
+        .select('id').eq('version', CURRENT_APP.version).maybeSingle();
+      if (!exists) {
+        await supabase.from('app_versions').insert({
+          version:      CURRENT_APP.version,
+          version_code: CURRENT_APP.versionCode ?? null,
+          notes:        Array.isArray(CURRENT_APP.notes) ? CURRENT_APP.notes : [],
+          released_at:  CURRENT_APP.releasedAt || new Date().toISOString(),
+        });
+      }
+    }
+
     const { data, error } = await supabase.from('app_versions')
       .select('*')
       .order('version_code', { ascending: false, nullsFirst: false })
