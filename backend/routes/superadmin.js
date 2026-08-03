@@ -324,16 +324,35 @@ router.post('/reminders/:hotelId', SA, async (req, res) => {
     const { data: hotel, error } = await supabase.from('hotels').select('*').eq('id', req.params.hotelId).single();
     if (error || !hotel) return res.status(404).json({ success: false, message: 'Hotel not found' });
 
-    let daysLeft = 0;
+    if (!hotel.email) {
+      return res.json({ success: true, emailed: false, emailError: 'This hotel has no email address on file', message: 'No email address on file for this hotel' });
+    }
+
+    let daysLeft = 0, emailResult = null, kind = null;
     if (hotel.subscription_status === 'trial' && hotel.trial_end_date) {
       daysLeft = Math.max(0, Math.ceil((new Date(hotel.trial_end_date) - Date.now()) / 86400000));
-      await sendTrialReminderEmail({ hotelName: hotel.hotel_name, email: hotel.email, daysLeft, trialEndDate: hotel.trial_end_date });
+      kind = 'trial';
+      emailResult = await sendTrialReminderEmail({ hotelName: hotel.hotel_name, email: hotel.email, daysLeft, trialEndDate: hotel.trial_end_date });
     } else if (hotel.plan_valid_to) {
       daysLeft = Math.max(0, Math.ceil((new Date(hotel.plan_valid_to) - Date.now()) / 86400000));
+      kind = 'expiry';
       const { data: plan } = await supabase.from('plans').select('name').eq('id', hotel.current_plan_id).single();
-      await sendExpiryReminderEmail({ hotelName: hotel.hotel_name, email: hotel.email, planName: plan?.name || 'Subscription', daysLeft, expiryDate: hotel.plan_valid_to });
+      emailResult = await sendExpiryReminderEmail({ hotelName: hotel.hotel_name, email: hotel.email, planName: plan?.name || 'Subscription', daysLeft, expiryDate: hotel.plan_valid_to });
+    } else {
+      return res.json({ success: true, emailed: false, emailError: 'This hotel is not on a trial or a dated plan, so there is nothing to remind about' });
     }
-    res.json({ success: true, message: `Reminder sent to ${hotel.email}` });
+
+    // sendEmail returns {success:false, error} on failure (it never throws), so
+    // report the real delivery outcome instead of always claiming success.
+    const emailed = !!emailResult?.success;
+    res.json({
+      success: true,
+      emailed,
+      emailError: emailed ? null : (emailResult?.error || 'Email could not be sent'),
+      message: emailed
+        ? `${kind === 'trial' ? 'Trial' : 'Expiry'} reminder emailed to ${hotel.email}`
+        : `Reminder could NOT be delivered: ${emailResult?.error || 'unknown error'}`,
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -181,8 +181,11 @@ const HotelList = () => {
   }, []);
 
   const sendReminder = async (hotel) => {
-    try { await api.post(`/superadmin/reminders/${hotel.id}`); toast.success(`Reminder sent to ${hotel.email}`); }
-    catch { toast.error('Failed to send reminder'); }
+    try {
+      const r = await api.post(`/superadmin/reminders/${hotel.id}`);
+      if (r.data.emailed) toast.success(`Reminder emailed to ${hotel.email}`);
+      else toast(`Reminder NOT delivered${r.data.emailError ? `: ${r.data.emailError}` : ''}`, { icon: '⚠️', duration: 9000 });
+    } catch { toast.error('Failed to send reminder'); }
   };
 
   const hotels = data?.data || [];
