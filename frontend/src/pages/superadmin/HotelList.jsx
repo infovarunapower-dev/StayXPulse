@@ -30,7 +30,12 @@ const CredentialsModal = ({ hotel, open, onClose }) => {
     try {
       const r = await api.post(`/superadmin/hotels/${hotel.id}/reset-credentials`);
       setCreds(r.data.data);
-      toast.success('Password reset! New credentials shown below.');
+      if (r.data.emailed) {
+        toast.success('Password reset — new credentials emailed to the hotel.');
+      } else {
+        toast(`Password reset, but the email could NOT be delivered${r.data.emailError ? `: ${r.data.emailError}` : ''}. Share the credentials below manually.`,
+          { icon: '⚠️', duration: 9000 });
+      }
     } catch { toast.error('Failed to reset'); }
     finally { setReset(false); }
   };

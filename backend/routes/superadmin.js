@@ -361,8 +361,17 @@ router.post('/hotels/:id/reset-credentials', SA, async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 12);
     await supabase.from('users').update({ password_hash: hashedPassword }).eq('id', users[0].id);
 
-    await sendPasswordResetByAdminEmail({ hotelName: hotel.hotel_name, email: hotel.email, newPassword });
-    res.json({ success: true, data: { hotelName: hotel.hotel_name, userId: hotel.user_id, email: hotel.email, password: newPassword } });
+    // sendEmail never throws — it returns { success:false, error } on failure.
+    // Surface that so the admin knows whether the hotel actually got the email.
+    const emailResult = await sendPasswordResetByAdminEmail({
+      hotelName: hotel.hotel_name, email: hotel.email, userId: hotel.user_id, newPassword,
+    });
+    res.json({
+      success: true,
+      emailed: !!emailResult?.success,
+      emailError: emailResult?.success ? null : (emailResult?.error || 'Email could not be sent'),
+      data: { hotelName: hotel.hotel_name, userId: hotel.user_id, email: hotel.email, password: newPassword },
+    });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
