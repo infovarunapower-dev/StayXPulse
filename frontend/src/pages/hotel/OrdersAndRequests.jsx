@@ -96,7 +96,41 @@ export const ServiceRequests = () => {
           <input type="date" className="form-control" style={{width:140,padding:'6px 10px',fontSize:13}} value={customTo} onChange={e=>{setTo(e.target.value);setDateF('custom');}} />
         </div>
       </div>
-      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} requests found</div><Table columns={columns} data={data} emptyMessage="No service requests found" pageSize={10} /></>}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : (
+        <>
+          <div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} requests found</div>
+          {/* Desktop: table */}
+          <div className="sxp-only-desktop">
+            <Table columns={columns} data={data} emptyMessage="No service requests found" pageSize={10} />
+          </div>
+          {/* Mobile: tap-friendly cards — no sideways scrolling to reach actions */}
+          <div className="sxp-only-mobile">
+            {data.length === 0
+              ? <div style={{textAlign:'center',padding:'24px 0',color:'var(--gray-400)'}}>No service requests found</div>
+              : data.map(r => (
+                <div key={r.id} className="sxp-mcard">
+                  <div className="sxp-mcard-head">
+                    <strong style={{fontSize:15}}>Room {r.room_number}</strong>
+                    <Badge status={r.status} />
+                  </div>
+                  <div style={{fontWeight:600,fontSize:14}}>{r.type}</div>
+                  {r.scheduled_for
+                    ? <div style={{display:'inline-block',marginTop:6,fontSize:12,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'2px 8px',borderRadius:6}}>⏰ {new Date(r.scheduled_for).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})}</div>
+                    : r.note && <div style={{fontSize:13,color:'var(--gray-500)',marginTop:4}}>{r.note}</div>}
+                  <div style={{fontSize:12,color:'var(--gray-400)',marginTop:6}}>{fmtDate(r.created_at)} · {fmtTime(r.created_at)}</div>
+                  <div className="sxp-mcard-actions">
+                    {r.status === 'pending' && <>
+                      <button className="btn btn-sm btn-outline" style={{borderColor:'var(--brand)',color:'var(--brand)'}} onClick={()=>updateStatus(r.id,'in-progress')}>In Progress</button>
+                      <button className="btn btn-sm btn-success" onClick={()=>updateStatus(r.id,'completed')}>✓ Done</button>
+                    </>}
+                    {r.status === 'in-progress' && <button className="btn btn-sm btn-success" onClick={()=>updateStatus(r.id,'completed')}>✓ Complete</button>}
+                    {r.status === 'completed' && <span style={{fontSize:12,color:'var(--gray-400)',alignSelf:'center'}}>Completed {r.completed_at ? fmtTime(r.completed_at) : ''}</span>}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </>
+      )}</Card>
     </div>
   );
 };
@@ -186,7 +220,50 @@ export const FoodOrders = () => {
           <input type="date" className="form-control" style={{width:140,padding:'6px 10px',fontSize:13}} value={customTo} onChange={e=>{setTo(e.target.value);setDateF('custom');}} />
         </div>
       </div>
-      <Card>{loading ? <TableSkeleton cols={columns.length} /> : <><div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} orders found</div><Table columns={columns} data={data} emptyMessage="No food orders found" pageSize={10} /></>}</Card>
+      <Card>{loading ? <TableSkeleton cols={columns.length} /> : (
+        <>
+          <div style={{fontSize:13,color:'var(--gray-400)',marginBottom:10}}>{total} orders found</div>
+          {/* Desktop: table */}
+          <div className="sxp-only-desktop">
+            <Table columns={columns} data={data} emptyMessage="No food orders found" pageSize={10} />
+          </div>
+          {/* Mobile: tap-friendly cards */}
+          <div className="sxp-only-mobile">
+            {data.length === 0
+              ? <div style={{textAlign:'center',padding:'24px 0',color:'var(--gray-400)'}}>No food orders found</div>
+              : data.map(r => (
+                <div key={r.id} className="sxp-mcard">
+                  <div className="sxp-mcard-head">
+                    <strong style={{fontSize:15}}>Room {r.room_number}</strong>
+                    <Badge status={r.status} />
+                  </div>
+                  <div style={{fontSize:13.5}} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
+                    {r.items?.slice(0,2).map(i=>`${i.name} ×${i.quantity}`).join(', ')}{r.items?.length>2?` +${r.items.length-2} more`:''} <span style={{color:'var(--gray-400)'}}>{expanded===r.id?'▲':'▼'}</span>
+                  </div>
+                  {expanded===r.id && (
+                    <div style={{marginTop:8,background:'var(--gray-50)',borderRadius:8,padding:10}}>
+                      {r.items?.map((i,idx)=>(
+                        <div key={idx} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'3px 0',borderBottom:idx<r.items.length-1?'1px solid var(--border)':'none'}}>
+                          <span>{i.name} × {i.quantity}</span><span style={{fontWeight:600}}>{fmtCur(i.price*i.quantity)}</span>
+                        </div>
+                      ))}
+                      {r.guest_note && <div style={{marginTop:8,fontSize:12,color:'var(--gray-500)'}}>Note: {r.guest_note}</div>}
+                    </div>
+                  )}
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}}>
+                    <span style={{fontSize:12,color:'var(--gray-400)'}}>{fmtDate(r.created_at)} · {fmtTime(r.created_at)}</span>
+                    <strong style={{color:'var(--success)',fontSize:15}}>{fmtCur(r.total_amount)}</strong>
+                  </div>
+                  <div className="sxp-mcard-actions">
+                    <select className="form-control" value={r.status} onChange={e=>updateStatus(r.id,e.target.value)}>
+                      {STATUS_OPTS.map(s=><option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
+                    </select>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </>
+      )}</Card>
     </div>
   );
 };

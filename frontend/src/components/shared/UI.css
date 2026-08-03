@@ -337,3 +337,15 @@ tbody tr:hover { background: var(--brand-light); }
 .page-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); }
 .page-btn:hover:not(.active):not(:disabled) { background: var(--gray-50); }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Responsive admin lists: table on desktop, tap-friendly cards on mobile ── */
+.sxp-only-mobile { display: none; }
+@media (max-width: 680px) {
+  .sxp-only-desktop { display: none; }
+  .sxp-only-mobile  { display: flex; flex-direction: column; gap: 12px; }
+}
+.sxp-mcard { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface); }
+.sxp-mcard-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.sxp-mcard-actions { display: flex; gap: 8px; margin-top: 14px; }
+.sxp-mcard-actions .btn { flex: 1; padding-top: 11px; padding-bottom: 11px; }
+.sxp-mcard-actions .form-control { flex: 1; width: 100% !important; }
