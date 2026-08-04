@@ -82,11 +82,10 @@ export const ServiceRequests = () => {
     { label:'Request', sort: r => r.type, render: r => (
       <div>
         <div style={{fontWeight:600}}>{r.type}</div>
-        {r.scheduled_for
-          ? <div style={{display:'inline-block',marginTop:3,fontSize:12,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'2px 8px',borderRadius:6}}>
-              ⏰ {new Date(r.scheduled_for).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})}
-            </div>
-          : r.note && <div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{r.note}</div>}
+        {r.scheduled_for && <div style={{display:'inline-block',marginTop:3,fontSize:12,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'2px 8px',borderRadius:6}}>
+          ⏰ {new Date(r.scheduled_for).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})}
+        </div>}
+        {r.note && <div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{r.note}</div>}
       </div>
     )},
     { label:'Time',    sort: r => new Date(r.created_at).getTime(), render: r => <div style={{fontSize:12}}><div>{fmtDate(r.created_at)}</div><div style={{color:'var(--gray-400)'}}>{fmtTime(r.created_at)}</div></div> },
@@ -140,9 +139,8 @@ export const ServiceRequests = () => {
                     </div>
                     <Badge status={r.status} />
                   </div>
-                  {r.scheduled_for
-                    ? <div className="sxp-pchip">⏰ Due {new Date(r.scheduled_for).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})}</div>
-                    : r.note && <div className="sxp-pnote">{r.note}</div>}
+                  {r.scheduled_for && <div className="sxp-pchip">⏰ Due {new Date(r.scheduled_for).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})}</div>}
+                  {r.note && <div className="sxp-pnote">{r.note}</div>}
                   <div className="sxp-pdiv" />
                   <div className="sxp-pactions">
                     {r.status === 'pending' && <>

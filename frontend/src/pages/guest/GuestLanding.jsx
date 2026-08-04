@@ -83,6 +83,14 @@ const GuestLanding = () => {
   const [wakeOpen, setWakeOpen] = useState(false);
   const [wakeTime, setWakeTime] = useState('07:00');
 
+  // Cab Request: a two-step flow (choose type → details → time).
+  const [cabOpen, setCabOpen] = useState(false);
+  const [cabStep, setCabStep] = useState('choose'); // choose | pickup | sightseeing
+  const [cabFrom, setCabFrom] = useState('');
+  const [cabTo,   setCabTo]   = useState('');
+  const [cabText, setCabText] = useState('');
+  const [cabTime, setCabTime] = useState('');
+
   const t = getDict(lang);
   const langRef = React.useRef(lang);
   const changeLang = (code) => {
@@ -176,23 +184,46 @@ const GuestLanding = () => {
     }
   };
 
-  // Wake-up Call opens a time picker instead of submitting immediately. The
-  // chosen time becomes the next upcoming occurrence of that clock time (if it
-  // has already passed today, it rolls to tomorrow), so 6:30 always means the
-  // next 6:30. The note is kept in English for the admin dashboard.
-  const submitWake = () => {
-    if (!wakeTime) return;
-    const [hh, mm] = wakeTime.split(':').map(Number);
+  // Turn an "HH:MM" clock time into the next upcoming occurrence (rolls to
+  // tomorrow if it has already passed today), so 6:30 always means the next 6:30.
+  const timeToNext = (timeStr) => {
+    const [hh, mm] = timeStr.split(':').map(Number);
     const target = new Date();
     target.setHours(hh, mm, 0, 0);
     const tomorrow = target.getTime() <= Date.now();
     if (tomorrow) target.setDate(target.getDate() + 1);
     const friendly = target.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return { iso: target.toISOString(), friendly, tomorrow };
+  };
+
+  // Notes are kept in English for the admin dashboard.
+  const submitWake = () => {
+    if (!wakeTime) return;
+    const { iso, friendly, tomorrow } = timeToNext(wakeTime);
     setWakeOpen(false);
     placeService('Wake-up Call', {
       note: `Wake-up at ${friendly}${tomorrow ? ' (tomorrow)' : ''}`,
-      scheduledFor: target.toISOString(),
+      scheduledFor: iso,
     });
+  };
+
+  const openCab = () => {
+    setCabStep('choose'); setCabFrom(''); setCabTo(''); setCabText(''); setCabTime('');
+    setCabOpen(true);
+  };
+  const submitCab = () => {
+    if (!cabTime) return;
+    let note;
+    if (cabStep === 'pickup') {
+      if (!cabFrom.trim() || !cabTo.trim()) return;
+      note = `Cab · Pickup & Drop — From: ${cabFrom.trim()} → To: ${cabTo.trim()}`;
+    } else {
+      if (!cabText.trim()) return;
+      note = `Cab · Sightseeing — ${cabText.trim()}`;
+    }
+    const { iso } = timeToNext(cabTime);
+    setCabOpen(false);
+    placeService('Cab Request', { note, scheduledFor: iso });
   };
 
   if (!page) return <div className="gl-loading"><div className="gl-spinner"/><div>{t.loading}</div></div>;
@@ -264,7 +295,7 @@ const GuestLanding = () => {
             <div className="gl-service-grid">
               {SERVICE_OPTIONS.map(s => (
                 <button key={s.label} className="gl-service-btn"
-                  onClick={()=> s.label==='Wake-up Call' ? setWakeOpen(true) : placeService(s.label)}>
+                  onClick={()=> s.label==='Wake-up Call' ? setWakeOpen(true) : s.label==='Cab Request' ? openCab() : placeService(s.label)}>
                   <span className="gl-service-icon">{s.icon}</span>
                   <span className="gl-service-label">{t.services[s.label] || s.label}</span>
                 </button>
@@ -500,6 +531,70 @@ const GuestLanding = () => {
                 color:'#6B7280',fontWeight:600,fontSize:14,cursor:'pointer'}}>
               {t.wakeCancel}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cab Request — choose type → details → time */}
+      {cabOpen && (
+        <div className="gl-cart-overlay" onClick={e=>e.target===e.currentTarget&&setCabOpen(false)}>
+          <div className="gl-cart-sheet" style={{maxWidth:440}}>
+            <div className="gl-cart-header">
+              <div style={{fontWeight:700,fontSize:17}}>🚕 {t.cabTitle}</div>
+              <button className="gl-cart-close" onClick={()=>setCabOpen(false)}>✕</button>
+            </div>
+
+            {/* Step 1 — choose */}
+            {cabStep==='choose' && (
+              <div style={{display:'flex',flexDirection:'column',gap:12,marginTop:4}}>
+                <div style={{fontSize:13.5,color:'#6B7280',marginBottom:2}}>{t.cabChoose}</div>
+                {[
+                  { key:'pickup',      icon:'📍', title:t.cabPickup, sub:t.cabPickupSub },
+                  { key:'sightseeing', icon:'🗺️', title:t.cabSight,  sub:t.cabSightSub  },
+                ].map(o => (
+                  <button key={o.key} onClick={()=>setCabStep(o.key)}
+                    style={{display:'flex',alignItems:'center',gap:14,width:'100%',textAlign:'left',
+                      padding:'16px 18px',border:'1.5px solid #E5E7EB',borderRadius:12,background:'#fff',cursor:'pointer'}}>
+                    <span style={{fontSize:24}}>{o.icon}</span>
+                    <span><span style={{display:'block',fontWeight:700,fontSize:15,color:'#0F2952'}}>{o.title}</span>
+                    <span style={{display:'block',fontSize:12.5,color:'#6B7280',marginTop:2}}>{o.sub}</span></span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Step 2a — pickup & drop */}
+            {cabStep==='pickup' && (
+              <div style={{marginTop:6}}>
+                <label style={{display:'block',fontSize:13,fontWeight:700,color:'#374151',margin:'8px 0 6px'}}>{t.cabFrom}</label>
+                <input value={cabFrom} onChange={e=>setCabFrom(e.target.value)} placeholder={t.cabFromPh}
+                  style={{width:'100%',padding:'12px 14px',border:'1.5px solid #E5E7EB',borderRadius:10,fontFamily:'inherit',fontSize:15}} />
+                <label style={{display:'block',fontSize:13,fontWeight:700,color:'#374151',margin:'14px 0 6px'}}>{t.cabTo}</label>
+                <input value={cabTo} onChange={e=>setCabTo(e.target.value)} placeholder={t.cabToPh}
+                  style={{width:'100%',padding:'12px 14px',border:'1.5px solid #E5E7EB',borderRadius:10,fontFamily:'inherit',fontSize:15}} />
+                <label style={{display:'block',fontSize:13,fontWeight:700,color:'#374151',margin:'14px 0 6px'}}>{t.cabWhen}</label>
+                <input type="time" value={cabTime} onChange={e=>setCabTime(e.target.value)}
+                  style={{width:'100%',padding:'12px 14px',border:'1.5px solid #E5E7EB',borderRadius:10,fontFamily:'inherit',fontSize:18,fontWeight:700,textAlign:'center',color:'#0F2952'}} />
+                <button className="gl-place-btn" style={{marginTop:18}} onClick={submitCab}
+                  disabled={!cabFrom.trim()||!cabTo.trim()||!cabTime}>{t.cabConfirm}</button>
+                <button onClick={()=>setCabStep('choose')} style={{width:'100%',marginTop:10,padding:'10px',background:'none',border:'none',color:'#6B7280',fontWeight:600,fontSize:14,cursor:'pointer'}}>← {t.cabBack}</button>
+              </div>
+            )}
+
+            {/* Step 2b — sightseeing */}
+            {cabStep==='sightseeing' && (
+              <div style={{marginTop:6}}>
+                <label style={{display:'block',fontSize:13,fontWeight:700,color:'#374151',margin:'8px 0 6px'}}>{t.cabDetails}</label>
+                <textarea rows={3} value={cabText} onChange={e=>setCabText(e.target.value)} placeholder={t.cabTextPh}
+                  style={{width:'100%',padding:'12px 14px',border:'1.5px solid #E5E7EB',borderRadius:10,fontFamily:'inherit',fontSize:15,resize:'vertical'}} />
+                <label style={{display:'block',fontSize:13,fontWeight:700,color:'#374151',margin:'14px 0 6px'}}>{t.cabWhen}</label>
+                <input type="time" value={cabTime} onChange={e=>setCabTime(e.target.value)}
+                  style={{width:'100%',padding:'12px 14px',border:'1.5px solid #E5E7EB',borderRadius:10,fontFamily:'inherit',fontSize:18,fontWeight:700,textAlign:'center',color:'#0F2952'}} />
+                <button className="gl-place-btn" style={{marginTop:18}} onClick={submitCab}
+                  disabled={!cabText.trim()||!cabTime}>{t.cabConfirm}</button>
+                <button onClick={()=>setCabStep('choose')} style={{width:'100%',marginTop:10,padding:'10px',background:'none',border:'none',color:'#6B7280',fontWeight:600,fontSize:14,cursor:'pointer'}}>← {t.cabBack}</button>
+              </div>
+            )}
           </div>
         </div>
       )}
