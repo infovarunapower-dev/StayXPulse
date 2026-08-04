@@ -6,8 +6,10 @@ Every morning a Vercel cron hits `GET /api/cron/daily-poster`, which:
    using the `daily_posters` table as memory so no theme repeats until all have run.
 2. **Writes the copy** (`generateCopy.js`) — one Gemini call returns
    `{ headline, subtext, caption, imagePrompt }` as strict JSON.
-3. **Generates the background** (`generateImage.js`) — Imagen 3 via the Gemini API,
-   3:4 portrait, prompt asks for a calm lower third so text stays legible.
+3. **Generates the background** (`generateImage.js`) — Gemini 2.5 Flash Image by
+   default (works on the free tier); set `GEMINI_IMAGE_MODEL=imagen-3.0-generate-002`
+   for Imagen 3 once billing is enabled. 3:4 portrait, prompt asks for a calm
+   lower third so text stays legible.
 4. **Overlays the brand** (`overlay.js`) — sharp composites a 1080×1350 poster:
    dark scrim, headline, subtext, gold accent bar, teal CTA pill, logo
    (`backend/assets/logo.png`) and StayXPulse wordmark.
@@ -23,8 +25,8 @@ Every morning a Vercel cron hits `GET /api/cron/daily-poster`, which:
 2. Fill the env vars (see `backend/.env.example`, "Daily AI marketing poster"
    section) locally in `backend/.env` and in Vercel → Settings → Environment
    Variables. **Redeploy after adding them.**
-   - `GEMINI_API_KEY` — required (aistudio.google.com, needs Imagen access;
-     Imagen is a paid-tier feature).
+   - `GEMINI_API_KEY` — required (aistudio.google.com; the free tier is enough
+     for the default models).
    - `CRON_SECRET` — required; any long random string. Vercel automatically
      sends it as `Authorization: Bearer <CRON_SECRET>` on cron invocations.
    - `POSTER_EMAIL_TO` — optional; where the daily email lands.
@@ -64,6 +66,7 @@ and it can be wired up.
 
 ## Cost note
 
-Each run bills one Gemini text call (fractions of a cent) and one Imagen 3
-image (~$0.03–0.04). The `CRON_SECRET` guard exists so strangers can't run up
-that bill; keep it set.
+On the free tier (default models) a daily run costs nothing. With
+`GEMINI_IMAGE_MODEL=imagen-3.0-generate-002` each run bills ~$0.03–0.04 for
+the image. Either way the `CRON_SECRET` guard keeps strangers from burning
+your quota/bill; keep it set.
