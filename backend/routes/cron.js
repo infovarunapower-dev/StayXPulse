@@ -4,7 +4,7 @@ const router = express.Router();
 const { pickTheme } = require('../lib/poster/themes');
 const { generateCopy } = require('../lib/poster/generateCopy');
 const { generateImage } = require('../lib/poster/generateImage');
-const { composePoster } = require('../lib/poster/overlay');
+const { composePoster, fallbackBackground } = require('../lib/poster/overlay');
 const { savePoster } = require('../lib/poster/storage');
 const { deliver } = require('../lib/poster/deliver');
 
@@ -32,13 +32,25 @@ router.get('/daily-poster', requireCronSecret, async (req, res) => {
   try {
     const theme = await pickTheme();
     const copy = await generateCopy(theme);
-    const background = await generateImage(copy.imagePrompt);
+    // AI background is best-effort: the free Gemini tier has no image quota,
+    // and even paid image calls can be safety-filtered. The branded gradient
+    // fallback means the daily poster always ships.
+    let background;
+    let usedFallback = false;
+    try {
+      background = await generateImage(copy.imagePrompt);
+    } catch (e) {
+      console.error('Image generation failed, using branded fallback:', e.message);
+      background = await fallbackBackground(theme.key);
+      usedFallback = true;
+    }
     const pngBuffer = await composePoster(background, copy);
     const { imageUrl } = await savePoster({ pngBuffer, theme, copy });
     const delivery = await deliver({ imageUrl, pngBuffer, copy, theme });
 
     res.json({
       success: true,
+      usedFallbackBackground: usedFallback,
       theme: theme.key,
       headline: copy.headline,
       caption: copy.caption,

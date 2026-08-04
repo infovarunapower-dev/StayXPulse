@@ -8,7 +8,9 @@ const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 async function generateCopy(theme) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
-  const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  // The -latest alias tracks Google's newest flash model — pinned versions
+  // (e.g. gemini-2.5-flash) get retired for new API keys.
+  const model = process.env.GEMINI_TEXT_MODEL || 'gemini-flash-latest';
 
   const prompt = `You are the marketing copywriter for StayXPulse, a hotel guest-services SaaS in India (https://stayxpulse.sunver.in). Guests scan a per-room QR code to order food and raise service requests; hotel admins manage rooms, menus, orders and analytics from one dashboard. Pricing starts with a 3-day free trial.
 

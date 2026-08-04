@@ -52,7 +52,7 @@ async function generateViaImagen(model, apiKey, imagePrompt) {
 async function generateImage(imagePrompt) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
-  const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+  const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image';
   return model.startsWith('imagen-')
     ? generateViaImagen(model, apiKey, imagePrompt)
     : generateViaGemini(model, apiKey, imagePrompt);

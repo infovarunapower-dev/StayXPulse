@@ -109,6 +109,51 @@ function buildSvg({ headline, subtext }) {
 </svg>`;
 }
 
+// Branded background used when AI image generation is unavailable (e.g. the
+// free Gemini tier has no image quota). Not a plain rectangle: layered brand
+// gradient, off-canvas glows and concentric QR-corner motifs keep it looking
+// designed. Varies by theme key so consecutive days still differ.
+function fallbackBackground(themeKey = '') {
+  const seed = [...String(themeKey)].reduce((a, c) => a + c.charCodeAt(0), 0);
+  const palettes = [
+    ['#0E1B17', '#0F766E', '#14B8A6'],
+    ['#0A1512', '#134E4A', '#0D9488'],
+    ['#0E1B17', '#1E2B27', '#0F766E'],
+  ];
+  const [dark, mid, bright] = palettes[seed % palettes.length];
+  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${dark}"/>
+      <stop offset="0.55" stop-color="${mid}"/>
+      <stop offset="1" stop-color="${bright}"/>
+    </linearGradient>
+    <radialGradient id="glowTeal" cx="0.85" cy="0.18" r="0.6">
+      <stop offset="0" stop-color="${BRAND.tealBright}" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="${BRAND.tealBright}" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGold" cx="0.12" cy="0.45" r="0.5">
+      <stop offset="0" stop-color="${BRAND.goldBright}" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="${BRAND.goldBright}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#bg)"/>
+  <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glowTeal)"/>
+  <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glowGold)"/>
+  <!-- QR finder-pattern motif, oversized and clipped by the canvas edge -->
+  <g stroke="${BRAND.white}" fill="none" opacity="0.10">
+    <rect x="760" y="120" width="420" height="420" rx="72" stroke-width="26"/>
+    <rect x="838" y="198" width="264" height="264" rx="44" stroke-width="18"/>
+    <rect x="906" y="266" width="128" height="128" rx="24" fill="${BRAND.white}" stroke="none"/>
+  </g>
+  <g stroke="${BRAND.white}" fill="none" opacity="0.05">
+    <rect x="-160" y="820" width="380" height="380" rx="64" stroke-width="24"/>
+    <rect x="-90" y="890" width="240" height="240" rx="40" stroke-width="16"/>
+  </g>
+</svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
 // Compose the final 1080×1350 poster: background cover-resized, scrim + text
 // SVG, and the PNG logo badge at top-left.
 async function composePoster(backgroundBuffer, { headline, subtext }) {
@@ -129,4 +174,4 @@ async function composePoster(backgroundBuffer, { headline, subtext }) {
     .toBuffer();
 }
 
-module.exports = { composePoster, BRAND, WIDTH, HEIGHT };
+module.exports = { composePoster, fallbackBackground, BRAND, WIDTH, HEIGHT };
