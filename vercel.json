@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "crons": [
-    { "path": "/api/cron/daily-poster", "schedule": "30 3 * * *" }
-  ],
   "builds": [
     {
       "src": "backend/server.js",
