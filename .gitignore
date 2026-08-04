@@ -6,3 +6,5 @@ node_modules/
 build/
 frontend/android/app/src/main/assets/public/
 .gradle/
+.vercel
+.env.local
