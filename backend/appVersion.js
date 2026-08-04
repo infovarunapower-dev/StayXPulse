@@ -8,10 +8,11 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '1.5',
-  versionCode: 6,
-  releasedAt:  '2026-08-03T21:10:00Z',
+  version:     '1.6',
+  versionCode: 7,
+  releasedAt:  '2026-08-04T05:30:00Z',
   notes: [
-    'Redesigned Service Requests & Food Orders for phones — tap-friendly cards, no more sideways scrolling to update status',
+    'Cab Request now offers Pickup & Drop (from/to) or Sightseeing, with a pickup time',
+    'Service Requests show the scheduled time and details together',
   ],
 };
