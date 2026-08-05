@@ -79,6 +79,7 @@ const GuestLanding = () => {
   const [vegFilter, setVegFilter] = useState('all');  // all | veg | nonveg
   const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || 'en');
   const [menuLoading, setMenuLoading] = useState(false);
+  const [services, setServices] = useState(SERVICE_OPTIONS); // hotel's own list; falls back to defaults
 
   const [wakeOpen, setWakeOpen] = useState(false);
   const [wakeTime, setWakeTime] = useState('07:00');
@@ -114,6 +115,7 @@ const GuestLanding = () => {
       .then(r => {
         if (reqLang !== langRef.current) return;   // a newer switch superseded this
         setHotel(r.data.data.hotel); setRoom(r.data.data.room); setMenu(r.data.data.menu); setPage('app');
+        if (Array.isArray(r.data.data.serviceOptions) && r.data.data.serviceOptions.length) setServices(r.data.data.serviceOptions);
       })
       .catch(() => setPage(p => p === 'app' ? 'app' : 'error'))
       .finally(() => { if (reqLang === langRef.current) setMenuLoading(false); });
@@ -293,7 +295,7 @@ const GuestLanding = () => {
           <div>
             <div className="gl-section-title">{t.helpTitle}</div>
             <div className="gl-service-grid">
-              {SERVICE_OPTIONS.map(s => (
+              {services.map(s => (
                 <button key={s.label} className="gl-service-btn"
                   onClick={()=> s.label==='Wake-up Call' ? setWakeOpen(true) : s.label==='Cab Request' ? openCab() : placeService(s.label)}>
                   <span className="gl-service-icon">{s.icon}</span>

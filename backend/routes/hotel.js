@@ -147,6 +147,58 @@ router.post('/rooms/:id/clear-guest', MW, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// SERVICE OPTIONS (per-hotel Room-Service list shown on the guest page)
+// ════════════════════════════════════════════════════════════════════
+router.get('/service-options', MW, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('service_options')
+      .select('*').eq('hotel_id', req.hotelId)
+      .order('sort_order', { ascending: true }).order('created_at', { ascending: true });
+    if (error) throw error;
+    // Also hand back the defaults so the UI can offer "load defaults".
+    res.json({ success: true, data: data || [], defaults: require('../utils/defaultServices') });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.post('/service-options', [...MW, body('label').trim().notEmpty().withMessage('Service name is required')], async (req, res) => {
+  const err = validationResult(req);
+  if (!err.isEmpty()) return res.status(422).json({ success: false, message: err.array()[0].msg });
+  try {
+    const label = String(req.body.label).trim().slice(0, 60);
+    const icon  = (String(req.body.icon || '').trim().slice(0, 8)) || '🛎';
+    // Next sort order = end of the list.
+    const { data: last } = await supabase.from('service_options')
+      .select('sort_order').eq('hotel_id', req.hotelId).order('sort_order', { ascending: false }).limit(1).maybeSingle();
+    const sort_order = (last?.sort_order ?? -1) + 1;
+    const { data, error } = await supabase.from('service_options')
+      .insert({ hotel_id: req.hotelId, icon, label, sort_order }).select().single();
+    if (error) throw error;
+    res.status(201).json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.delete('/service-options/:id', MW, async (req, res) => {
+  try {
+    const { error } = await supabase.from('service_options').delete().eq('id', req.params.id).eq('hotel_id', req.hotelId);
+    if (error) throw error;
+    res.json({ success: true, message: 'Service removed' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// One-click: seed the built-in defaults (only if the hotel has none yet).
+router.post('/service-options/seed-defaults', MW, async (req, res) => {
+  try {
+    const { count } = await supabase.from('service_options')
+      .select('*', { count: 'exact', head: true }).eq('hotel_id', req.hotelId);
+    if (count && count > 0) return res.status(409).json({ success: false, message: 'You already have services. Remove them first to reset to defaults.' });
+    const rows = require('../utils/defaultServices').map((s, i) => ({ hotel_id: req.hotelId, icon: s.icon, label: s.label, sort_order: i }));
+    const { data, error } = await supabase.from('service_options').insert(rows).select();
+    if (error) throw error;
+    res.status(201).json({ success: true, data, message: `${rows.length} default services added` });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════════════
 // FOOD ITEMS
 // ════════════════════════════════════════════════════════════════════
 router.get('/food', MW, async (req, res) => {
@@ -644,7 +696,14 @@ router.get('/guest/:qrToken', async (req, res) => {
       menu[item.category].push(item);
     });
 
-    res.json({ success: true, data: { hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type }, menu } });
+    // Room-service options: the hotel's own custom list, or the built-in
+    // defaults if it hasn't customised them yet.
+    const { data: svc } = await supabase.from('service_options')
+      .select('icon, label').eq('hotel_id', hotel.id).eq('is_active', true)
+      .order('sort_order', { ascending: true }).order('created_at', { ascending: true });
+    const serviceOptions = (svc && svc.length) ? svc : require('../utils/defaultServices');
+
+    res.json({ success: true, data: { hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type }, menu, serviceOptions } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 

@@ -20,6 +20,7 @@ import AndroidApp from './pages/superadmin/AndroidApp';
 import HotelDashboard  from './pages/hotel/HotelDashboard';
 import QRManagement    from './pages/hotel/QRManagement';
 import FoodManagement  from './pages/hotel/FoodManagement';
+import ServiceManagement from './pages/hotel/ServiceManagement';
 import { ServiceRequests, FoodOrders } from './pages/hotel/OrdersAndRequests';
 import Analytics       from './pages/hotel/Analytics';
 import UpgradePlan     from './pages/hotel/UpgradePlan';
@@ -104,6 +105,7 @@ const App = () => (
         <Route path="/hotel/dashboard"         element={<HA><HotelDashboard /></HA>} />
         <Route path="/hotel/qr"                element={<HA><QRManagement /></HA>} />
         <Route path="/hotel/food"              element={<HA><FoodManagement /></HA>} />
+        <Route path="/hotel/services"          element={<HA><ServiceManagement /></HA>} />
         <Route path="/hotel/service-requests"  element={<HA><ServiceRequests /></HA>} />
         <Route path="/hotel/food-orders"       element={<HA><FoodOrders /></HA>} />
         <Route path="/hotel/analytics"         element={<HA><Analytics /></HA>} />

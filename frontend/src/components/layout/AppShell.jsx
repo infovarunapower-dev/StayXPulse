@@ -29,6 +29,7 @@ const HotelAdminMenu = [
     { to: '/hotel/dashboard',        icon: '🏠', label: 'Dashboard'         },
     { to: '/hotel/qr',               icon: '📱', label: 'QR Management'     },
     { to: '/hotel/food',             icon: '🍽', label: 'Food Management'   },
+    { to: '/hotel/services',         icon: '🛎', label: 'Service Management' },
   ]},
   { section: 'Operations', items: [
     { to: '/hotel/service-requests', icon: '🛎', label: 'Service Requests'  },
