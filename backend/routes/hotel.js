@@ -185,19 +185,6 @@ router.delete('/service-options/:id', MW, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// One-click: seed the built-in defaults (only if the hotel has none yet).
-router.post('/service-options/seed-defaults', MW, async (req, res) => {
-  try {
-    const { count } = await supabase.from('service_options')
-      .select('*', { count: 'exact', head: true }).eq('hotel_id', req.hotelId);
-    if (count && count > 0) return res.status(409).json({ success: false, message: 'You already have services. Remove them first to reset to defaults.' });
-    const rows = require('../utils/defaultServices').map((s, i) => ({ hotel_id: req.hotelId, icon: s.icon, label: s.label, sort_order: i }));
-    const { data, error } = await supabase.from('service_options').insert(rows).select();
-    if (error) throw error;
-    res.status(201).json({ success: true, data, message: `${rows.length} default services added` });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
-
 // ════════════════════════════════════════════════════════════════════
 // FOOD ITEMS
 // ════════════════════════════════════════════════════════════════════
@@ -696,12 +683,12 @@ router.get('/guest/:qrToken', async (req, res) => {
       menu[item.category].push(item);
     });
 
-    // Room-service options: the hotel's own custom list, or the built-in
-    // defaults if it hasn't customised them yet.
+    // Room-service options: the built-in defaults are ALWAYS shown; the hotel's
+    // own extra services are appended after them.
     const { data: svc } = await supabase.from('service_options')
       .select('icon, label').eq('hotel_id', hotel.id).eq('is_active', true)
       .order('sort_order', { ascending: true }).order('created_at', { ascending: true });
-    const serviceOptions = (svc && svc.length) ? svc : require('../utils/defaultServices');
+    const serviceOptions = [...require('../utils/defaultServices'), ...(svc || [])];
 
     res.json({ success: true, data: { hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type }, menu, serviceOptions } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
