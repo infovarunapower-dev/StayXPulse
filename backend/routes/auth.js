@@ -104,11 +104,15 @@ router.post('/register', optionalLogo, async (req, res) => {
     }).select().single();
     if (hotelError) throw hotelError;
 
-    const { error: userError } = await supabase.from('users').insert({
+    const { data: userRow, error: userError } = await supabase.from('users').insert({
       name: hotelName.trim(), email: cleanEmail, password_hash: hashedPassword,
       role: 'hoteladmin', hotel_id: hotel.id, is_active: true,
-    });
+    }).select('id').single();
     if (userError) throw userError;
+
+    // Auto-login: issue a session token so the just-registered hotel can go
+    // straight to choosing/paying for a plan without a separate login step.
+    const token = jwt.sign({ id: userRow.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
     // Credentials go ONLY to the address entered on the signup form — this is the
     // one time the plaintext password exists, so a silent failure would strand the
@@ -134,7 +138,7 @@ router.post('/register', optionalLogo, async (req, res) => {
         ? `Hotel registered successfully! Login credentials have been sent to ${cleanEmail}.`
         : `Hotel registered! We could not email your credentials, so please save them from this screen now.`,
       data: {
-        hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate,
+        hotelId: hotel.id, hotelName: hotel.hotel_name, userId, trialEndDate, token,
         emailSent: mailed, emailedTo: cleanEmail,
         // Last-resort delivery. The generated password exists in plaintext only
         // here — the DB stores a bcrypt hash — so if the mail did not go out,

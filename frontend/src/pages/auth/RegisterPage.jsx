@@ -4,11 +4,13 @@ import toast from 'react-hot-toast';
 import AuthLayout from '../../components/auth/AuthLayout';
 import Input from '../../components/common/Input';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 
 const STEPS = ['Hotel Details', 'Contact & Location', 'Review & Submit'];
 
 const RegisterPage = () => {
   const navigate  = useNavigate();
+  const { loginWithToken } = useAuth();
   const logoRef   = useRef(null);
   const [searchParams] = useSearchParams();
   const intent = searchParams.get('intent') === 'buy' ? 'buy' : 'trial';   // ?intent=buy → no trial, choose a plan
@@ -77,6 +79,19 @@ const RegisterPage = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
+      // Auto-login with the token issued at registration, so the hotel can go
+      // straight to choosing a plan.
+      if (data.data?.token) await loginWithToken(data.data.token);
+
+      // Direct-buy: if the credentials were emailed (nothing to save on screen),
+      // skip the confirmation screen and go straight to the plan page. If the
+      // email failed, fall through to the credentials screen (which then has a
+      // "Continue to Choose Plan" button).
+      if (intent === 'buy' && data.data?.emailSent !== false) {
+        navigate('/hotel/upgrade');
+        return;
+      }
+
       setSuccess(data);
     } catch (err) {
       const msg = err.response?.data?.message || 'Registration failed. Please try again.';
@@ -135,8 +150,8 @@ const RegisterPage = () => {
               <span style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{intent === 'buy' ? 'Choose a plan' : new Date(success.data.trialEndDate).toDateString()}</span>
             </div>
           </div>
-          <button className="btn btn-primary" onClick={() => navigate('/login')}>
-            {intent === 'buy' ? 'Log in & Choose Plan →' : 'Go to Login →'}
+          <button className="btn btn-primary" onClick={() => navigate(intent === 'buy' ? '/hotel/upgrade' : '/login')}>
+            {intent === 'buy' ? 'Continue to Choose Plan →' : 'Go to Login →'}
           </button>
         </div>
       </AuthLayout>

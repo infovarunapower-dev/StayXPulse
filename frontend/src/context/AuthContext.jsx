@@ -55,6 +55,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Auto-login with a token issued elsewhere (e.g. straight after registration),
+  // so a new hotel can go directly to the plan page without a separate login.
+  const loginWithToken = async (token, remember = false) => {
+    setError(null);
+    if (remember) localStorage.setItem('token', token);
+    else sessionStorage.setItem('token', token);
+    try {
+      const { data } = await api.get('/auth/me');
+      setUser(data.user);
+      return { success: true, role: data.user.role };
+    } catch {
+      logout();
+      return { success: false };
+    }
+  };
+
   // Re-reads the profile after the hotel edits it, so the sidebar logo, name
   // and trial banner update without forcing a re-login.
   const refreshUser = async () => {
@@ -75,7 +91,7 @@ export const AuthProvider = ({ children }) => {
   const clearError = () => setError(null);
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, logout, clearError, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, error, login, loginWithToken, logout, clearError, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
