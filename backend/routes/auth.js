@@ -70,11 +70,11 @@ router.post('/register', optionalLogo, async (req, res) => {
     if (!phone?.trim()) return res.status(400).json({ success: false, message: 'Phone number is required.' });
     if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email address is required.' });
     if (!address?.trim()) return res.status(400).json({ success: false, message: 'Address is required.' });
-    if (!gstNumber?.trim()) return res.status(400).json({ success: false, message: 'GST number is required.' });
-    // The first two digits of the GSTIN drive the CGST/SGST-vs-IGST split on
-    // every invoice, so a malformed value silently mis-taxes the customer.
-    // Profile-edit already enforced this; registration did not.
-    if (!isValidGstin(gstNumber)) return res.status(400).json({ success: false, message: 'That GST number is not a valid GSTIN (e.g. 29ABCDE1234F1Z5).' });
+    // GST is OPTIONAL — homestays / unregistered businesses can register without
+    // one. If provided, it must be a valid GSTIN (its first two digits drive the
+    // CGST/SGST-vs-IGST split on invoices); a blank value bills as IGST 18% and
+    // the invoice shows the buyer as "Unregistered".
+    if (gstNumber?.trim() && !isValidGstin(gstNumber)) return res.status(400).json({ success: false, message: 'That GST number is not a valid GSTIN (e.g. 29ABCDE1234F1Z5). Leave it blank if you are not GST-registered.' });
 
     const cleanEmail = email.toLowerCase().trim();
     const { data: existing } = await supabase.from('users').select('id').eq('email', cleanEmail);
@@ -96,7 +96,7 @@ router.post('/register', optionalLogo, async (req, res) => {
 
     const { data: hotel, error: hotelError } = await supabase.from('hotels').insert({
       hotel_name: hotelName.trim(), phone: phone.trim(), email: cleanEmail,
-      address: address.trim(), gst_number: gstNumber.trim().toUpperCase(),
+      address: address.trim(), gst_number: gstNumber?.trim() ? gstNumber.trim().toUpperCase() : null,
       logo_url: logoUrl,
       user_id: userId, is_active: true,
       subscription_status: isBuy ? 'expired' : 'trial',   // direct-buy has no trial → must subscribe to activate

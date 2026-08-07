@@ -75,8 +75,12 @@ const HotelProfile = () => {
   const save = async (e) => {
     e.preventDefault();
     if (saving) return;
-    if (!form.hotelName.trim() || !form.phone.trim() || !form.address.trim() || !form.gstNumber.trim()) {
-      toast.error('All fields are required');
+    if (!form.hotelName.trim() || !form.phone.trim() || !form.address.trim()) {
+      toast.error('Hotel name, phone and address are required');
+      return;
+    }
+    if (form.gstNumber.trim() && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(form.gstNumber.trim().toUpperCase())) {
+      toast.error('That GST number is not a valid GSTIN — or leave it blank');
       return;
     }
     setSaving(true);
@@ -149,8 +153,8 @@ const HotelProfile = () => {
           <Field label="Address *">
             <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 70 }} value={form.address} onChange={set('address')} rows={2} />
           </Field>
-          <Field label="GST Number *" hint="Appears on every tax invoice and drives the CGST/SGST vs IGST split. Double-check before saving.">
-            <input style={{ ...inputStyle, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }} value={form.gstNumber} onChange={set('gstNumber')} placeholder="29ABCDE1234F1Z5" />
+          <Field label="GST Number (optional)" hint="If your hotel is GST-registered, this appears on every tax invoice and drives the CGST/SGST vs IGST split. Leave blank if you are not registered.">
+            <input style={{ ...inputStyle, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }} value={form.gstNumber} onChange={set('gstNumber')} placeholder="29ABCDE1234F1Z5 (optional)" />
           </Field>
         </Card>
 

@@ -41,7 +41,8 @@ const RegisterPage = () => {
     const errs = {};
     if (s === 0) {
       if (!form.hotelName.trim()) errs.hotelName = 'Hotel name is required';
-      if (!form.gstNumber.trim()) errs.gstNumber = 'GST number is required';
+      // GST is optional; validate the format only if something was entered.
+      if (form.gstNumber.trim() && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(form.gstNumber.trim().toUpperCase())) errs.gstNumber = 'Not a valid GSTIN — or leave it blank';
     }
     if (s === 1) {
       if (!form.phone.trim()) errs.phone = 'Phone is required';
@@ -197,9 +198,9 @@ const RegisterPage = () => {
             <Input label="Hotel Name *" placeholder="The Grand Palace" value={form.hotelName}
               onChange={set('hotelName')} error={errors.hotelName} autoFocus />
             <div className="form-group">
-              <label className="form-label">GST Number *</label>
+              <label className="form-label">GST Number <span style={{color:'var(--gray-400)',fontWeight:400}}>(optional)</span></label>
               <input className={`form-control${errors.gstNumber ? ' error' : ''}`}
-                placeholder="29ABCDE1234F1Z5" value={form.gstNumber}
+                placeholder="29ABCDE1234F1Z5 — leave blank if not registered" value={form.gstNumber}
                 onChange={e => { const v = e.target.value.toUpperCase(); setForm(f => ({ ...f, gstNumber: v })); setErrors(errs => (errs.gstNumber ? { ...errs, gstNumber: undefined } : errs)); }}
                 maxLength={20} style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px' }} />
               {errors.gstNumber && <div className="form-error">⚠ {errors.gstNumber}</div>}

@@ -557,14 +557,14 @@ router.put('/profile', [...MW_OPEN, logoUpload.single('logo')], async (req, res)
     if (!hotelName?.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
     if (!phone?.trim())     return res.status(400).json({ success: false, message: 'Phone number is required.' });
     if (!address?.trim())   return res.status(400).json({ success: false, message: 'Address is required.' });
-    if (!gstNumber?.trim()) return res.status(400).json({ success: false, message: 'GST number is required.' });
-    if (!isValidGstin(gstNumber)) return res.status(400).json({ success: false, message: 'That GST number is not a valid GSTIN (e.g. 29ABCDE1234F1Z5).' });
+    // GST is optional; validate only when provided.
+    if (gstNumber?.trim() && !isValidGstin(gstNumber)) return res.status(400).json({ success: false, message: 'That GST number is not a valid GSTIN (e.g. 29ABCDE1234F1Z5). Leave it blank if you are not GST-registered.' });
 
     const update = {
       hotel_name: hotelName.trim(),
       phone: phone.trim(),
       address: address.trim(),
-      gst_number: gstNumber.trim().toUpperCase(),
+      gst_number: gstNumber?.trim() ? gstNumber.trim().toUpperCase() : null,
     };
 
     // Only overwrite the logo when a new file was actually sent — saving the
