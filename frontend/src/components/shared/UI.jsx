@@ -13,12 +13,19 @@ export const PageHeader = ({ title, subtitle, action }) => (
 );
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
-export const StatCard = ({ icon, label, value, change, changeType = 'up', color = 'blue' }) => (
-  <div className="stat-card">
+export const StatCard = ({ icon, label, value, change, changeType = 'up', color = 'blue', onClick }) => (
+  <div
+    className={`stat-card${onClick ? ' clickable' : ''}`}
+    {...(onClick ? {
+      role: 'button', tabIndex: 0, onClick,
+      onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e); } },
+    } : {})}
+  >
     <div className={`stat-icon icon-${color}`}>{icon}</div>
     <div className="stat-label">{label}</div>
     <div className="stat-value">{value}</div>
     {change && <div className={`stat-change ${changeType}`}>{changeType === 'up' ? '↑' : '↓'} {change}</div>}
+    {onClick && <span className="stat-arrow" aria-hidden="true">›</span>}
   </div>
 );
 

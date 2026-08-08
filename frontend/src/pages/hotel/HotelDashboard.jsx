@@ -77,10 +77,10 @@ const HotelDashboard = () => {
       </div>
 
       <div className="stats-grid">
-        <StatCard icon="📋" label="Total Food Orders"   value={s.totalOrders   || 0} color="blue" />
-        <StatCard icon="🍽" label="Today's Orders"      value={s.todayOrders   || 0} color="green" />
-        <StatCard icon="💰" label="Today's Revenue"     value={fmtCur(s.todayRevenue)} color="amber" />
-        <StatCard icon="🛎" label="Pending Requests"    value={s.pendingRequests || 0} color="red" change={s.pendingRequests > 0 ? 'action needed' : undefined} changeType="down" />
+        <StatCard icon="📋" label="Total Food Orders"   value={s.totalOrders   || 0} color="blue"  onClick={() => navigate('/hotel/food-orders')} />
+        <StatCard icon="🍽" label="Today's Orders"      value={s.todayOrders   || 0} color="green" onClick={() => navigate('/hotel/food-orders')} />
+        <StatCard icon="💰" label="Today's Revenue"     value={fmtCur(s.todayRevenue)} color="amber" onClick={() => navigate('/hotel/analytics')} />
+        <StatCard icon="🛎" label="Pending Requests"    value={s.pendingRequests || 0} color="red" change={s.pendingRequests > 0 ? 'action needed' : undefined} changeType="down" onClick={() => navigate('/hotel/service-requests')} />
       </div>
 
       <div className="grid-2">
