@@ -317,12 +317,17 @@ const generateOrderRecordPDF = ({ payment, hotel = {}, plan = {}, order = null, 
       doc.fillColor(INK).font('Helvetica-Bold').fontSize(9).text('For ' + SELLER.name + ' — Authorised Signatory', R - 300, y + 6, { width: 300, align: 'right' });
 
       // ── Footer on every page ──
+      // Drawing at y=806 is below the bottom margin (792 on A4). Without
+      // disabling the bottom margin + line-break, PDFKit inserts a new page for
+      // each footer, leaving blank trailing pages. Zero the bottom margin on the
+      // page before drawing so the footer sits in the margin and adds no page.
       const range = doc.bufferedPageRange();
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(range.start + i);
+        doc.page.margins.bottom = 0;
         doc.fillColor('#9CA3AF').font('Helvetica').fontSize(7).text(
           `StayXPulse · Order Record · ${txnid} · Page ${i + 1} of ${range.count}`,
-          M, 806, { width: W, align: 'center' });
+          M, 806, { width: W, align: 'center', lineBreak: false });
       }
 
       doc.end();
