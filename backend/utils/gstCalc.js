@@ -13,7 +13,9 @@ const SELLER = {
   state: '09',                 // Uttar Pradesh
   stateName: 'Uttar Pradesh',
   sac:   '998314',             // IT / software support services
-  address: 'Sunver Coresynergy Solutions Pvt Ltd, Uttar Pradesh, India',
+  email: 'info@sunver.in',
+  addressLines: ['Office No.205, 2nd Floor', 'Chokhani Square, Sector 18', 'Noida 201301', 'Uttar Pradesh, India'],
+  address: 'Office No.205, 2nd Floor, Chokhani Square, Sector 18, Noida 201301, Uttar Pradesh, India',
 };
 
 const RATE = 18;
