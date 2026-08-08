@@ -34,9 +34,13 @@ const QRCard = ({ room, hotel, onDelete, onView }) => {
     if (!qrDataUrl) return;
 
     const W = 480, H = 680;
+    const S = 4; // super-sample: render at 4× so the printed QR + logo stay crisp
     const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
+    canvas.width = W * S; canvas.height = H * S;
     const ctx = canvas.getContext('2d');
+    ctx.scale(S, S);                       // keep drawing in logical W×H coordinates
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     const cx = W / 2;
 
     const loadImg = (src, cors) => new Promise(resolve => {
@@ -118,8 +122,18 @@ const QRCard = ({ room, hotel, onDelete, onView }) => {
     roundRect(qrX - 18, qrY - 18, qrSize + 36, qrSize + 36, 18); ctx.fill();
     ctx.strokeStyle = '#D9E7E3'; ctx.lineWidth = 1.5;
     roundRect(qrX - 18, qrY - 18, qrSize + 36, qrSize + 36, 18); ctx.stroke();
-    const qr = await loadImg(qrDataUrl, false);
+    // High-resolution QR generated just for the download — the on-screen preview
+    // is only 200px, far too low to print without blur. Rendered at the exact
+    // device size (qrSize × S) so it stays pixel-crisp. High error-correction
+    // keeps it scannable even after printing/lamination.
+    const hqQr = await QRCode.toDataURL(`${CLIENT_URL}/guest/${room.qr_token}`, {
+      width: qrSize * S, margin: 1, errorCorrectionLevel: 'H',
+      color: { dark: '#0F766E', light: '#FFFFFF' },
+    }).catch(() => qrDataUrl);
+    ctx.imageSmoothingEnabled = false;     // keep the QR modules razor-sharp
+    const qr = await loadImg(hqQr, false);
     if (qr) ctx.drawImage(qr, qrX, qrY, qrSize, qrSize);
+    ctx.imageSmoothingEnabled = true;
 
     // Instruction
     ctx.textAlign = 'center';
