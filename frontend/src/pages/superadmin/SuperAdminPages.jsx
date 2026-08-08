@@ -182,18 +182,21 @@ export const PaymentHistory = () => {
     finally { setExporting(false); }
   };
 
-  const downloadOrderRecord = async (r) => {
-    const t = toast.loading('Generating order record…');
+  const downloadPdf = async (kind, r) => {
+    const t = toast.loading(kind === 'invoice' ? 'Generating invoice…' : 'Generating order record…');
     try {
-      const res = await api.get(`/superadmin/payments/${r.id}/order-record`, { responseType: 'blob' });
+      const res = await api.get(`/superadmin/payments/${r.id}/${kind === 'invoice' ? 'invoice' : 'order-record'}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(res.data);
       const a = document.createElement('a');
-      a.href = url; a.download = `OrderRecord_${r.invoice_number || r.id}.pdf`;
+      a.href = url;
+      a.download = `${kind === 'invoice' ? 'Invoice' : 'OrderRecord'}_${r.invoice_number || r.id}.pdf`;
       document.body.appendChild(a); a.click(); a.remove();
       window.URL.revokeObjectURL(url);
-      toast.success('Order record downloaded', { id: t });
-    } catch { toast.error('Could not generate record', { id: t }); }
+      toast.success(kind === 'invoice' ? 'Invoice downloaded' : 'Order record downloaded', { id: t });
+    } catch { toast.error(kind === 'invoice' ? 'Could not generate invoice' : 'Could not generate record', { id: t }); }
   };
+  const downloadInvoice     = (r) => downloadPdf('invoice', r);
+  const downloadOrderRecord = (r) => downloadPdf('record', r);
 
   const columns = [
     { label:'Hotel',      sort: r => r.hotel?.hotelName, render: r => (
@@ -210,7 +213,12 @@ export const PaymentHistory = () => {
     { label:'Invoice',    render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11,background:'var(--gray-100)',padding:'2px 6px',borderRadius:4}}>{r.invoice_number}</code> },
     { label:'Payment ID', render: r => <code style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.payment_id}</code> },
     { label:'Date',       sort: r => new Date(r.paid_at).getTime(), render: r => fmtDate(r.paid_at) },
-    { label:'Record',     render: r => <button className="btn btn-sm btn-outline" onClick={()=>downloadOrderRecord(r)} style={{whiteSpace:'nowrap'}}>📄 Record</button> },
+    { label:'Documents',  render: r => (
+      <div style={{ display:'flex', gap:6, whiteSpace:'nowrap' }}>
+        <button className="btn btn-sm btn-outline" onClick={()=>downloadInvoice(r)}>🧾 Invoice</button>
+        <button className="btn btn-sm btn-outline" onClick={()=>downloadOrderRecord(r)}>📄 Record</button>
+      </div>
+    ) },
   ];
 
   return (
@@ -288,8 +296,12 @@ export const PaymentHistory = () => {
                         <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{fmtDate(p.paidAt)}</td>
                         <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{p.paymentId}</td>
                         <td style={{ padding: '8px 10px' }}>
-                          <button className="btn btn-sm btn-outline" style={{ whiteSpace: 'nowrap' }}
-                            onClick={() => downloadOrderRecord({ id: p.id, invoice_number: p.invoiceNumber })}>📄</button>
+                          <div style={{ display: 'flex', gap: 6, whiteSpace: 'nowrap' }}>
+                            <button className="btn btn-sm btn-outline" title="Download invoice"
+                              onClick={() => downloadInvoice({ id: p.id, invoice_number: p.invoiceNumber })}>🧾</button>
+                            <button className="btn btn-sm btn-outline" title="Download order record"
+                              onClick={() => downloadOrderRecord({ id: p.id, invoice_number: p.invoiceNumber })}>📄</button>
+                          </div>
                         </td>
                       </tr>
                     ))}

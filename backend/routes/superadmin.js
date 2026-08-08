@@ -5,7 +5,7 @@ const { body, validationResult } = require('express-validator');
 const { protect, authorize }     = require('../middleware/auth');
 const supabase = require('../utils/supabase');
 const { sendTrialReminderEmail, sendExpiryReminderEmail, sendPasswordResetByAdminEmail, sendAppUpdateEmail } = require('../utils/email');
-const { generateOrderRecordPDF } = require('../utils/invoice');
+const { generateOrderRecordPDF, generateInvoicePDF } = require('../utils/invoice');
 const CLIENT_URL = require('../utils/clientUrl');
 
 const SA = [protect, authorize('superadmin')];
@@ -212,6 +212,31 @@ router.get('/payments', SA, async (req, res) => {
 });
 
 // ─── ORDER RECORD (per-payment forensic PDF) ──────────────────────────────────
+// Tax-invoice PDF for a payment (super-admin can pull any hotel's invoice).
+router.get('/payments/:id/invoice', SA, async (req, res) => {
+  try {
+    const { data: payment, error } = await supabase.from('payments')
+      .select('*, hotels(*), plans(*)').eq('id', req.params.id).single();
+    if (error || !payment) return res.status(404).json({ success: false, message: 'Payment not found.' });
+
+    const hotel = payment.hotels || {};
+    const plan  = payment.plans  || {};
+    const days  = (payment.valid_from && payment.valid_to)
+      ? Math.round((new Date(payment.valid_to) - new Date(payment.valid_from)) / 86400000) : 30;
+    const cycle = days >= 365 ? 'yearly' : days >= 90 ? 'quarterly' : 'monthly';
+
+    const pdf = await generateInvoicePDF({
+      invoice: payment.invoice_number,
+      hotel: { hotelName: hotel.hotel_name, email: hotel.email, address: hotel.address, gstNumber: hotel.gst_number },
+      plan, cycle, amount: payment.amount,
+      validFrom: payment.valid_from, validTo: payment.valid_to, paymentId: payment.payment_id,
+    });
+    const fname = `Invoice_${String(payment.invoice_number || payment.id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${fname}"`, 'Content-Length': pdf.length });
+    res.end(pdf);
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 router.get('/payments/:id/order-record', SA, async (req, res) => {
   try {
     const { data: payment, error } = await supabase
