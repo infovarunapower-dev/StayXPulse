@@ -153,12 +153,86 @@ const layout = (eyebrowText, content, preheader = '') => `<!DOCTYPE html>
 </body>
 </html>`;
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Editable content
+//
+//  Super Admin can override the subject / heading / intro / notice of each
+//  transactional email. Defaults live here; overrides come from the DB and are
+//  passed in as `ov`. Placeholders like {{hotelName}} are substituted at send.
+//  Everything else (buttons, credential cards, invoice details) stays fixed.
+// ─────────────────────────────────────────────────────────────────────────────
+const fill = (str, data) => {
+  if (str == null || String(str).trim() === '') return null;
+  return String(str).replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (data && data[k] != null ? String(data[k]) : ''));
+};
+
+const EDITABLE = {
+  'welcome': {
+    label: 'Welcome Email',
+    subject: '🎉 Welcome to StayXPulse — Your Login Credentials',
+    heading: 'Welcome to StayXPulse',
+    intro:   '{{hotelName}}, your account is ready. Begin with a 14-day complimentary trial — no card required.',
+    notice:  'For your security, please change your password after your first sign-in. Your trial ends on {{trialEndDate}}.',
+    placeholders: ['hotelName', 'userId', 'email', 'trialEndDate'],
+  },
+  'forgot-password': {
+    label: 'Forgot Password',
+    subject: '🔒 StayXPulse — Password Reset Request',
+    heading: 'Reset your password',
+    intro:   'Hi {{name}}, we received a request to reset the password for your StayXPulse account. Choose a new one below.',
+    notice:  'This link expires in 1 hour. If you did not request a reset, you can safely ignore this email — your password will not change.',
+    placeholders: ['name'],
+  },
+  'trial-reminder': {
+    label: 'Trial Reminder',
+    subject: '⏰ StayXPulse — Your free trial ends in {{daysLeft}} day(s)',
+    heading: 'Your free trial is ending soon',
+    intro:   '{{hotelName}}, your StayXPulse trial ends on {{trialEndDate}}. Upgrade now to keep uninterrupted access to your rooms, QR codes, menu and order history.',
+    notice:  '',
+    placeholders: ['hotelName', 'daysLeft', 'trialEndDate'],
+  },
+  'expiry-reminder': {
+    label: 'Subscription Expiry Reminder',
+    subject: '⚠️ StayXPulse — Subscription expiring in {{daysLeft}} day(s)',
+    heading: 'Your subscription is expiring',
+    intro:   '{{hotelName}}, your {{planName}} subscription expires on {{expiryDate}}. Renew now to avoid any interruption to your guests’ service.',
+    notice:  'Renew before it lapses to keep your rooms, menu and orders live without a break.',
+    placeholders: ['hotelName', 'planName', 'daysLeft', 'expiryDate'],
+  },
+  'payment-success': {
+    label: 'Payment Confirmation',
+    subject: '✅ StayXPulse Payment Confirmed · {{invoiceNumber}}',
+    heading: 'Your subscription is active',
+    intro:   '{{hotelName}}, thank you. Your payment succeeded and your {{planName}} ({{cycle}}) plan is now live.',
+    notice:  'Your GST tax invoice (PDF) is attached to this email for your records.',
+    placeholders: ['hotelName', 'planName', 'cycle', 'amount', 'invoiceNumber'],
+  },
+  'password-reset': {
+    label: 'Password Reset by Admin',
+    subject: '🔑 StayXPulse — Your password has been reset',
+    heading: 'Your password has been reset',
+    intro:   '{{hotelName}}, an administrator has reset the password for your StayXPulse account. Use the new credentials below to sign in.',
+    notice:  'Please change this password immediately after signing in.',
+    placeholders: ['hotelName', 'userId', 'email'],
+  },
+};
+
+// Resolve the editable pieces for a type: override → default → substituted.
+const editable = (type, ov, data) => {
+  const t = EDITABLE[type] || {};
+  const g = (k) => { const v = fill(ov && ov[k], data); return v != null ? v : fill(t[k], data); };
+  return { subject: g('subject'), heading: g('heading'), intro: g('intro'), notice: g('notice') };
+};
+const renderSubject = (type, ov, data) => editable(type, ov, data).subject || 'StayXPulse';
+
 // ── 1. Welcome Email ────────────────────────────────────────────────────────
-const welcomeTemplate = ({ hotelName, email, userId, password, trialEndDate }) =>
-  layout('Registration Successful', `
-    ${h1('Welcome to StayXPulse')}
+const welcomeTemplate = ({ hotelName, email, userId, password, trialEndDate, ov }) => {
+  const d = { hotelName, email, userId, trialEndDate: new Date(trialEndDate).toDateString() };
+  const e = editable('welcome', ov, d);
+  return layout('Registration Successful', `
+    ${h1(e.heading)}
     ${ornament}
-    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, your account is ready. Begin with a <strong style="color:${K.ivory};">14-day complimentary trial</strong> &mdash; no card required.`)}
+    ${para(e.intro)}
     ${para('Here are your sign-in credentials. Please keep them somewhere safe:')}
     ${detailCard([
       { label: 'Login URL', value: `<a href="${CLIENT_URL}/login" style="color:${K.goldLt};text-decoration:none;">${HOST}/login</a>` },
@@ -168,45 +242,54 @@ const welcomeTemplate = ({ hotelName, email, userId, password, trialEndDate }) =
       { label: 'Trial Ends',value: new Date(trialEndDate).toDateString() },
     ])}
     ${button(`${CLIENT_URL}/login`, 'Enter your dashboard')}
-    ${notice(`For your security, please change your password after your first sign-in. Your trial ends on <strong>${new Date(trialEndDate).toDateString()}</strong>.`, 'warn')}
+    ${e.notice ? notice(e.notice, 'warn') : ''}
   `, `Welcome to StayXPulse — your ${hotelName} account and trial are ready.`);
+};
 
 // ── 2. Forgot Password ──────────────────────────────────────────────────────
-const forgotPasswordTemplate = ({ name, resetUrl }) =>
-  layout('Account Security', `
-    ${h1('Reset your password')}
+const forgotPasswordTemplate = ({ name, resetUrl, ov }) => {
+  const e = editable('forgot-password', ov, { name });
+  return layout('Account Security', `
+    ${h1(e.heading)}
     ${ornament}
-    ${para(`Hi <strong style="color:${K.ivory};">${name}</strong>, we received a request to reset the password for your StayXPulse account. Choose a new one below.`)}
+    ${para(e.intro)}
     ${button(resetUrl, 'Reset my password')}
-    ${notice(`This link expires in <strong>1 hour</strong>. If you didn&rsquo;t request a reset, you can safely ignore this email &mdash; your password won&rsquo;t change.`, 'warn')}
+    ${e.notice ? notice(e.notice, 'warn') : ''}
   `, 'Reset your StayXPulse password (link valid for 1 hour).');
+};
 
 // ── 3. Trial Reminder ───────────────────────────────────────────────────────
-const trialReminderTemplate = ({ hotelName, daysLeft, trialEndDate }) =>
-  layout(`Trial ending ${daysLeft <= 1 ? 'tomorrow' : `in ${daysLeft} days`}`, `
-    ${h1('Your free trial is ending soon')}
+const trialReminderTemplate = ({ hotelName, daysLeft, trialEndDate, ov }) => {
+  const e = editable('trial-reminder', ov, { hotelName, daysLeft, trialEndDate: new Date(trialEndDate).toDateString() });
+  return layout(`Trial ending ${daysLeft <= 1 ? 'tomorrow' : `in ${daysLeft} days`}`, `
+    ${h1(e.heading)}
     ${ornament}
-    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, your StayXPulse trial ends on <strong style="color:${K.ivory};">${new Date(trialEndDate).toDateString()}</strong>. Upgrade now to keep uninterrupted access to your rooms, QR codes, menu and order history.`)}
+    ${para(e.intro)}
     ${button(`${CLIENT_URL}/hotel/upgrade`, 'View plans & upgrade')}
+    ${e.notice ? notice(e.notice, 'warn') : ''}
   `, `Your StayXPulse trial ends ${new Date(trialEndDate).toDateString()}.`);
+};
 
 // ── 4. Subscription Expiry Reminder ─────────────────────────────────────────
-const expiryReminderTemplate = ({ hotelName, planName, daysLeft, expiryDate }) =>
-  layout(`Subscription expiring ${daysLeft <= 1 ? 'tomorrow' : `in ${daysLeft} days`}`, `
-    ${h1('Your subscription is expiring')}
+const expiryReminderTemplate = ({ hotelName, planName, daysLeft, expiryDate, ov }) => {
+  const e = editable('expiry-reminder', ov, { hotelName, planName, daysLeft, expiryDate: new Date(expiryDate).toDateString() });
+  return layout(`Subscription expiring ${daysLeft <= 1 ? 'tomorrow' : `in ${daysLeft} days`}`, `
+    ${h1(e.heading)}
     ${ornament}
-    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, your <strong style="color:${K.ivory};">${planName}</strong> subscription expires on <strong style="color:${K.ivory};">${new Date(expiryDate).toDateString()}</strong>. Renew now to avoid any interruption to your guests&rsquo; service.`)}
+    ${para(e.intro)}
     ${button(`${CLIENT_URL}/hotel/upgrade`, 'Renew subscription')}
-    ${notice(`Renew before it lapses to keep your rooms, menu and orders live without a break.`, daysLeft <= 2 ? 'danger' : 'warn')}
+    ${e.notice ? notice(e.notice, daysLeft <= 2 ? 'danger' : 'warn') : ''}
   `, `Your ${planName} plan expires ${new Date(expiryDate).toDateString()}.`);
+};
 
 // ── 5. Payment Success ──────────────────────────────────────────────────────
-const paymentSuccessTemplate = ({ hotelName, planName, cycle, amount, invoiceNumber, paymentId, validFrom, validTo }) => {
+const paymentSuccessTemplate = ({ hotelName, planName, cycle, amount, invoiceNumber, paymentId, validFrom, validTo, ov }) => {
   const Cyc = cycle.charAt(0).toUpperCase() + cycle.slice(1);
+  const e = editable('payment-success', ov, { hotelName, planName, cycle: Cyc, amount: Number(amount).toLocaleString('en-IN'), invoiceNumber });
   return layout('Payment Confirmed', `
-    ${h1('Your subscription is active')}
+    ${h1(e.heading)}
     ${ornament}
-    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, thank you. Your payment succeeded and your <strong style="color:${K.ivory};">${planName} (${Cyc})</strong> plan is now live.`)}
+    ${para(e.intro)}
     ${detailCard([
       { label: 'Plan',        value: `${planName} — ${Cyc}` },
       { label: 'Amount Paid', value: `&#8377;${Number(amount).toLocaleString('en-IN')}` },
@@ -216,16 +299,17 @@ const paymentSuccessTemplate = ({ hotelName, planName, cycle, amount, invoiceNum
       { label: 'Valid To',    value: new Date(validTo).toDateString() },
     ])}
     ${button(`${CLIENT_URL}/hotel/dashboard`, 'Go to dashboard')}
-    ${notice('Your GST tax invoice (PDF) is attached to this email for your records.', 'success')}
+    ${e.notice ? notice(e.notice, 'success') : ''}
   `, `Payment confirmed — ${planName} plan active. Invoice ${invoiceNumber}.`);
 };
 
 // ── 6. Password Reset by Admin ──────────────────────────────────────────────
-const passwordResetByAdminTemplate = ({ hotelName, userId, email, newPassword }) =>
-  layout('Account Security', `
-    ${h1('Your password has been reset')}
+const passwordResetByAdminTemplate = ({ hotelName, userId, email, newPassword, ov }) => {
+  const e = editable('password-reset', ov, { hotelName, userId, email });
+  return layout('Account Security', `
+    ${h1(e.heading)}
     ${ornament}
-    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, an administrator has reset the password for your StayXPulse account. Use the new credentials below to sign in.`)}
+    ${para(e.intro)}
     ${detailCard([
       { label: 'Login URL',    value: `<a href="${CLIENT_URL}/login" style="color:${K.goldLt};text-decoration:none;">${HOST}/login</a>` },
       { label: 'User ID',      value: userId, mono: true },
@@ -233,8 +317,9 @@ const passwordResetByAdminTemplate = ({ hotelName, userId, email, newPassword })
       { label: 'New Password', value: newPassword, mono: true },
     ])}
     ${button(`${CLIENT_URL}/login`, 'Sign in now')}
-    ${notice('Please change this password immediately after signing in.', 'warn')}
+    ${e.notice ? notice(e.notice, 'warn') : ''}
   `, 'Your StayXPulse password has been reset.');
+};
 
 // ── 7. New App Version Available ────────────────────────────────────────────
 const bulletList = (items) => (items && items.length) ? `
@@ -265,4 +350,6 @@ module.exports = {
   paymentSuccessTemplate,
   passwordResetByAdminTemplate,
   appUpdateTemplate,
+  EDITABLE,
+  renderSubject,
 };

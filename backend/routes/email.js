@@ -11,7 +11,29 @@ const {
   sendPasswordResetByAdminEmail,
 } = require('../utils/email');
 
+const { listTemplates, saveOverride, resetOverride } = require('../utils/emailOverrides');
+
 const SA = [protect, authorize('superadmin')];
+
+// ── Editable email content ─────────────────────────────────────────────────────
+router.get('/templates', SA, async (req, res) => {
+  try { res.json({ success: true, data: await listTemplates() }); }
+  catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.put('/templates/:type', SA, async (req, res) => {
+  try {
+    await saveOverride(req.params.type, req.body || {});
+    res.json({ success: true, message: 'Email content saved' });
+  } catch (e) { res.status(400).json({ success: false, message: e.message }); }
+});
+
+router.delete('/templates/:type', SA, async (req, res) => {
+  try {
+    await resetOverride(req.params.type);
+    res.json({ success: true, message: 'Reset to default' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
 
 // ── GET email status ───────────────────────────────────────────────────────────
 router.get('/status', SA, async (req, res) => {

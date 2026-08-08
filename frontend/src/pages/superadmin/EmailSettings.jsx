@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
-import { PageHeader, Card, Spinner } from '../../components/shared/UI';
+import { PageHeader, Card, Spinner, Modal } from '../../components/shared/UI';
 import '../../components/shared/UI.css';
 
 const EMAIL_TYPES = [
@@ -27,6 +27,41 @@ const EmailSettings = () => {
   const [testTo,   setTestTo]   = useState('');
   const [sending,  setSending]  = useState(null);
   const [results,  setResults]  = useState({});
+
+  // Editable email content
+  const [templates, setTemplates] = useState([]);
+  const [editTpl,   setEditTpl]   = useState(null);   // the template object being edited
+  const [editForm,  setEditForm]  = useState({ subject: '', heading: '', intro: '', notice: '' });
+  const [savingTpl, setSavingTpl] = useState(false);
+
+  const loadTemplates = async () => {
+    try { const r = await api.get('/email/templates'); setTemplates(r.data.data || []); } catch { /* silent */ }
+  };
+  const openEdit = (type) => {
+    const t = templates.find(x => x.type === type);
+    if (!t) { toast.error('Template not loaded yet'); return; }
+    setEditForm({ ...t.current });
+    setEditTpl(t);
+  };
+  const saveTpl = async () => {
+    setSavingTpl(true);
+    try {
+      await api.put(`/email/templates/${editTpl.type}`, editForm);
+      toast.success('Email content saved');
+      setEditTpl(null);
+      loadTemplates();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to save'); }
+    finally { setSavingTpl(false); }
+  };
+  const resetTpl = async () => {
+    if (!window.confirm('Reset this email to its default wording?')) return;
+    try {
+      await api.delete(`/email/templates/${editTpl.type}`);
+      toast.success('Reset to default');
+      setEditTpl(null);
+      loadTemplates();
+    } catch { toast.error('Failed to reset'); }
+  };
 
   // App-update broadcast
   const [appVersion,    setAppVersion]    = useState('');
@@ -59,7 +94,7 @@ const EmailSettings = () => {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadStatus(); }, []);
+  useEffect(() => { loadStatus(); loadTemplates(); }, []);
 
   const sendTest = async (type) => {
     if (!testTo.trim()) { toast.error('Enter a test email address first'); return; }
@@ -226,9 +261,10 @@ const EmailSettings = () => {
           {EMAIL_TYPES.map(et => {
             const result = results[et.key];
             const busy   = sending === et.key;
+            const tpl    = templates.find(t => t.type === et.key);
             return (
               <div key={et.key} style={{
-                display: 'flex', alignItems: 'center', gap: 14,
+                display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
                 padding: '14px 16px',
                 background: result ? (result.success ? 'var(--success-light)' : 'var(--danger-light)') : 'var(--gray-50)',
                 borderRadius: 10, border: '1px solid',
@@ -236,12 +272,27 @@ const EmailSettings = () => {
                 transition: 'all 0.2s',
               }}>
                 <span style={{ fontSize: 22, flexShrink: 0 }}>{et.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--gray-900)' }}>{et.label}</div>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--gray-900)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {et.label}
+                    {tpl?.customized && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#92600A', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 20, padding: '2px 8px', letterSpacing: '0.3px' }}>
+                        ✎ CUSTOMIZED
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
                     {result ? result.message : et.desc}
                   </div>
                 </div>
+                <button
+                  className="btn btn-sm btn-outline"
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                  onClick={() => openEdit(et.key)}
+                  disabled={!templates.length}
+                >
+                  ✏️ Edit content
+                </button>
                 <button
                   className="btn btn-sm btn-outline"
                   style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
@@ -255,6 +306,62 @@ const EmailSettings = () => {
           })}
         </div>
       </Card>
+
+      {editTpl && (
+        <Modal open onClose={() => setEditTpl(null)} title={`✏️ Edit — ${editTpl.label}`} width={640}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--gray-500)', background: 'var(--gray-50)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', lineHeight: 1.5 }}>
+              Edit the wording guests see. Leave a field blank to fall back to the built-in default.
+              {editTpl.placeholders?.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <span style={{ fontWeight: 700, color: 'var(--gray-600)' }}>Available placeholders</span>
+                  {' '}(inserted automatically):
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    {editTpl.placeholders.map(p => (
+                      <code key={p} style={{ fontSize: 11, background: '#EEF2FF', color: '#3730A3', border: '1px solid #C7D2FE', borderRadius: 6, padding: '2px 7px' }}>
+                        {`{{${p}}}`}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {[
+              { k: 'subject', label: 'Subject line',    rows: 1, hint: 'The email subject' },
+              { k: 'heading', label: 'Heading',         rows: 1, hint: 'Big title inside the email' },
+              { k: 'intro',   label: 'Intro message',   rows: 3, hint: 'Opening line(s) of the body' },
+              { k: 'notice',  label: 'Notice / callout', rows: 2, hint: 'Highlighted note (optional)' },
+            ].map(f => (
+              <div key={f.k}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray-700)', marginBottom: 5 }}>
+                  {f.label} <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>— {f.hint}</span>
+                </label>
+                <textarea
+                  className="input"
+                  rows={f.rows}
+                  value={editForm[f.k] || ''}
+                  onChange={e => setEditForm(s => ({ ...s, [f.k]: e.target.value }))}
+                  placeholder={editTpl.defaults[f.k] || '(not used for this email)'}
+                  style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+                />
+              </div>
+            ))}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
+              <button className="btn btn-sm btn-outline" onClick={resetTpl} style={{ color: 'var(--danger)' }}>
+                ↺ Reset to default
+              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-outline" onClick={() => setEditTpl(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveTpl} disabled={savingTpl}>
+                  {savingTpl ? 'Saving…' : '💾 Save changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

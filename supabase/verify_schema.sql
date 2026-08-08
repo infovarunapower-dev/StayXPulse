@@ -53,7 +53,10 @@ WITH expected(table_name, column_name) AS (VALUES
   ('app_versions','released_at'),('app_versions','created_at'),
   -- service_options (migration 011)
   ('service_options','hotel_id'),('service_options','icon'),('service_options','label'),
-  ('service_options','sort_order'),('service_options','is_active'),('service_options','is_default'),('service_options','created_at')
+  ('service_options','sort_order'),('service_options','is_active'),('service_options','is_default'),('service_options','created_at'),
+  -- email_templates (migration 013)
+  ('email_templates','type'),('email_templates','subject'),('email_templates','heading'),
+  ('email_templates','intro'),('email_templates','notice'),('email_templates','updated_at')
 )
 SELECT e.table_name, e.column_name AS missing_column
 FROM expected e

@@ -7,56 +7,71 @@ const {
   paymentSuccessTemplate,
   passwordResetByAdminTemplate,
   appUpdateTemplate,
+  renderSubject,
 } = require('./templates');
+const { getOverride } = require('./emailOverrides');
 
 // ── 1. Welcome email after hotel registration ──────────────────────────────────
-const sendWelcomeEmail = ({ hotelName, email, userId, password, trialEndDate }) =>
-  sendEmail({
+const sendWelcomeEmail = async ({ hotelName, email, userId, password, trialEndDate }) => {
+  const ov = await getOverride('welcome');
+  const data = { hotelName, userId, email, trialEndDate: new Date(trialEndDate).toDateString() };
+  return sendEmail({
     to:      email,
-    subject: `🎉 Welcome to StayXPulse — Your Login Credentials`,
-    html:    welcomeTemplate({ hotelName, email, userId, password, trialEndDate }),
+    subject: renderSubject('welcome', ov, data),
+    html:    welcomeTemplate({ hotelName, email, userId, password, trialEndDate, ov }),
   });
+};
 
 // ── 2. Forgot password ─────────────────────────────────────────────────────────
-const sendForgotPasswordEmail = ({ email, name, resetUrl }) =>
-  sendEmail({
+const sendForgotPasswordEmail = async ({ email, name, resetUrl }) => {
+  const ov = await getOverride('forgot-password');
+  return sendEmail({
     to:      email,
-    subject: `🔒 StayXPulse — Password Reset Request`,
-    html:    forgotPasswordTemplate({ name, resetUrl }),
+    subject: renderSubject('forgot-password', ov, { name }),
+    html:    forgotPasswordTemplate({ name, resetUrl, ov }),
   });
+};
 
 // ── 3. Trial reminder ──────────────────────────────────────────────────────────
-const sendTrialReminderEmail = ({ hotelName, email, daysLeft, trialEndDate }) =>
-  sendEmail({
+const sendTrialReminderEmail = async ({ hotelName, email, daysLeft, trialEndDate }) => {
+  const ov = await getOverride('trial-reminder');
+  return sendEmail({
     to:      email,
-    subject: `⏰ StayXPulse — Your free trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
-    html:    trialReminderTemplate({ hotelName, daysLeft, trialEndDate }),
+    subject: renderSubject('trial-reminder', ov, { hotelName, daysLeft, trialEndDate: new Date(trialEndDate).toDateString() }),
+    html:    trialReminderTemplate({ hotelName, daysLeft, trialEndDate, ov }),
   });
+};
 
 // ── 4. Subscription expiry reminder ───────────────────────────────────────────
-const sendExpiryReminderEmail = ({ hotelName, email, planName, daysLeft, expiryDate }) =>
-  sendEmail({
+const sendExpiryReminderEmail = async ({ hotelName, email, planName, daysLeft, expiryDate }) => {
+  const ov = await getOverride('expiry-reminder');
+  return sendEmail({
     to:      email,
-    subject: `⚠️ StayXPulse — Subscription expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
-    html:    expiryReminderTemplate({ hotelName, planName, daysLeft, expiryDate }),
+    subject: renderSubject('expiry-reminder', ov, { hotelName, planName, daysLeft, expiryDate: new Date(expiryDate).toDateString() }),
+    html:    expiryReminderTemplate({ hotelName, planName, daysLeft, expiryDate, ov }),
   });
+};
 
 // ── 5. Payment success + invoice ───────────────────────────────────────────────
-const sendPaymentSuccessEmail = ({ hotelName, email, plan, cycle, amount, invoiceNumber, validFrom, validTo, paymentId, pdfBuffer }) =>
-  sendEmail({
+const sendPaymentSuccessEmail = async ({ hotelName, email, plan, cycle, amount, invoiceNumber, validFrom, validTo, paymentId, pdfBuffer }) => {
+  const ov = await getOverride('payment-success');
+  return sendEmail({
     to:          email,
-    subject:     `✅ StayXPulse Payment Confirmed · ${invoiceNumber}`,
-    html:        paymentSuccessTemplate({ hotelName, planName: plan, cycle, amount, invoiceNumber, paymentId, validFrom, validTo }),
+    subject:     renderSubject('payment-success', ov, { hotelName, planName: plan, cycle, amount: Number(amount).toLocaleString('en-IN'), invoiceNumber }),
+    html:        paymentSuccessTemplate({ hotelName, planName: plan, cycle, amount, invoiceNumber, paymentId, validFrom, validTo, ov }),
     attachments: pdfBuffer ? [{ filename: `Invoice_${invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }] : [],
   });
+};
 
 // ── 6. Password reset by admin ─────────────────────────────────────────────────
-const sendPasswordResetByAdminEmail = ({ hotelName, email, userId, newPassword }) =>
-  sendEmail({
+const sendPasswordResetByAdminEmail = async ({ hotelName, email, userId, newPassword }) => {
+  const ov = await getOverride('password-reset');
+  return sendEmail({
     to:      email,
-    subject: `🔑 StayXPulse — Your password has been reset`,
-    html:    passwordResetByAdminTemplate({ hotelName, userId, email, newPassword }),
+    subject: renderSubject('password-reset', ov, { hotelName, userId, email }),
+    html:    passwordResetByAdminTemplate({ hotelName, userId, email, newPassword, ov }),
   });
+};
 
 // ── 7. New app version available ───────────────────────────────────────────────
 const sendAppUpdateEmail = ({ hotelName, email, version, downloadUrl, notes }) =>
