@@ -5,24 +5,72 @@ import { PageHeader, Card, Spinner } from '../../components/shared/UI';
 
 const EMOJI_SUGGESTIONS = ['🛎','🩺','💆','💇','🧖','🏊','🍹','🚗','✈️','🎫','🧴','🍼','👶','🧊','🛍️','🎁','💧','🔧','🧼','👔','🚭','🩹','🌙','🧳','🚿','🧺','🐾','📶'];
 
+// One editable/toggleable row.
+const ServiceRow = ({ o, onToggle, onSave, onDelete }) => {
+  const [editing, setEditing] = useState(false);
+  const [icon,  setIcon]  = useState(o.icon);
+  const [label, setLabel] = useState(o.label);
+
+  const save = () => {
+    if (!label.trim()) { toast.error('Name cannot be empty'); return; }
+    onSave(o, { icon: icon.trim() || '🛎', label: label.trim() });
+    setEditing(false);
+  };
+  const cancel = () => { setIcon(o.icon); setLabel(o.label); setEditing(false); };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
+      background: o.is_active ? 'var(--gray-50)' : 'var(--gray-100)', border: '1px solid var(--border)', borderRadius: 10,
+      opacity: o.is_active ? 1 : 0.7 }}>
+      {editing ? (
+        <>
+          <input value={icon} maxLength={4} onChange={e => setIcon(e.target.value)}
+            style={{ width: 46, textAlign: 'center', fontSize: 18, padding: '6px', border: '1px solid var(--border)', borderRadius: 8 }} />
+          <input value={label} onChange={e => setLabel(e.target.value)} autoFocus
+            style={{ flex: 1, minWidth: 80, fontSize: 14, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8 }} />
+          <button className="btn btn-sm btn-brand" onClick={save}>Save</button>
+          <button className="btn btn-sm btn-outline" onClick={cancel}>Cancel</button>
+        </>
+      ) : (
+        <>
+          <span style={{ fontSize: 22 }}>{o.icon}</span>
+          <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>
+            {o.label} {!o.is_active && <span style={{ fontSize: 11, color: 'var(--gray-400)', fontWeight: 500 }}>· hidden</span>}
+          </span>
+          <label className="sw" title={o.is_active ? 'Available — tap to hide' : 'Hidden — tap to show'}>
+            <input type="checkbox" checked={o.is_active} onChange={e => onToggle(o, e.target.checked)} />
+            <span />
+          </label>
+          <button onClick={() => setEditing(true)} title="Edit"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 9px', fontSize: 14, cursor: 'pointer' }}>✏️</button>
+          {!o.is_default && (
+            <button onClick={() => onDelete(o)} title="Remove"
+              style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: 8, padding: '5px 9px', fontSize: 13, cursor: 'pointer' }}>🗑</button>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 const ServiceManagement = () => {
-  const [options,  setOptions]  = useState([]);   // hotel's EXTRA services
-  const [defaults, setDefaults] = useState([]);   // built-in, always shown (read-only)
-  const [loading,  setLoading]  = useState(true);
-  const [form,     setForm]     = useState({ icon: '🛎', label: '' });
-  const [saving,   setSaving]   = useState(false);
+  const [options, setOptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form,    setForm]    = useState({ icon: '🛎', label: '' });
+  const [saving,  setSaving]  = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get('/hotel/service-options');
       setOptions(r.data.data || []);
-      setDefaults(r.data.defaults || []);
     } catch { toast.error('Failed to load services'); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const patchLocal = (id, patch) => setOptions(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o));
 
   const addService = async (e) => {
     e.preventDefault();
@@ -37,22 +85,37 @@ const ServiceManagement = () => {
     finally { setSaving(false); }
   };
 
-  const del = async (o) => {
-    if (!window.confirm(`Remove "${o.label}" from the guest page?`)) return;
+  const onToggle = async (o, active) => {
+    patchLocal(o.id, { is_active: active });   // optimistic
+    try { await api.patch(`/hotel/service-options/${o.id}`, { is_active: active }); }
+    catch { patchLocal(o.id, { is_active: !active }); toast.error('Failed to update'); }
+  };
+
+  const onSave = async (o, { icon, label }) => {
+    patchLocal(o.id, { icon, label });         // optimistic
+    try { await api.patch(`/hotel/service-options/${o.id}`, { icon, label }); toast.success('Saved'); }
+    catch { toast.error('Failed to save'); load(); }
+  };
+
+  const onDelete = async (o) => {
+    if (!window.confirm(`Remove "${o.label}"?`)) return;
     try { await api.delete(`/hotel/service-options/${o.id}`); toast.success('Removed'); load(); }
     catch { toast.error('Failed to remove'); }
   };
+
+  const standards = options.filter(o => o.is_default);
+  const extras    = options.filter(o => !o.is_default);
 
   return (
     <div>
       <PageHeader
         title="Service Management"
-        subtitle="Add your own extra Room-Service options — guests always see the standard services, plus these"
+        subtitle="Turn services on/off, edit them, and add your own — this is exactly what guests see on the QR page"
       />
 
       {/* Add form */}
       <Card style={{ marginBottom: 20 }}>
-        <div className="card-title" style={{ marginBottom: 14 }}>Add an extra service</div>
+        <div className="card-title" style={{ marginBottom: 14 }}>Add a service</div>
         <form onSubmit={addService}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ width: 90 }}>
@@ -86,43 +149,31 @@ const ServiceManagement = () => {
 
       {loading ? <Spinner /> : (
         <>
-          {/* Your extra services */}
+          {/* Standard services */}
           <Card style={{ marginBottom: 20 }}>
-            <div className="card-title" style={{ marginBottom: 14 }}>
-              Your extra services {options.length > 0 && <span style={{ color: 'var(--gray-400)', fontWeight: 400 }}>· {options.length}</span>}
+            <div className="card-title" style={{ marginBottom: 4 }}>Standard services</div>
+            <div style={{ fontSize: 13, color: 'var(--gray-400)', marginBottom: 14 }}>
+              The built-in options. Toggle to show/hide on the guest page, or edit the name/icon. Naming one <strong>Wake-up Call</strong> or <strong>Cab Request</strong> keeps its special pop-up.
             </div>
-            {options.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '26px 16px', color: 'var(--gray-400)', fontSize: 13.5, lineHeight: 1.6 }}>
-                No extra services yet. Add your own above — they'll appear on the guest page <strong>alongside</strong> the standard services below.
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 10 }}>
-                {options.map(o => (
-                  <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--gray-50)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                    <span style={{ fontSize: 22 }}>{o.icon}</span>
-                    <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{o.label}</span>
-                    <button onClick={() => del(o)} title="Remove"
-                      style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: 8, padding: '5px 9px', fontSize: 13, cursor: 'pointer' }}>🗑</button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ display: 'grid', gap: 8 }}>
+              {standards.map(o => <ServiceRow key={o.id} o={o} onToggle={onToggle} onSave={onSave} onDelete={onDelete} />)}
+            </div>
           </Card>
 
-          {/* Built-in defaults (always shown, read-only) */}
+          {/* Extra services */}
           <Card>
-            <div className="card-title" style={{ marginBottom: 4 }}>Standard services <span style={{ color: 'var(--gray-400)', fontWeight: 400 }}>· always shown</span></div>
-            <div style={{ fontSize: 13, color: 'var(--gray-400)', marginBottom: 14 }}>Every guest always sees these built-in options. Your extra services appear after them.</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {defaults.map((d, i) => (
-                <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 12px', background: 'var(--gray-50)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 13, fontWeight: 600, color: 'var(--gray-700)' }}>
-                  <span style={{ fontSize: 15 }}>{d.icon}</span> {d.label}
-                </span>
-              ))}
+            <div className="card-title" style={{ marginBottom: 4 }}>
+              Your extra services {extras.length > 0 && <span style={{ color: 'var(--gray-400)', fontWeight: 400 }}>· {extras.length}</span>}
             </div>
-            <div style={{ marginTop: 16, background: 'var(--brand-light)', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: 'var(--brand)', lineHeight: 1.6 }}>
-              💡 Extra services appear on the guest QR page instantly. Naming one <strong>Wake-up Call</strong> or <strong>Cab Request</strong> gives it the special time / pickup pop-up; any other name submits as a normal request.
-            </div>
+            {extras.length === 0 ? (
+              <div style={{ fontSize: 13.5, color: 'var(--gray-400)', padding: '10px 0 4px' }}>
+                No extra services yet — add your own above.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                {extras.map(o => <ServiceRow key={o.id} o={o} onToggle={onToggle} onSave={onSave} onDelete={onDelete} />)}
+              </div>
+            )}
           </Card>
         </>
       )}

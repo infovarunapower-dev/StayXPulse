@@ -151,12 +151,36 @@ router.post('/rooms/:id/clear-guest', MW, async (req, res) => {
 // ════════════════════════════════════════════════════════════════════
 router.get('/service-options', MW, async (req, res) => {
   try {
+    // First visit: seed the standard defaults (is_default = true) so the hotel
+    // can toggle Available/Not-available and edit them.
+    const { count } = await supabase.from('service_options')
+      .select('*', { count: 'exact', head: true }).eq('hotel_id', req.hotelId).eq('is_default', true);
+    if (!count) {
+      const rows = require('../utils/defaultServices').map((s, i) => ({
+        hotel_id: req.hotelId, icon: s.icon, label: s.label, sort_order: i, is_default: true, is_active: true,
+      }));
+      await supabase.from('service_options').insert(rows);
+    }
     const { data, error } = await supabase.from('service_options')
       .select('*').eq('hotel_id', req.hotelId)
-      .order('sort_order', { ascending: true }).order('created_at', { ascending: true });
+      .order('is_default', { ascending: false }).order('sort_order', { ascending: true }).order('created_at', { ascending: true });
     if (error) throw error;
-    // Also hand back the defaults so the UI can offer "load defaults".
-    res.json({ success: true, data: data || [], defaults: require('../utils/defaultServices') });
+    res.json({ success: true, data: data || [] });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Edit a service (icon/label) or toggle its availability.
+router.patch('/service-options/:id', MW, async (req, res) => {
+  try {
+    const update = {};
+    if (typeof req.body.is_active === 'boolean') update.is_active = req.body.is_active;
+    if (typeof req.body.label === 'string' && req.body.label.trim()) update.label = req.body.label.trim().slice(0, 60);
+    if (typeof req.body.icon === 'string') update.icon = (req.body.icon.trim().slice(0, 8)) || '🛎';
+    if (Object.keys(update).length === 0) return res.status(400).json({ success: false, message: 'Nothing to update' });
+    const { data, error } = await supabase.from('service_options')
+      .update(update).eq('id', req.params.id).eq('hotel_id', req.hotelId).select().single();
+    if (error) throw error;
+    res.json({ success: true, data });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -683,12 +707,22 @@ router.get('/guest/:qrToken', async (req, res) => {
       menu[item.category].push(item);
     });
 
-    // Room-service options: the built-in defaults are ALWAYS shown; the hotel's
-    // own extra services are appended after them.
-    const { data: svc } = await supabase.from('service_options')
-      .select('icon, label').eq('hotel_id', hotel.id).eq('is_active', true)
-      .order('sort_order', { ascending: true }).order('created_at', { ascending: true });
-    const serviceOptions = [...require('../utils/defaultServices'), ...(svc || [])];
+    // Room-service options:
+    //  • hotel manages its own list (has seeded the standard set) → show exactly
+    //    its ACTIVE options;
+    //  • hotel only added extras (legacy) → built-in defaults + its active extras;
+    //  • hotel never touched it → built-in defaults.
+    const { data: allSvc } = await supabase.from('service_options')
+      .select('icon, label, is_active, is_default').eq('hotel_id', hotel.id)
+      .order('is_default', { ascending: false }).order('sort_order', { ascending: true }).order('created_at', { ascending: true });
+    const defaults = require('../utils/defaultServices');
+    let serviceOptions;
+    if (!allSvc || allSvc.length === 0) {
+      serviceOptions = defaults;
+    } else {
+      const active = allSvc.filter(r => r.is_active).map(r => ({ icon: r.icon, label: r.label }));
+      serviceOptions = allSvc.some(r => r.is_default) ? active : [...defaults, ...active];
+    }
 
     res.json({ success: true, data: { hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type }, menu, serviceOptions } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
