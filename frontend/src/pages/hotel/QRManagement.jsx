@@ -144,10 +144,13 @@ const QRCard = ({ room, hotel, onDelete, onView }) => {
     ctx.font = '13px Arial';
     ctx.fillText('Point your phone camera at the code above', cx, qrY + qrSize + 78);
 
-    // Footer
+    // Footer — product line + full legal company name
     ctx.fillStyle = '#0F766E';
     ctx.font = 'bold 12px Arial';
-    ctx.fillText('Powered by StayXPulse', cx, H - 26);
+    ctx.fillText('Powered by StayXPulse', cx, H - 40);
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '11px Arial';
+    ctx.fillText('A product of Sunver Coresynergy Solutions Pvt Ltd', cx, H - 22);
 
     const fileName = `QR_Room_${room.number}_${(hotel?.hotelName || 'Hotel').replace(/[^a-z0-9]/gi, '_')}.png`;
     const dataUrl  = canvas.toDataURL('image/png');
