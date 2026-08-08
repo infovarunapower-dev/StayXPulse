@@ -214,7 +214,6 @@ const generateOrderRecordPDF = ({ payment, hotel = {}, plan = {}, order = null, 
       row('Account phone', NR(hotel.phone));
       row('User ID', NR(hotel.user_id));
       row('Account created', U(user?.created_at || hotel.created_at));
-      row('Email verified', '— (not recorded for this account)');
       row('Billing name', NR(hotel.hotel_name));
       row('Billing address', NR(hotel.address));
       y += 6;
