@@ -37,7 +37,8 @@ const generateInvoicePDF = ({ invoice, hotel, plan, cycle, amount, validFrom, va
       const cyc  = (cycle || 'monthly');
 
       // ── Header: logo (left) + company block (right) ──
-      drawLogo(doc, L, 50, 64);
+      // Square company lockup — keep it compact so it clears the INVOICE title below.
+      drawLogo(doc, L, 46, 86);
       const cX = 330, cW = R - cX;
       doc.fillColor(INK).font('Helvetica-Bold').fontSize(11).text(SELLER.name, cX, 50, { width: cW });
       doc.fillColor(GRAY).font('Helvetica').fontSize(8.5);
