@@ -449,6 +449,55 @@ router.post('/notify-app-update', SA, async (req, res) => {
   }
 });
 
+// ─── FULL HOTEL DRILL-DOWN (profile + all payments + activity) ────────────────
+router.get('/hotels/:id/details', SA, async (req, res) => {
+  try {
+    const { data: hotel, error } = await supabase.from('hotels').select('*').eq('id', req.params.id).single();
+    if (error || !hotel) return res.status(404).json({ success: false, message: 'Hotel not found' });
+
+    const [
+      { data: plan },
+      { data: account },
+      { data: payments },
+      { count: rooms },
+      { count: foodOrders },
+      { count: serviceRequests },
+    ] = await Promise.all([
+      hotel.current_plan_id
+        ? supabase.from('plans').select('name, price').eq('id', hotel.current_plan_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase.from('users').select('name, email, last_login, created_at').eq('hotel_id', hotel.id).eq('role', 'hoteladmin').maybeSingle(),
+      supabase.from('payments').select('*, plans(name)').eq('hotel_id', hotel.id).order('paid_at', { ascending: false }),
+      supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('hotel_id', hotel.id),
+      supabase.from('food_orders').select('*', { count: 'exact', head: true }).eq('hotel_id', hotel.id),
+      supabase.from('service_requests').select('*', { count: 'exact', head: true }).eq('hotel_id', hotel.id),
+    ]);
+
+    const pays = payments || [];
+    const totalPaid = pays.reduce((s, p) => s + (p.amount || 0), 0);
+
+    res.json({
+      success: true,
+      data: {
+        hotel: {
+          id: hotel.id, hotelName: hotel.hotel_name, email: hotel.email, phone: hotel.phone,
+          address: hotel.address, gstNumber: hotel.gst_number, userId: hotel.user_id,
+          logoUrl: hotel.logo_url, isActive: hotel.is_active, subscriptionStatus: hotel.subscription_status,
+          currentPlan: plan?.name || null, planValidFrom: hotel.plan_valid_from, planValidTo: hotel.plan_valid_to,
+          trialStartDate: hotel.trial_start_date, trialEndDate: hotel.trial_end_date, createdAt: hotel.created_at,
+        },
+        account: account || null,
+        payments: pays.map(p => ({
+          id: p.id, invoiceNumber: p.invoice_number, amount: p.amount, planName: p.plans?.name || null,
+          validFrom: p.valid_from, validTo: p.valid_to, paidAt: p.paid_at,
+          paymentId: p.payment_id, gateway: p.gateway, txnid: p.txnid,
+        })),
+        stats: { rooms: rooms || 0, foodOrders: foodOrders || 0, serviceRequests: serviceRequests || 0, totalPaid, paymentCount: pays.length },
+      },
+    });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // ─── ANDROID APK VERSION HISTORY ──────────────────────────────────────────────
 const CURRENT_APP = require('../appVersion');
 

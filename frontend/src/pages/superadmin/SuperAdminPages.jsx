@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { useFetch } from '../../utils/hooks';
-import { PageHeader, Badge, Card, Table, Spinner, TableSkeleton, StatCard, BarChart } from '../../components/shared/UI';
+import { PageHeader, Badge, Card, Table, Spinner, TableSkeleton, StatCard, BarChart, Modal } from '../../components/shared/UI';
 import '../../components/shared/UI.css';
 
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
@@ -149,6 +149,19 @@ export const PaymentHistory = () => {
   const payments = data?.data || [];
   const [exporting, setExporting] = useState(false);
 
+  // Hotel drill-down modal
+  const [viewId,   setViewId]   = useState(null);
+  const [details,  setDetails]  = useState(null);
+  const [dLoading, setDLoading] = useState(false);
+
+  const openHotel = async (hotelId) => {
+    if (!hotelId) return;
+    setViewId(hotelId); setDetails(null); setDLoading(true);
+    try { const r = await api.get(`/superadmin/hotels/${hotelId}/details`); setDetails(r.data.data); }
+    catch { toast.error('Failed to load hotel details'); }
+    finally { setDLoading(false); }
+  };
+
   const downloadRegister = async () => {
     setExporting(true);
     const t = toast.loading('Building GST register…');
@@ -183,7 +196,12 @@ export const PaymentHistory = () => {
   };
 
   const columns = [
-    { label:'Hotel',      sort: r => r.hotel?.hotelName, render: r => <strong>{r.hotel?.hotelName}</strong> },
+    { label:'Hotel',      sort: r => r.hotel?.hotelName, render: r => (
+      <button onClick={() => openHotel(r.hotel_id)} title="View full hotel details"
+        style={{ background:'none', border:'none', padding:0, cursor:'pointer', color:'var(--brand)', fontWeight:700, textAlign:'left', textDecoration:'underline', textUnderlineOffset:'2px' }}>
+        {r.hotel?.hotelName}
+      </button>
+    ) },
     { label:'Email',      sort: r => r.hotel?.email, render: r => r.hotel?.email },
     { label:'Amount',     sort: r => r.amount, render: r => <strong style={{color:'var(--success)'}}>{fmtCur(r.amount)}</strong> },
     { label:'Plan',       render: r => <Badge status="active" label={r.plan?.name}/> },
@@ -206,6 +224,82 @@ export const PaymentHistory = () => {
         <StatCard icon="📅" label="This Month"        value={fmtCur(payments.filter(p=>{const d=new Date(p.paid_at);const n=new Date();return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}).reduce((a,p)=>a+p.amount,0))} color="amber" />
       </div>
       <Card>{loading ? <TableSkeleton cols={columns.length} /> : <Table columns={columns} data={payments} emptyMessage="No payments yet" pageSize={10} />}</Card>
+
+      {/* Full hotel drill-down */}
+      <Modal open={!!viewId} onClose={() => setViewId(null)} title={details?.hotel?.hotelName || 'Hotel details'} width={780}>
+        {(dLoading || !details) ? <div style={{ padding: '30px 0', textAlign: 'center' }}><Spinner /></div> : (
+          <div>
+            {/* Profile grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10, marginBottom: 18 }}>
+              {[
+                ['Status', <Badge status={details.hotel.subscriptionStatus} label={details.hotel.subscriptionStatus} />],
+                ['Current Plan', details.hotel.currentPlan || '—'],
+                ['Email', details.hotel.email],
+                ['Phone', details.hotel.phone || '—'],
+                ['GST Number', details.hotel.gstNumber || '— (unregistered)'],
+                ['User ID', details.hotel.userId],
+                ['Registered', fmtDate(details.hotel.createdAt)],
+                [details.hotel.subscriptionStatus === 'trial' ? 'Trial Ends' : 'Plan Valid To',
+                  fmtDate(details.hotel.subscriptionStatus === 'trial' ? details.hotel.trialEndDate : details.hotel.planValidTo)],
+                ['Address', details.hotel.address || '—'],
+              ].map(([k, v]) => (
+                <div key={k} style={{ background: 'var(--gray-50)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 10.5, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--gray-400)', fontWeight: 700, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--gray-800)', wordBreak: 'break-word' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Activity chips */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+              {[
+                ['Rooms', details.stats.rooms],
+                ['Food Orders', details.stats.foodOrders],
+                ['Service Requests', details.stats.serviceRequests],
+                ['Payments', details.stats.paymentCount],
+                ['Total Paid', fmtCur(details.stats.totalPaid)],
+              ].map(([k, v]) => (
+                <div key={k} style={{ background: 'var(--brand-light)', borderRadius: 8, padding: '8px 16px', minWidth: 86 }}>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--brand)' }}>{v}</div>
+                  <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>{k}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Payments */}
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Payments &amp; Invoices ({details.payments.length})</div>
+            {details.payments.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--gray-400)', padding: '8px 0' }}>No payments yet.</div>
+            ) : (
+              <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 620 }}>
+                  <thead><tr style={{ background: 'var(--gray-50)' }}>
+                    {['Invoice', 'Amount', 'Plan', 'Valid', 'Paid', 'Payment ID', ''].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--gray-400)', fontWeight: 700 }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {details.payments.map(p => (
+                      <tr key={p.id} style={{ borderTop: '1px solid var(--border)' }}>
+                        <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{p.invoiceNumber}</td>
+                        <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--success)' }}>{fmtCur(p.amount)}</td>
+                        <td style={{ padding: '8px 10px' }}>{p.planName || '—'}</td>
+                        <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{fmtDate(p.validFrom)} → {fmtDate(p.validTo)}</td>
+                        <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{fmtDate(p.paidAt)}</td>
+                        <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{p.paymentId}</td>
+                        <td style={{ padding: '8px 10px' }}>
+                          <button className="btn btn-sm btn-outline" style={{ whiteSpace: 'nowrap' }}
+                            onClick={() => downloadOrderRecord({ id: p.id, invoice_number: p.invoiceNumber })}>📄</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
