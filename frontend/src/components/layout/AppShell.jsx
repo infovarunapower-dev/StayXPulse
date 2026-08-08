@@ -10,6 +10,7 @@ const SuperAdminMenu = [
   { section: 'Overview', items: [
     { to: '/admin/dashboard',      icon: '📊', label: 'Dashboard'       },
     { to: '/admin/summary',        icon: '📈', label: 'Overall Summary' },
+    { to: '/admin/logs',           icon: '📜', label: 'Logs'            },
   ]},
   { section: 'Hotels', items: [
     { to: '/admin/hotels',         icon: '🏨', label: 'Hotel List'      },

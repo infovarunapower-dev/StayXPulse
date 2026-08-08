@@ -16,6 +16,7 @@ import SAHotelList from './pages/superadmin/HotelList';
 import { PaidHotels, PaymentHistory, ManagePlans, EmailReminders, OverallSummary } from './pages/superadmin/SuperAdminPages';
 import EmailSettings from './pages/superadmin/EmailSettings';
 import AndroidApp from './pages/superadmin/AndroidApp';
+import ActivityLogs from './pages/superadmin/ActivityLogs';
 
 import HotelDashboard  from './pages/hotel/HotelDashboard';
 import QRManagement    from './pages/hotel/QRManagement';
@@ -94,6 +95,7 @@ const App = () => (
 
         <Route path="/admin/dashboard"    element={<SA><SADashboard /></SA>} />
         <Route path="/admin/summary"      element={<SA><OverallSummary /></SA>} />
+        <Route path="/admin/logs"         element={<SA><ActivityLogs /></SA>} />
         <Route path="/admin/hotels"       element={<SA><SAHotelList /></SA>} />
         <Route path="/admin/paid-hotels"  element={<SA><PaidHotels /></SA>} />
         <Route path="/admin/payments"     element={<SA><PaymentHistory /></SA>} />

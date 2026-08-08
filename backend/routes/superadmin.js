@@ -653,4 +653,82 @@ router.post('/app-versions', SA, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// ─── ACTIVITY LOGS ────────────────────────────────────────────────────────────
+// A single chronological feed of everything recorded across StayXPulse:
+// registrations, logins, payments, checkout attempts, food orders, service
+// requests, room changes and app releases. There is no dedicated audit table,
+// so this stitches together every timestamped row into one stream. Read-only.
+router.get('/logs', SA, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 300, 1000);
+    const fromTs = req.query.from ? new Date(req.query.from).getTime() : null;
+    const toTs   = req.query.to   ? new Date(req.query.to).getTime()   : null;
+    const CAP = 400;   // per-source cap so one busy table can't crowd out the rest
+
+    const [hotels, payments, orders, foodOrders, serviceReqs, rooms, users, appVersions] = await Promise.all([
+      supabase.from('hotels').select('id, hotel_name, email, created_at').order('created_at', { ascending: false }).limit(CAP),
+      supabase.from('payments').select('id, amount, invoice_number, paid_at, gateway, hotels(hotel_name), plans(name)').order('paid_at', { ascending: false }).limit(CAP),
+      supabase.from('payment_orders').select('id, amount, status, txnid, initiated_at, paid_at, created_at, hotels(hotel_name), plans(name)').order('created_at', { ascending: false }).limit(CAP),
+      supabase.from('food_orders').select('id, room_number, items, total_amount, status, created_at, hotels(hotel_name)').order('created_at', { ascending: false }).limit(CAP),
+      supabase.from('service_requests').select('id, room_number, type, status, scheduled_for, created_at, hotels(hotel_name)').order('created_at', { ascending: false }).limit(CAP),
+      supabase.from('rooms').select('id, number, type, created_at, hotels(hotel_name)').order('created_at', { ascending: false }).limit(CAP),
+      supabase.from('users').select('name, email, role, last_login, hotels(hotel_name)').not('last_login', 'is', null).order('last_login', { ascending: false }).limit(CAP),
+      supabase.from('app_versions').select('version, notes, released_at').order('released_at', { ascending: false }).limit(50),
+    ]);
+
+    const events = [];
+    const add = (ts, category, icon, action, detail, hotel) => {
+      if (!ts) return;
+      events.push({ ts: new Date(ts).toISOString(), category, icon, action, detail: detail || '', hotel: hotel || null });
+    };
+    const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
+
+    (hotels.data || []).forEach(h =>
+      add(h.created_at, 'registration', '🏨', 'New hotel registered', h.email || '', h.hotel_name));
+
+    (payments.data || []).forEach(p =>
+      add(p.paid_at, 'payment', '💰', `Payment received · ${money(p.amount)}`,
+          [p.plans?.name, p.invoice_number, p.gateway].filter(Boolean).join(' · '), p.hotels?.hotel_name));
+
+    // Successful payments already come from the payments table above — from the
+    // order table we surface only failed/abandoned attempts so it isn't doubled.
+    (orders.data || []).filter(o => o.status !== 'paid').forEach(o => {
+      const failed = o.status === 'failed';
+      add(o.initiated_at || o.created_at, 'payment', failed ? '⚠️' : '🕓',
+          `Checkout ${failed ? 'failed' : 'started'} · ${money(o.amount)}`,
+          [o.plans?.name, o.txnid].filter(Boolean).join(' · '), o.hotels?.hotel_name);
+    });
+
+    (foodOrders.data || []).forEach(f => {
+      const n = Array.isArray(f.items) ? f.items.length : 0;
+      add(f.created_at, 'food', '🍽️', `Food order · Room ${f.room_number}`,
+          `${n} item${n === 1 ? '' : 's'} · ${money(f.total_amount)} · ${f.status || 'pending'}`, f.hotels?.hotel_name);
+    });
+
+    (serviceReqs.data || []).forEach(s =>
+      add(s.created_at, 'service', '🛎️', `Service request · Room ${s.room_number}`,
+          [s.type, s.status, s.scheduled_for ? `for ${new Date(s.scheduled_for).toLocaleString('en-IN')}` : null].filter(Boolean).join(' · '), s.hotels?.hotel_name));
+
+    (rooms.data || []).forEach(r =>
+      add(r.created_at, 'room', '🚪', `Room ${r.number} added`, r.type || '', r.hotels?.hotel_name));
+
+    (users.data || []).forEach(u =>
+      add(u.last_login, 'login', '🔑', `Login · ${u.role || 'user'}`, u.email || '', u.hotels?.hotel_name));
+
+    (appVersions.data || []).forEach(a =>
+      add(a.released_at, 'system', '📱', `App v${a.version} released`,
+          Array.isArray(a.notes) ? a.notes.join(' • ') : '', null));
+
+    let feed = events.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+    if (fromTs) feed = feed.filter(e => new Date(e.ts).getTime() >= fromTs);
+    if (toTs)   feed = feed.filter(e => new Date(e.ts).getTime() <= toTs);
+
+    // Per-category counts across the whole (date-filtered) feed, before the cap,
+    // so the filter chips show true totals.
+    const counts = feed.reduce((m, e) => (m[e.category] = (m[e.category] || 0) + 1, m), {});
+
+    res.json({ success: true, data: feed.slice(0, limit), counts, total: feed.length });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 module.exports = router;
