@@ -1,5 +1,5 @@
 // ─── Paid Hotels ─────────────────────────────────────────────────────────────
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
@@ -8,7 +8,25 @@ import { PageHeader, Badge, Card, Table, Spinner, TableSkeleton, StatCard, BarCh
 import '../../components/shared/UI.css';
 
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+const fmtDateTime = d => d ? new Date(d).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
 const fmtCur  = n => `₹${Number(n||0).toLocaleString('en-IN')}`;
+
+// Order-ledger status chips (label ↔ DB status) + coloured pill.
+const STATUS_CHIPS = [
+  { label:'All', value:'all' }, { label:'Pending', value:'created' }, { label:'Paid', value:'paid' },
+  { label:'Failed', value:'failed' }, { label:'Cancelled', value:'cancelled' }, { label:'Refunded', value:'refunded' },
+];
+const ORDER_STATUS = {
+  created:  { label:'Pending',   bg:'#FEF3C7', c:'#B45309' },
+  paid:     { label:'Paid',      bg:'#D1FAE5', c:'#065F46' },
+  failed:   { label:'Failed',    bg:'#FEE2E2', c:'#991B1B' },
+  cancelled:{ label:'Cancelled', bg:'#F3F4F6', c:'#374151' },
+  refunded: { label:'Refunded',  bg:'#DBEAFE', c:'#1D4ED8' },
+};
+const orderStatusPill = (s) => {
+  const m = ORDER_STATUS[s] || { label: s || '—', bg:'#F3F4F6', c:'#374151' };
+  return <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:m.bg, color:m.c, whiteSpace:'nowrap' }}>{m.label}</span>;
+};
 
 export const PaidHotels = () => {
   const { data, loading } = useFetch('/superadmin/paid-hotels');
@@ -177,6 +195,17 @@ export const PaymentHistory = () => {
     } finally { setZipping(false); }
   };
 
+  // Order ledger
+  const [orders, setOrders]             = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [orderStatus, setOrderStatus]   = useState('all');
+  const [viewOrder, setViewOrder]       = useState(null);
+  useEffect(() => {
+    setOrdersLoading(true);
+    api.get('/superadmin/orders').then(r => setOrders(r.data.data || [])).catch(() => {}).finally(() => setOrdersLoading(false));
+  }, []);
+  const filteredOrders = orderStatus === 'all' ? orders : orders.filter(o => o.status === orderStatus);
+
   // Hotel drill-down modal
   const [viewId,   setViewId]   = useState(null);
   const [details,  setDetails]  = useState(null);
@@ -293,6 +322,84 @@ export const PaymentHistory = () => {
         <StatCard icon="📅" label="This Month"        value={fmtCur(payments.filter(p=>{const d=new Date(p.paid_at);const n=new Date();return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}).reduce((a,p)=>a+p.amount,0))} color="amber" />
       </div>
       <Card>{loading ? <TableSkeleton cols={columns.length} /> : <Table columns={columns} data={payments} emptyMessage="No payments yet" pageSize={10} />}</Card>
+
+      {/* Order ledger — all checkout orders incl. pending/failed */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '22px 0 14px' }}>
+        {STATUS_CHIPS.map(c => (
+          <button key={c.value} className={`btn btn-sm ${orderStatus === c.value ? 'btn-brand' : 'btn-outline'}`} onClick={() => setOrderStatus(c.value)}>
+            {c.label}{c.value !== 'all' ? ` (${orders.filter(o => o.status === c.value).length})` : ''}
+          </button>
+        ))}
+      </div>
+      <Card>
+        <div className="card-title" style={{ marginBottom: 4 }}>💠 Order ledger</div>
+        <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 14 }}>Full order ledger incl. failed &amp; pending checkouts. Click a row for the complete record (IP &amp; consent timestamp).</div>
+        {ordersLoading ? <Spinner /> : (
+          <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 700 }}>
+              <thead><tr style={{ background: 'var(--gray-50)' }}>
+                {['Order', 'User', 'Plan', 'Amount', 'Supply', 'Status', 'Created'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '9px 12px', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--gray-400)', fontWeight: 700 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {filteredOrders.length === 0 ? (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '28px', color: 'var(--gray-400)' }}>No orders found.</td></tr>
+                ) : filteredOrders.map(o => (
+                  <tr key={o.id} onClick={() => setViewOrder(o)} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--gray-50)'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                    <td style={{ padding: '9px 12px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{o.txnid}</td>
+                    <td style={{ padding: '9px 12px' }}><div style={{ fontWeight: 600 }}>{o.hotelName || '—'}</div><div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{o.hotelEmail}</div></td>
+                    <td style={{ padding: '9px 12px' }}>{o.planName || '—'}</td>
+                    <td style={{ padding: '9px 12px', fontWeight: 700, color: 'var(--gray-800)' }}>{fmtCur(o.amount)}</td>
+                    <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>{o.intra ? 'Intra' : 'Inter'} · {o.placeOfSupply}</td>
+                    <td style={{ padding: '9px 12px' }}>{orderStatusPill(o.status)}</td>
+                    <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>{fmtDateTime(o.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* Order detail — full record */}
+      <Modal open={!!viewOrder} onClose={() => setViewOrder(null)} title={viewOrder ? `Order ${viewOrder.txnid}` : ''} width={720}>
+        {viewOrder && (
+          <div>
+            <div style={{ marginBottom: 14 }}>{orderStatusPill(viewOrder.status)}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10 }}>
+              {[
+                ['Hotel', viewOrder.hotelName || '—'],
+                ['User email', viewOrder.hotelEmail || '—'],
+                ['Plan', `${viewOrder.planName || '—'}${viewOrder.cycle ? ` (${viewOrder.cycle})` : ''}`],
+                ['Amount', fmtCur(viewOrder.amount)],
+                ['Buyer GSTIN', viewOrder.buyerGstin || 'Unregistered'],
+                ['Place of supply', `${viewOrder.placeOfSupply} ${viewOrder.intra ? '(intra-state)' : '(inter-state)'}`],
+                ['Gateway', viewOrder.gateway || '—'],
+                ['Gateway payment ID', viewOrder.gatewayPaymentId || '—'],
+                ['Customer IP', viewOrder.customerIp || '— (not recorded)'],
+                ['Consent (T&C)', viewOrder.termsAccepted ? `Accepted · ${fmtDateTime(viewOrder.termsAcceptedAt)}` : 'Not recorded'],
+                ['Policy version', viewOrder.policyVersion || '—'],
+                ['Initiated', fmtDateTime(viewOrder.initiatedAt)],
+                ['Paid', fmtDateTime(viewOrder.paidAt)],
+                ['Valid period', `${fmtDate(viewOrder.validFrom)} → ${fmtDate(viewOrder.validTo)}`],
+                ['Created', fmtDateTime(viewOrder.createdAt)],
+              ].map(([k, v]) => (
+                <div key={k} style={{ background: 'var(--gray-50)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 10.5, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--gray-400)', fontWeight: 700, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-800)', wordBreak: 'break-word' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            {viewOrder.userAgent && (
+              <div style={{ marginTop: 12, fontSize: 11, color: 'var(--gray-500)', wordBreak: 'break-word' }}>
+                <strong>User agent:</strong> {viewOrder.userAgent}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Full hotel drill-down */}
       <Modal open={!!viewId} onClose={() => setViewId(null)} title={details?.hotel?.hotelName || 'Hotel details'} width={780}>

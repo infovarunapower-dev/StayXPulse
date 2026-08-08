@@ -324,6 +324,34 @@ router.get('/invoices/zip', SA, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// ─── ORDER LEDGER (all checkout orders incl. pending/failed) ──────────────────
+router.get('/orders', SA, async (req, res) => {
+  try {
+    let q = supabase.from('payment_orders')
+      .select('*, hotels(hotel_name, email, gst_number), plans(name)')
+      .order('created_at', { ascending: false }).limit(1000);
+    if (req.query.status && req.query.status !== 'all') q = q.eq('status', req.query.status);
+    const { data, error } = await q;
+    if (error) throw error;
+
+    const mapped = (data || []).map(o => {
+      const g = computeGst(o.amount, o.hotels?.gst_number);
+      return {
+        id: o.id, txnid: o.txnid, status: o.status, amount: o.amount, cycle: o.cycle,
+        hotelName: o.hotels?.hotel_name || null, hotelEmail: o.hotels?.email || null,
+        buyerGstin: o.hotels?.gst_number || null, planName: o.plans?.name || null,
+        placeOfSupply: g.placeOfSupply, intra: g.intra,
+        gateway: o.gateway, gatewayPaymentId: o.gateway_payment_id,
+        customerIp: o.customer_ip, userAgent: o.user_agent,
+        termsAccepted: o.terms_accepted, termsAcceptedAt: o.terms_accepted_at, policyVersion: o.policy_version,
+        validFrom: o.valid_from, validTo: o.valid_to,
+        initiatedAt: o.initiated_at, paidAt: o.paid_at, createdAt: o.created_at,
+      };
+    });
+    res.json({ success: true, data: mapped });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // ─── PLANS CRUD ───────────────────────────────────────────────────────────────
 router.get('/plans', SA, async (req, res) => {
   try {
