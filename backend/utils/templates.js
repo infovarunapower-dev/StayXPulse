@@ -158,7 +158,7 @@ const welcomeTemplate = ({ hotelName, email, userId, password, trialEndDate }) =
   layout('Registration Successful', `
     ${h1('Welcome to StayXPulse')}
     ${ornament}
-    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, your account is ready. Begin with a <strong style="color:${K.ivory};">3-day complimentary trial</strong> &mdash; no card required.`)}
+    ${para(`<strong style="color:${K.ivory};">${hotelName}</strong>, your account is ready. Begin with a <strong style="color:${K.ivory};">14-day complimentary trial</strong> &mdash; no card required.`)}
     ${para('Here are your sign-in credentials. Please keep them somewhere safe:')}
     ${detailCard([
       { label: 'Login URL', value: `<a href="${CLIENT_URL}/login" style="color:${K.goldLt};text-decoration:none;">${HOST}/login</a>` },

@@ -87,7 +87,7 @@ router.post('/register', optionalLogo, async (req, res) => {
     const password = generatePassword();
     const hashedPassword = await bcrypt.hash(password, 12);
     const trialEndDate = new Date();
-    if (!isBuy) trialEndDate.setDate(trialEndDate.getDate() + 3);   // 3-day trial (skipped for direct-buy)
+    if (!isBuy) trialEndDate.setDate(trialEndDate.getDate() + 14);   // 14-day trial (skipped for direct-buy)
 
     // The logo used to be parsed and then silently dropped — logo_url was never
     // written, so every hotel's logo was NULL while the signup form said

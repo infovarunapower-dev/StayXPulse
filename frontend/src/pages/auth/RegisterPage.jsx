@@ -201,7 +201,7 @@ const RegisterPage = () => {
   return (
     <AuthLayout>
       <div className="auth-card-title">Register Your Hotel</div>
-      <div className="auth-card-sub">{intent === 'buy' ? 'Register your hotel, then choose a plan to activate' : 'Get started with a 3-day free trial — no credit card needed'}</div>
+      <div className="auth-card-sub">{intent === 'buy' ? 'Register your hotel, then choose a plan to activate' : 'Get started with a 14-day free trial — no credit card needed'}</div>
 
       <StepBar />
 
