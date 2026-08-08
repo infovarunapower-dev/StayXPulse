@@ -6,6 +6,8 @@ const { protect, authorize }     = require('../middleware/auth');
 const supabase = require('../utils/supabase');
 const { sendTrialReminderEmail, sendExpiryReminderEmail, sendPasswordResetByAdminEmail, sendAppUpdateEmail } = require('../utils/email');
 const { generateOrderRecordPDF, generateInvoicePDF } = require('../utils/invoice');
+const { computeGst } = require('../utils/gstCalc');
+const JSZip = require('jszip');
 const CLIENT_URL = require('../utils/clientUrl');
 
 const SA = [protect, authorize('superadmin')];
@@ -271,6 +273,55 @@ router.get('/payments/:id/order-record', SA, async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
+});
+
+// ─── PERIOD FILING: bulk-download a period's invoices as a ZIP ─────────────────
+// ZIP contains one PDF per invoice + a filing-summary.csv (GST register).
+router.get('/invoices/zip', SA, async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const col = req.query.dateField === 'created_at' ? 'created_at' : 'paid_at';
+
+    let q = supabase.from('payments').select('*, hotels(*), plans(name)').order(col, { ascending: true });
+    if (from) q = q.gte(col, new Date(from).toISOString());
+    if (to)   q = q.lte(col, new Date(new Date(to).getTime() + 86400000 - 1).toISOString()); // inclusive end-of-day
+    const { data: payments, error } = await q;
+    if (error) throw error;
+    if (!payments || !payments.length) return res.status(404).json({ success: false, message: 'No invoices found in this period.' });
+
+    const zip = new JSZip();
+    const esc = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+    const csv = [['Invoice No', 'Invoice Date', 'Hotel', 'Buyer GSTIN', 'Place of Supply', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total', 'Payment ID']
+      .map(esc).join(',')];
+
+    for (const p of payments) {
+      const g = computeGst(p.amount, p.hotels?.gst_number);
+      const dateStr = p[col] ? new Date(p[col]).toLocaleDateString('en-IN') : '';
+      csv.push([p.invoice_number, dateStr, p.hotels?.hotel_name, p.hotels?.gst_number || 'Unregistered',
+        g.placeOfSupply, g.taxable.toFixed(2), g.cgst.toFixed(2), g.sgst.toFixed(2), g.igst.toFixed(2), g.gross.toFixed(2), p.payment_id]
+        .map(esc).join(','));
+
+      const days  = (p.valid_from && p.valid_to) ? Math.round((new Date(p.valid_to) - new Date(p.valid_from)) / 86400000) : 30;
+      const cycle = days >= 365 ? 'yearly' : days >= 90 ? 'quarterly' : 'monthly';
+      const pdf = await generateInvoicePDF({
+        invoice: p.invoice_number,
+        hotel: { hotelName: p.hotels?.hotel_name, email: p.hotels?.email, address: p.hotels?.address, gstNumber: p.hotels?.gst_number },
+        plan: p.plans || {}, cycle, amount: p.amount, validFrom: p.valid_from, validTo: p.valid_to, paymentId: p.payment_id,
+      });
+      const safe = String(p.invoice_number || p.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+      zip.file(`invoices/Invoice_${safe}.pdf`, pdf);
+    }
+
+    zip.file('filing-summary.csv', '﻿' + csv.join('\n'));
+    const buf = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    const label = `${from || 'all'}_to_${to || 'all'}`.replace(/[^0-9a-zA-Z_-]/g, '');
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="StayXPulse_Invoices_${label}.zip"`,
+      'Content-Length': buf.length,
+    });
+    res.end(buf);
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 // ─── PLANS CRUD ───────────────────────────────────────────────────────────────

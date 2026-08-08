@@ -148,6 +148,34 @@ export const PaymentHistory = () => {
   const { data, loading } = useFetch('/superadmin/payments');
   const payments = data?.data || [];
   const [exporting, setExporting] = useState(false);
+  const [from, setFrom]           = useState('');
+  const [to,   setTo]             = useState('');
+  const [dateField, setDateField] = useState('paid_at');
+  const [zipping,   setZipping]   = useState(false);
+
+  const isoDay = (d) => d.toISOString().slice(0, 10);
+  const setThisMonth   = () => { const n = new Date(); setFrom(isoDay(new Date(n.getFullYear(), n.getMonth(), 1))); setTo(isoDay(n)); };
+  const setLastMonth   = () => { const n = new Date(); setFrom(isoDay(new Date(n.getFullYear(), n.getMonth() - 1, 1))); setTo(isoDay(new Date(n.getFullYear(), n.getMonth(), 0))); };
+  const setThisQuarter = () => { const n = new Date(); const q = Math.floor(n.getMonth() / 3); setFrom(isoDay(new Date(n.getFullYear(), q * 3, 1))); setTo(isoDay(n)); };
+
+  const downloadZip = async () => {
+    setZipping(true);
+    const t = toast.loading('Building invoice ZIP…');
+    try {
+      const params = new URLSearchParams({ dateField });
+      if (from) params.set('from', from);
+      if (to)   params.set('to', to);
+      const res = await api.get(`/superadmin/invoices/zip?${params.toString()}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = `StayXPulse_Invoices_${from || 'all'}_to_${to || 'all'}.zip`;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Invoices ZIP downloaded', { id: t });
+    } catch (err) {
+      toast.error(err.response?.status === 404 ? 'No invoices in this period' : 'ZIP export failed', { id: t });
+    } finally { setZipping(false); }
+  };
 
   // Hotel drill-down modal
   const [viewId,   setViewId]   = useState(null);
@@ -167,8 +195,14 @@ export const PaymentHistory = () => {
     const t = toast.loading('Building GST register…');
     try {
       const r = await api.get('/superadmin/payments?limit=100000');  // all invoices, not just this page
-      const all = r.data.data || [];
-      if (!all.length) { toast.error('No payments to export', { id: t }); return; }
+      let all = r.data.data || [];
+      // Respect the selected filing period, if any.
+      if (from || to) {
+        const lo = from ? new Date(from).getTime() : -Infinity;
+        const hi = to ? new Date(to).getTime() + 86400000 - 1 : Infinity;
+        all = all.filter(p => { const d = new Date(p[dateField] || p.paid_at).getTime(); return d >= lo && d <= hi; });
+      }
+      if (!all.length) { toast.error('No invoices in this period', { id: t }); return; }
       const csv = buildGstRegisterCsv(all);
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
@@ -223,9 +257,36 @@ export const PaymentHistory = () => {
 
   return (
     <div>
-      <PageHeader title="Payment History" subtitle="All transactions across the platform"
-        action={<button className="btn btn-brand" onClick={downloadRegister} disabled={exporting || loading}>{exporting ? 'Exporting…' : '⬇ Download GST Register'}</button>}
-      />
+      <PageHeader title="Payment History" subtitle="All transactions across the platform" />
+
+      {/* Period & filing */}
+      <Card style={{ marginBottom: 20 }}>
+        <div className="card-title" style={{ marginBottom: 4 }}>📅 Period &amp; filing</div>
+        <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 14 }}>
+          Pick a date range and bulk-download that period's invoices for GST filing.
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 12.5, color: 'var(--gray-400)' }}>Filter dates by:</span>
+          <button className={`btn btn-sm ${dateField === 'paid_at' ? 'btn-brand' : 'btn-outline'}`} onClick={() => setDateField('paid_at')}>Invoice issue date</button>
+          <button className={`btn btn-sm ${dateField === 'created_at' ? 'btn-brand' : 'btn-outline'}`} onClick={() => setDateField('created_at')}>Order created date</button>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+          <button className="btn btn-sm btn-outline" onClick={setThisMonth}>This month</button>
+          <button className="btn btn-sm btn-outline" onClick={setLastMonth}>Last month</button>
+          <button className="btn btn-sm btn-outline" onClick={setThisQuarter}>This quarter</button>
+          <span style={{ fontSize: 12.5, color: 'var(--gray-400)' }}>or custom:</span>
+          <input type="date" className="form-control" style={{ width: 148, padding: '6px 10px', fontSize: 13 }} value={from} onChange={e => setFrom(e.target.value)} />
+          <span style={{ color: 'var(--gray-400)' }}>to</span>
+          <input type="date" className="form-control" style={{ width: 148, padding: '6px 10px', fontSize: 13 }} value={to} onChange={e => setTo(e.target.value)} />
+          {(from || to) && <button className="btn btn-sm" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer' }} onClick={() => { setFrom(''); setTo(''); }}>Clear</button>}
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button className="btn btn-brand" onClick={downloadZip} disabled={zipping}>{zipping ? 'Building…' : '⬇ Download all invoices (ZIP)'}</button>
+          <button className="btn btn-outline" onClick={downloadRegister} disabled={exporting}>{exporting ? 'Exporting…' : '📄 CSV register only'}</button>
+          <span style={{ fontSize: 11.5, color: 'var(--gray-400)' }}>ZIP = invoice PDFs + filing-summary.csv · contains billing data.</span>
+        </div>
+      </Card>
+
       <div className="stats-grid" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
         <StatCard icon="💰" label="Total Revenue"     value={fmtCur(data?.totalRevenue)} color="green" />
         <StatCard icon="🧾" label="Total Invoices"    value={data?.total || 0}           color="blue" />
