@@ -29,10 +29,10 @@ const Dashboard = () => {
       <PageHeader title="Dashboard" subtitle="Platform-wide overview at a glance" />
 
       <div className="stats-grid">
-        <StatCard icon="🏨" label="Total Hotels"   value={s.totalHotels   || 0} color="blue" />
-        <StatCard icon="✅" label="Active Hotels"  value={s.activeHotels  || 0} color="green" change="subscribed" changeType="up" />
-        <StatCard icon="⏳" label="On Trial"        value={s.trialHotels   || 0} color="amber" />
-        <StatCard icon="💰" label="Total Revenue"  value={fmtCurrency(s.totalRevenue)} color="green" />
+        <StatCard icon="🏨" label="Total Hotels"   value={s.totalHotels   || 0} color="blue"  onClick={() => navigate('/admin/hotels')} />
+        <StatCard icon="✅" label="Active Hotels"  value={s.activeHotels  || 0} color="green" change="subscribed" changeType="up" onClick={() => navigate('/admin/paid-hotels')} />
+        <StatCard icon="⏳" label="On Trial"        value={s.trialHotels   || 0} color="amber" onClick={() => navigate('/admin/hotels')} />
+        <StatCard icon="💰" label="Total Revenue"  value={fmtCurrency(s.totalRevenue)} color="green" onClick={() => navigate('/admin/payments')} />
       </div>
 
       <div className="grid-2">

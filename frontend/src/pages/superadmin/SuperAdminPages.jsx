@@ -1,5 +1,6 @@
 // ─── Paid Hotels ─────────────────────────────────────────────────────────────
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { useFetch } from '../../utils/hooks';
@@ -389,6 +390,7 @@ export const EmailReminders = () => {
 
 // ─── Overall Summary ─────────────────────────────────────────────────────────
 export const OverallSummary = () => {
+  const navigate = useNavigate();
   const { data, loading } = useFetch('/superadmin/summary');
   if (loading) return <Spinner />;
   const s = data?.data?.stats || {};
@@ -400,14 +402,14 @@ export const OverallSummary = () => {
     <div>
       <PageHeader title="Overall Summary" subtitle="Platform-wide performance metrics" />
       <div className="stats-grid">
-        <StatCard icon="🏨" label="Total Hotels"      value={s.totalHotels || 0}          color="blue" />
-        <StatCard icon="✅" label="Active Hotels"     value={s.activeHotels || 0}         color="green" />
-        <StatCard icon="⏳" label="On Trial"          value={s.trialHotels || 0}          color="amber" />
-        <StatCard icon="❌" label="Expired Hotels"    value={s.expiredHotels || 0}        color="red" />
+        <StatCard icon="🏨" label="Total Hotels"      value={s.totalHotels || 0}          color="blue"  onClick={() => navigate('/admin/hotels')} />
+        <StatCard icon="✅" label="Active Hotels"     value={s.activeHotels || 0}         color="green" onClick={() => navigate('/admin/paid-hotels')} />
+        <StatCard icon="⏳" label="On Trial"          value={s.trialHotels || 0}          color="amber" onClick={() => navigate('/admin/hotels')} />
+        <StatCard icon="❌" label="Expired Hotels"    value={s.expiredHotels || 0}        color="red"   onClick={() => navigate('/admin/hotels')} />
       </div>
       <div className="stats-grid" style={{gridTemplateColumns:'repeat(2,1fr)'}}>
-        <StatCard icon="💰" label="Total Revenue"    value={fmtCur(s.totalRevenue)}       color="green" />
-        <StatCard icon="📊" label="Active Rate"      value={s.totalHotels ? `${Math.round((s.activeHotels/s.totalHotels)*100)}%` : '0%'} color="blue" />
+        <StatCard icon="💰" label="Total Revenue"    value={fmtCur(s.totalRevenue)}       color="green" onClick={() => navigate('/admin/payments')} />
+        <StatCard icon="📊" label="Active Rate"      value={s.totalHotels ? `${Math.round((s.activeHotels/s.totalHotels)*100)}%` : '0%'} color="blue" onClick={() => navigate('/admin/hotels')} />
       </div>
       <Card>
         <div className="card-title" style={{marginBottom:16}}>Revenue by Month</div>

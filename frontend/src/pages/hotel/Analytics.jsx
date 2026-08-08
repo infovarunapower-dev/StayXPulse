@@ -1,10 +1,12 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useFetch } from '../../utils/hooks';
 import { PageHeader, StatCard, Card, CardHeader, PageSkeleton, BarChart } from '../../components/shared/UI';
 
 const fmtCur = n => `₹${Number(n||0).toLocaleString('en-IN')}`;
 
 const Analytics = () => {
+  const navigate = useNavigate();
   const { data, loading, refetch } = useFetch('/hotel/analytics');
   if (loading) return <PageSkeleton />;
   const s    = data?.data?.stats         || {};
@@ -33,14 +35,14 @@ const Analytics = () => {
       />
 
       <div className="stats-grid">
-        <StatCard icon="📋" label="Total Orders"      value={s.totalOrders    || 0} color="blue" />
-        <StatCard icon="🍽" label="Today's Orders"    value={s.todayOrders    || 0} color="green" />
-        <StatCard icon="💰" label="Total Revenue"     value={fmtCur(s.totalRevenue)} color="amber" />
-        <StatCard icon="💵" label="Today's Revenue"   value={fmtCur(s.todayRevenue)} color="green" />
+        <StatCard icon="📋" label="Total Orders"      value={s.totalOrders    || 0} color="blue"  onClick={() => navigate('/hotel/food-orders')} />
+        <StatCard icon="🍽" label="Today's Orders"    value={s.todayOrders    || 0} color="green" onClick={() => navigate('/hotel/food-orders')} />
+        <StatCard icon="💰" label="Total Revenue"     value={fmtCur(s.totalRevenue)} color="amber" onClick={() => navigate('/hotel/food-orders')} />
+        <StatCard icon="💵" label="Today's Revenue"   value={fmtCur(s.todayRevenue)} color="green" onClick={() => navigate('/hotel/food-orders')} />
       </div>
       <div className="stats-grid" style={{gridTemplateColumns:'repeat(2,1fr)'}}>
-        <StatCard icon="🛎" label="Total Service Requests" value={s.totalRequests   || 0} color="blue" />
-        <StatCard icon="⚠️" label="Pending Requests"       value={s.pendingRequests || 0} color="red" />
+        <StatCard icon="🛎" label="Total Service Requests" value={s.totalRequests   || 0} color="blue" onClick={() => navigate('/hotel/service-requests')} />
+        <StatCard icon="⚠️" label="Pending Requests"       value={s.pendingRequests || 0} color="red" onClick={() => navigate('/hotel/service-requests')} />
       </div>
 
       <div className="grid-2" style={{marginBottom:20}}>
