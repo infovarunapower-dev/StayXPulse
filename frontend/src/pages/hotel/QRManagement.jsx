@@ -73,7 +73,7 @@ const QRCard = ({ room, hotel, onDelete, onView }) => {
     ctx.fillRect(0, 0, W, 190);
 
     // Logo circle (hotel logo if reachable, else the hotel's initial)
-    const r = 36, cyLogo = 66;
+    const r = 52, cyLogo = 68;
     const logo = (hotel?.logoUrl && /^https?:\/\//.test(hotel.logoUrl)) ? await loadImg(hotel.logoUrl, true) : null;
     ctx.save();
     ctx.beginPath();
@@ -85,7 +85,7 @@ const QRCard = ({ room, hotel, onDelete, onView }) => {
     ctx.restore();
     if (!logo) {
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 32px Arial';
+      ctx.font = 'bold 46px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((hotel?.hotelName || 'H').trim().charAt(0).toUpperCase(), cx, cyLogo + 1);
@@ -101,11 +101,11 @@ const QRCard = ({ room, hotel, onDelete, onView }) => {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 25px Arial';
-    ctx.fillText(hotel?.hotelName || 'Your Hotel', cx, 141);
+    ctx.fillText(hotel?.hotelName || 'Your Hotel', cx, 150);
     if (hotel?.phone) {
       ctx.font = '14px Arial';
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.fillText(`Call ${hotel.phone}`, cx, 167);
+      ctx.fillText(`Call ${hotel.phone}`, cx, 174);
     }
 
     // Room
