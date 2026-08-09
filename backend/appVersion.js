@@ -8,14 +8,12 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '1.7',
-  versionCode: 8,
-  releasedAt:  '2026-08-08T10:15:00Z',
+  version:     '1.8',
+  versionCode: 9,
+  releasedAt:  '2026-08-09T11:30:00Z',
   notes: [
-    'High-resolution, print-ready QR code downloads — the logo is now crisp',
-    'Service Management: standard services can be renamed and turned on/off',
-    'Tap any dashboard stat card to jump straight to its details',
-    'Free trial extended to 14 days',
-    'Super Admin: editable email content, richer Payment History (drill-down, invoice downloads, filing exports) and the new company invoice design',
+    'Billing details at checkout — enter name, address and contact before paying; it appears on your invoice',
+    'Bigger hotel logo on the printable QR code',
+    'Company name added under the QR footer',
   ],
 };
