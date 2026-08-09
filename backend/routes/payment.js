@@ -57,7 +57,7 @@ router.post('/initiate', HA, async (req, res) => {
     return res.status(503).json({ success: false, message: 'Payments are not configured yet. Please contact support.' });
   }
   try {
-    const { planId, cycle, termsAccepted } = req.body;
+    const { planId, cycle, termsAccepted, billing = {} } = req.body;
     if (!planId || !cycle || !CYCLE_DAYS[cycle]) {
       return res.status(400).json({ success: false, message: 'planId and cycle (monthly/quarterly/yearly) are required.' });
     }
@@ -65,6 +65,35 @@ router.post('/initiate', HA, async (req, res) => {
     // actually be given before we mint a payment link.
     if (termsAccepted !== true) {
       return res.status(400).json({ success: false, message: 'Please accept the Terms & Privacy Policy to continue.' });
+    }
+
+    // Billing details captured on the checkout form. Trim, cap, and require the
+    // fields we need for a valid tax invoice and a gateway hand-off.
+    const s = (v, max = 120) => String(v == null ? '' : v).trim().slice(0, max);
+    const bill = {
+      name:     s([billing.firstName, billing.lastName].filter(Boolean).join(' ') || billing.name),
+      company:  s(billing.company),
+      email:    s(billing.email),
+      phone:    s(billing.phone, 20),
+      country:  s(billing.country) || 'India',
+      address1: s(billing.address1 || billing.address, 200),
+      address2: s(billing.address2, 200),
+      city:     s(billing.city),
+      state:    s(billing.state),
+      pincode:  s(billing.pincode, 12),
+      notes:    s(billing.notes, 500),
+    };
+    const billPhone = bill.phone.replace(/\D/g, '').slice(-10);
+    const missing = [];
+    if (!bill.name)                          missing.push('name');
+    if (!bill.address1)                      missing.push('street address');
+    if (!bill.city)                          missing.push('town / city');
+    if (!bill.state)                         missing.push('state');
+    if (!/^\d{6}$/.test(bill.pincode))       missing.push('a valid 6-digit PIN code');
+    if (billPhone.length !== 10)             missing.push('a valid 10-digit phone');
+    if (!/^\S+@\S+\.\S+$/.test(bill.email))  missing.push('a valid email');
+    if (missing.length) {
+      return res.status(400).json({ success: false, message: `Please provide ${missing.join(', ')} in the billing details.` });
     }
 
     const hotelId = req.user.hotel?.id || req.user.hotel;
@@ -90,13 +119,29 @@ router.post('/initiate', HA, async (req, res) => {
     const userAgent  = String(req.headers['user-agent'] || '').slice(0, 400) || null;
     const POLICY_VERSION = process.env.POLICY_VERSION || nowIso.slice(0, 10);
 
-    const { error: oErr } = await supabase.from('payment_orders').insert({
+    const baseOrder = {
       hotel_id: hotel.id, plan_id: plan.id, cycle,
       amount, txnid, gateway: 'easebuzz', status: 'created',
       customer_ip: customerIp, user_agent: userAgent,
       terms_accepted: true, terms_accepted_at: nowIso, policy_version: POLICY_VERSION,
       initiated_at: nowIso,
-    });
+    };
+    const billingCols = {
+      billing_name: bill.name, billing_company: bill.company || null,
+      billing_email: bill.email, billing_phone: billPhone,
+      billing_country: bill.country, billing_address1: bill.address1,
+      billing_address2: bill.address2 || null, billing_city: bill.city,
+      billing_state: bill.state, billing_pincode: bill.pincode,
+      order_notes: bill.notes || null,
+    };
+    // Store billing on the order. If migration 014 hasn't been run yet the
+    // billing_* columns won't exist — rather than break checkout, fall back to
+    // the base order (billing still reaches the gateway either way).
+    let { error: oErr } = await supabase.from('payment_orders').insert({ ...baseOrder, ...billingCols });
+    if (oErr && /column|schema cache|billing_/i.test(oErr.message || '')) {
+      console.warn('payment_orders billing columns missing — run migration 014. Storing base order only.');
+      ({ error: oErr } = await supabase.from('payment_orders').insert(baseOrder));
+    }
     if (oErr) throw oErr;
 
     // Easebuzz posts the result to these; both point at the same handler, which
@@ -107,23 +152,17 @@ router.post('/initiate', HA, async (req, res) => {
     // generic "Parameter validation failed" if any of them carries punctuation
     // or the wrong length — so normalise before sending, and fail with a useful
     // message rather than handing the gateway something it will refuse.
-    const clean = (s, max) => String(s || '').replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-    const phone = String(hotel.phone || '').replace(/\D/g, '').slice(-10);
+    const clean = (str, max) => String(str || '').replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
-    if (phone.length !== 10) {
-      return res.status(400).json({ success: false, message: 'Your hotel phone number must be a valid 10-digit number before you can pay. Update it under Hotel Profile.' });
-    }
-    if (!/^\S+@\S+\.\S+$/.test(String(hotel.email || ''))) {
-      return res.status(400).json({ success: false, message: 'Your hotel email address is not valid. Please contact support.' });
-    }
-
+    // The billing form already validated phone (10 digits) and email above, so
+    // hand the gateway the payer's own contact details rather than the hotel's.
     const { paymentUrl } = await easebuzz.initiatePayment({
       txnid,
       amount,
       productinfo: clean(`StayXPulse ${plan.name} ${cycle}`, 100) || 'StayXPulse Subscription',
-      firstname: clean(hotel.hotel_name, 60) || 'Hotel',
-      email: String(hotel.email).trim(),
-      phone,
+      firstname: clean(bill.name, 60) || clean(hotel.hotel_name, 60) || 'Hotel',
+      email: bill.email,
+      phone: billPhone,
       surl: callbackUrl,
       furl: callbackUrl,
       // Deliberately no udf fields: they are part of BOTH hash sequences, so if

@@ -101,9 +101,21 @@ const activateSubscription = async ({ txnid, gatewayPaymentId, gateway = 'easebu
   // and the subscription is live regardless.
   let pdfBuffer = null;
   try {
+    // Prefer the billing details the customer entered at checkout for the
+    // invoice bill-to; fall back to the hotel's own profile where blank.
+    const billAddress = [
+      order.billing_address1, order.billing_address2,
+      [order.billing_city, order.billing_state, order.billing_pincode].filter(Boolean).join(', '),
+      order.billing_country,
+    ].filter(Boolean).join('\n');
     pdfBuffer = await generateInvoicePDF({
       invoice: invoiceNumber,
-      hotel: { hotelName: hotel.hotel_name, email: hotel.email, address: hotel.address, gstNumber: hotel.gst_number },
+      hotel: {
+        hotelName: order.billing_company || order.billing_name || hotel.hotel_name,
+        email:     order.billing_email || hotel.email,
+        address:   billAddress || hotel.address,
+        gstNumber: hotel.gst_number,
+      },
       plan, cycle: order.cycle, amount: order.amount,
       validFrom, validTo, paymentId: paymentRef,
     });

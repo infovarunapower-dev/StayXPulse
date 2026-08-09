@@ -12,7 +12,20 @@ const CYCLES = [
   { key: 'yearly',    label: 'Yearly',    badge: 'Save 20%' },
 ];
 
+const STATES = [
+  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana',
+  'Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur',
+  'Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana',
+  'Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Andaman and Nicobar Islands','Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu','Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry',
+];
+
 const fmtCur = n => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+
+const EMPTY_BILLING = {
+  firstName: '', lastName: '', company: '', country: 'India',
+  address1: '', address2: '', city: '', state: '', pincode: '', phone: '', email: '', notes: '',
+};
 
 const PaymentSuccess = ({ result, onDone }) => (
   <div style={{ maxWidth:480, margin:'60px auto', textAlign:'center', padding:'0 20px' }}>
@@ -92,6 +105,10 @@ const UpgradePlan = () => {
   const [gatewayReady, setGatewayReady] = useState(true);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
+  // Billing-details step shown before hand-off to the gateway.
+  const [billingFor, setBillingFor] = useState(null);   // the plan being purchased
+  const [billing,    setBilling]    = useState(EMPTY_BILLING);
+
   useEffect(() => {
     api.get('/payments/plans')
       .then(r => { setPlans(r.data.data); setGatewayReady(r.data.configured !== false); })
@@ -121,14 +138,41 @@ const UpgradePlan = () => {
   // Hosted checkout: we ask the backend for a payment URL and hand the browser
   // over to Easebuzz. There is no client-side secret and no signature handling
   // here — the result comes back server-to-server to /easebuzz/callback.
-  const handlePay = async (plan) => {
+  // Step 1 — open the billing form, pre-filled from what we already know about
+  // the hotel so the customer only fills the gaps.
+  const openBilling = (plan) => {
     if (!termsAccepted) {
       toast.error('Please accept the Terms & Privacy Policy first.');
       return;
     }
-    setPaying(plan.id);
+    const digits = String(hotel?.phone || '').replace(/\D/g, '').slice(-10);
+    setBilling({
+      ...EMPTY_BILLING,
+      company:  hotel?.hotelName || '',
+      address1: hotel?.address || '',
+      phone:    digits,
+      email:    hotel?.email || '',
+    });
+    setBillingFor(plan);
+  };
+
+  // Step 2 — validate on the client, then hand the details to the gateway.
+  const submitBilling = async () => {
+    const b = billing;
+    const req = [
+      [b.firstName, 'First name'], [b.lastName, 'Last name'],
+      [b.address1, 'Street address'], [b.city, 'Town / City'], [b.state, 'State'],
+    ];
+    for (const [v, label] of req) if (!String(v).trim()) { toast.error(`${label} is required.`); return; }
+    if (!/^\d{6}$/.test(String(b.pincode).trim()))      { toast.error('Enter a valid 6-digit PIN code.'); return; }
+    if (String(b.phone).replace(/\D/g, '').length !== 10) { toast.error('Enter a valid 10-digit phone number.'); return; }
+    if (!/^\S+@\S+\.\S+$/.test(String(b.email).trim()))  { toast.error('Enter a valid email address.'); return; }
+
+    setPaying(billingFor.id);
     try {
-      const { data } = await api.post('/payments/initiate', { planId: plan.id, cycle, termsAccepted: true });
+      const { data } = await api.post('/payments/initiate', {
+        planId: billingFor.id, cycle, termsAccepted: true, billing: b,
+      });
       if (!data?.data?.paymentUrl) throw new Error('No payment URL returned');
       // Full navigation, not a new tab: popup blockers and the Android WebView
       // both handle a same-tab redirect reliably.
@@ -138,6 +182,8 @@ const UpgradePlan = () => {
       setPaying(null);
     }
   };
+
+  const setB = (k) => (e) => setBilling(s => ({ ...s, [k]: e.target.value }));
 
   if (success) return <PaymentSuccess result={success} onDone={() => navigate('/hotel/dashboard', { replace:true })} />;
   if (loading) return <Spinner />;
@@ -212,7 +258,7 @@ const UpgradePlan = () => {
               <ul className="plan-features">
                 {plan.features?.map((f,i) => <li key={i}><span className="feat-check">✓</span> {f}</li>)}
               </ul>
-              <button className={`plan-btn ${plan.is_popular?'plan-btn-popular':''}`} onClick={()=> handlePay(plan)} disabled={!!paying || !termsAccepted}>
+              <button className={`plan-btn ${plan.is_popular?'plan-btn-popular':''}`} onClick={()=> openBilling(plan)} disabled={!!paying || !termsAccepted}>
                 {isBusy ? <><span className="spinner-sm"/> Redirecting…</> : `Get ${plan.name} →`}
               </button>
               <div className="plan-note">Secured by Easebuzz · Instant activation</div>
@@ -236,6 +282,85 @@ const UpgradePlan = () => {
             <div className="faq-a">A: {item.a}</div>
           </div>
         ))}
+      </div>
+
+      {billingFor && (
+        <BillingModal
+          plan={billingFor}
+          amount={billingFor.pricing?.[cycle]?.amount}
+          cycle={cycle}
+          billing={billing}
+          setB={setB}
+          onClose={() => !paying && setBillingFor(null)}
+          onSubmit={submitBilling}
+          busy={paying === billingFor.id}
+        />
+      )}
+    </div>
+  );
+};
+
+// ── Billing details captured before the gateway hand-off ──────────────────────
+const BillingModal = ({ plan, amount, cycle, billing, setB, onClose, onSubmit, busy }) => {
+  const lab = { display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', marginBottom: 5 };
+  const inp = { width: '100%', padding: '10px 12px', fontSize: 14, border: '1.5px solid var(--border)', borderRadius: 9, background: 'var(--card, #fff)', color: 'var(--gray-900)', fontFamily: 'inherit' };
+  const req = <span style={{ color: 'var(--danger, #DC2626)' }}> *</span>;
+  const row = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 };
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()} style={{
+      position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.55)',
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 16px', overflowY: 'auto',
+    }}>
+      <div style={{ width: '100%', maxWidth: 560, background: 'var(--card, #fff)', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,0.28)', overflow: 'hidden' }}>
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900)' }}>Billing details</div>
+            <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>
+              {plan.name} · {cycle.charAt(0).toUpperCase() + cycle.slice(1)} · <strong>{fmtCur(amount)}</strong>
+            </div>
+          </div>
+          <button onClick={onClose} disabled={busy} style={{ border: 'none', background: 'transparent', fontSize: 22, cursor: 'pointer', color: 'var(--gray-400)', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '68vh', overflowY: 'auto' }}>
+          <div style={row}>
+            <div><label style={lab}>First name{req}</label><input style={inp} value={billing.firstName} onChange={setB('firstName')} placeholder="First name" /></div>
+            <div><label style={lab}>Last name{req}</label><input style={inp} value={billing.lastName} onChange={setB('lastName')} placeholder="Last name" /></div>
+          </div>
+          <div><label style={lab}>Company name (optional)</label><input style={inp} value={billing.company} onChange={setB('company')} placeholder="Company / hotel name" /></div>
+          <div><label style={lab}>Country / Region{req}</label>
+            <select style={inp} value={billing.country} onChange={setB('country')}><option>India</option></select>
+          </div>
+          <div><label style={lab}>Street address{req}</label>
+            <input style={{ ...inp, marginBottom: 8 }} value={billing.address1} onChange={setB('address1')} placeholder="House number and street name" />
+            <input style={inp} value={billing.address2} onChange={setB('address2')} placeholder="Apartment, suite, unit, etc. (optional)" />
+          </div>
+          <div><label style={lab}>Town / City{req}</label><input style={inp} value={billing.city} onChange={setB('city')} placeholder="Town / City" /></div>
+          <div style={row}>
+            <div><label style={lab}>State{req}</label>
+              <select style={inp} value={billing.state} onChange={setB('state')}>
+                <option value="">Select state…</option>
+                {STATES.map(st => <option key={st} value={st}>{st}</option>)}
+              </select>
+            </div>
+            <div><label style={lab}>PIN Code{req}</label><input style={inp} value={billing.pincode} onChange={setB('pincode')} inputMode="numeric" maxLength={6} placeholder="560037" /></div>
+          </div>
+          <div style={row}>
+            <div><label style={lab}>Phone{req}</label><input style={inp} value={billing.phone} onChange={setB('phone')} inputMode="tel" maxLength={10} placeholder="10-digit mobile" /></div>
+            <div><label style={lab}>Email address{req}</label><input style={inp} value={billing.email} onChange={setB('email')} type="email" placeholder="you@example.com" /></div>
+          </div>
+          <div><label style={lab}>Order notes (optional)</label>
+            <textarea style={{ ...inp, resize: 'vertical', minHeight: 60 }} value={billing.notes} onChange={setB('notes')} placeholder="Notes about your order, e.g. GSTIN or special instructions." />
+          </div>
+        </div>
+
+        <div style={{ padding: '16px 22px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn btn-brand" onClick={onSubmit} disabled={busy} style={{ minWidth: 190 }}>
+            {busy ? 'Redirecting…' : `Proceed to Pay ${fmtCur(amount)} →`}
+          </button>
+        </div>
       </div>
     </div>
   );

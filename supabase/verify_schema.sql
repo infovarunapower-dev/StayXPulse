@@ -32,6 +32,11 @@ WITH expected(table_name, column_name) AS (VALUES
   ('payment_orders','valid_to'),('payment_orders','customer_ip'),('payment_orders','user_agent'),
   ('payment_orders','terms_accepted'),('payment_orders','terms_accepted_at'),('payment_orders','policy_version'),
   ('payment_orders','initiated_at'),('payment_orders','paid_at'),('payment_orders','created_at'),
+  -- payment_orders billing (migration 014)
+  ('payment_orders','billing_name'),('payment_orders','billing_company'),('payment_orders','billing_email'),
+  ('payment_orders','billing_phone'),('payment_orders','billing_country'),('payment_orders','billing_address1'),
+  ('payment_orders','billing_address2'),('payment_orders','billing_city'),('payment_orders','billing_state'),
+  ('payment_orders','billing_pincode'),('payment_orders','order_notes'),
   -- rooms
   ('rooms','hotel_id'),('rooms','number'),('rooms','type'),('rooms','floor'),
   ('rooms','is_active'),('rooms','qr_token'),('rooms','guest_cleared_at'),('rooms','created_at'),
