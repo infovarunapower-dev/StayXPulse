@@ -36,6 +36,8 @@ const en = {
 
   live: 'Live · updates automatically',
   refresh: '↻ Refresh',
+  today: 'Today',
+  yesterday: 'Yesterday',
   foodOrders: 'Food Orders',
   serviceRequests: 'Service Requests',
   noOrders: 'No food orders yet',
@@ -131,6 +133,8 @@ const ru = {
 
   live: 'Онлайн · обновляется автоматически',
   refresh: '↻ Обновить',
+  today: 'Сегодня',
+  yesterday: 'Вчера',
   foodOrders: 'Заказы еды',
   serviceRequests: 'Заявки на обслуживание',
   noOrders: 'Заказов пока нет',

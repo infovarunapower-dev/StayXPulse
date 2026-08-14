@@ -809,6 +809,9 @@ router.get('/guest/:qrToken/orders', async (req, res) => {
       supabase.from('food_orders').select('*').eq('room_id', room.id).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(20),
       supabase.from('service_requests').select('*').eq('room_id', room.id).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(20),
     ]);
+    // Never cache the guest history: the noon-IST cutoff is time-sensitive, so a
+    // stale cached copy could keep showing yesterday's items past the reset.
+    res.set('Cache-Control', 'no-store');
     res.json({ success: true, data: { orders: orders || [], requests: requests || [] } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });

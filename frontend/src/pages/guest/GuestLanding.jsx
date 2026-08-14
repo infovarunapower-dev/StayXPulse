@@ -239,6 +239,18 @@ const GuestLanding = () => {
 
   const fmtCur = n => `₹${Number(n||0).toLocaleString('en-IN')}`;
   const fmtTime = d => d ? new Date(d).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+  // Date-aware label so a guest can tell today's items apart at a glance — the
+  // list clears at 12 noon daily, so anything shown is from the current window.
+  const fmtWhen = d => {
+    if (!d) return '';
+    const dt = new Date(d), now = new Date();
+    const same = (a,b) => a.toDateString() === b.toDateString();
+    const yst = new Date(now); yst.setDate(now.getDate() - 1);
+    const time = dt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+    if (same(dt, now)) return `${t.today || 'Today'} · ${time}`;
+    if (same(dt, yst)) return `${t.yesterday || 'Yesterday'} · ${time}`;
+    return `${dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})} · ${time}`;
+  };
 
   return (
     <div className="gl-shell">
@@ -432,7 +444,7 @@ const GuestLanding = () => {
                   <div style={{borderTop:'1px solid #E5E7EB',marginTop:8,paddingTop:8,display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:700}}>
                     <span>{t.total}</span><span style={{color:'#0D9488'}}>₹{o.total_amount}</span>
                   </div>
-                  <div style={{fontSize:11,color:'#9CA3AF',marginTop:4}}>{fmtTime(o.created_at)}</div>
+                  <div style={{fontSize:11,color:'#9CA3AF',marginTop:4}}>{fmtWhen(o.created_at)}</div>
                 </div>
               ))
             }
@@ -449,7 +461,7 @@ const GuestLanding = () => {
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
                       <div style={{fontWeight:600,fontSize:14}}>{t.services[r.type] || r.type}</div>
-                      <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{fmtTime(r.created_at)}</div>
+                      <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{fmtWhen(r.created_at)}</div>
                     </div>
                     <StatusPill status={r.status} t={t} />
                   </div>
