@@ -91,6 +91,30 @@ router.post('/rooms', [...MW, body('number').trim().notEmpty().withMessage('Room
     const { data: exists } = await supabase.from('rooms').select('id').eq('hotel_id', req.hotelId).eq('number', req.body.number);
     if (exists && exists.length > 0) return res.status(409).json({ success: false, message: `Room ${req.body.number} already exists.` });
 
+    // Enforce the plan's room limit. Trial hotels (no plan yet) are capped so
+    // they must subscribe to scale; paid hotels get their plan's max_rooms.
+    // Only *new* rooms beyond the limit are blocked — existing rooms are untouched.
+    const TRIAL_ROOM_LIMIT = 10;
+    const { data: hotelRow } = await supabase.from('hotels')
+      .select('subscription_status, plans(name, max_rooms)')
+      .eq('id', req.hotelId).single();
+    const onTrial = hotelRow?.subscription_status === 'trial';
+    const planName = hotelRow?.plans?.name || null;
+    const limit = onTrial ? TRIAL_ROOM_LIMIT : (hotelRow?.plans?.max_rooms ?? null);
+    if (limit != null && Number.isFinite(limit)) {
+      const { count } = await supabase.from('rooms')
+        .select('*', { count: 'exact', head: true }).eq('hotel_id', req.hotelId);
+      if ((count || 0) >= limit) {
+        return res.status(403).json({
+          success: false,
+          code: 'ROOM_LIMIT_REACHED',
+          message: onTrial
+            ? `Your free trial allows up to ${limit} rooms. Subscribe to a plan to add more.`
+            : `Your ${planName || 'current'} plan allows up to ${limit} rooms. Upgrade your plan to add more rooms.`,
+        });
+      }
+    }
+
     // rooms.type has a CHECK constraint with capitalised values, so a lowercase
     // default (or any unknown value) fails the insert with a 500 instead of a
     // useful message.
