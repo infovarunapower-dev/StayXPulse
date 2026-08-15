@@ -415,8 +415,32 @@ router.put('/plans/:id', SA, async (req, res) => {
 router.delete('/plans/:id', SA, async (req, res) => {
   try {
     const { error } = await supabase.from('plans').delete().eq('id', req.params.id);
-    if (error) throw error;
+    if (error) {
+      // 23503 = foreign-key violation: the plan is referenced by existing
+      // payments / orders / hotels. Hard-deleting would break invoice history,
+      // so hide it from hotels instead (guest plan list filters is_active).
+      if (error.code === '23503') {
+        const { error: dErr } = await supabase.from('plans').update({ is_active: false }).eq('id', req.params.id);
+        if (dErr) throw dErr;
+        return res.json({ success: true, deactivated: true,
+          message: 'This plan has existing payments, so it was hidden from hotels instead of being deleted.' });
+      }
+      throw error;
+    }
     res.json({ success: true, message: 'Plan deleted' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Toggle a plan's visibility without touching its other fields.
+router.patch('/plans/:id/active', SA, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('plans')
+      .update({ is_active: !!req.body.isActive }).eq('id', req.params.id)
+      .select('id, is_active').single();
+    if (error) throw error;
+    res.json({ success: true, data, message: req.body.isActive ? 'Plan activated' : 'Plan hidden from hotels' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

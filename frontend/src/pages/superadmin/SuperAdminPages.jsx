@@ -518,9 +518,20 @@ export const ManagePlans = () => {
   };
 
   const deletePlan = async (id) => {
-    if (!window.confirm('Delete this plan?')) return;
-    try { await api.delete(`/superadmin/plans/${id}`); toast.success('Plan deleted'); refetch(); }
-    catch { toast.error('Failed'); }
+    if (!window.confirm('Delete this plan? If it already has payments, it will be hidden from hotels instead of deleted.')) return;
+    try {
+      const r = await api.delete(`/superadmin/plans/${id}`);
+      toast.success(r.data?.message || 'Plan deleted');
+      refetch();
+    } catch (err) { toast.error(err.response?.data?.message || 'Could not delete plan'); }
+  };
+
+  const setPlanActive = async (id, isActive) => {
+    try {
+      const r = await api.patch(`/superadmin/plans/${id}/active`, { isActive });
+      toast.success(r.data?.message || (isActive ? 'Plan activated' : 'Plan hidden'));
+      refetch();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
   };
 
   return (
@@ -531,8 +542,9 @@ export const ManagePlans = () => {
       {loading ? <Spinner /> : (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:20}}>
           {plans.map(plan => (
-            <div key={plan._id} className="card" style={{border: plan.isPopular?'2px solid var(--accent)':undefined, position:'relative'}}>
+            <div key={plan._id} className="card" style={{border: plan.isPopular?'2px solid var(--accent)':undefined, position:'relative', opacity: plan.isActive===false?0.62:1}}>
               {plan.isPopular && <div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'var(--accent)',color:'#fff',padding:'3px 14px',borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>MOST POPULAR</div>}
+              {plan.isActive===false && <div style={{position:'absolute',top:12,right:12,background:'var(--gray-200,#E5E7EB)',color:'var(--gray-600,#4B5563)',padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:700}}>Hidden</div>}
               <div style={{fontSize:18,fontWeight:800,color:'var(--gray-900)',marginBottom:4}}>{plan.name}</div>
               <div style={{fontSize:30,fontWeight:800,color:'var(--brand)',marginBottom:4}}>₹{plan.price}<span style={{fontSize:14,color:'var(--gray-400)',fontWeight:400}}>/mo</span></div>
               <div style={{fontSize:12,color:'var(--gray-400)',marginBottom:12}}>{plan.durationDays} days · up to {plan.maxRooms >= 999999 ? 'unlimited' : plan.maxRooms} rooms</div>
@@ -541,7 +553,9 @@ export const ManagePlans = () => {
               </div>
               <div style={{display:'flex',gap:8}}>
                 <button className="btn btn-sm btn-outline" style={{flex:1}} onClick={() => openEdit(plan)}>Edit</button>
-                <button className="btn btn-sm btn-danger" onClick={() => deletePlan(plan._id)}>Delete</button>
+                {plan.isActive===false
+                  ? <button className="btn btn-sm btn-brand" onClick={() => setPlanActive(plan._id, true)}>Activate</button>
+                  : <button className="btn btn-sm btn-danger" onClick={() => deletePlan(plan._id)}>Delete</button>}
               </div>
             </div>
           ))}
