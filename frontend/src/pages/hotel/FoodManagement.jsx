@@ -79,6 +79,10 @@ const FoodManagement = () => {
   const [selectMode,  setSelectMode]  = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkDeleting,setBulkDeleting] = useState(false);
+  const [kitchen,     setKitchen]     = useState({ enabled:false, open:'', close:'', isOpen:true });
+  const [showKitchen, setShowKitchen] = useState(false);
+  const [kitchenForm, setKitchenForm] = useState({ enabled:false, open:'07:00', close:'23:00' });
+  const [savingKitchen, setSavingKitchen] = useState(false);
   const [showBulk, setShowBulk]= useState(false);
   const [bulkFile, setBulkFile]= useState(null);
   const [uploading,setUploading]=useState(false);
@@ -98,6 +102,26 @@ const FoodManagement = () => {
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => { api.get('/hotel/kitchen-hours').then(r => setKitchen(r.data.data)).catch(()=>{}); }, []);
+
+  const fmt12 = (hhmm) => {
+    if (!hhmm) return '';
+    const [h, m] = hhmm.split(':').map(Number);
+    const ap = h < 12 ? 'AM' : 'PM'; const h12 = ((h + 11) % 12) + 1;
+    return `${h12}:${String(m).padStart(2,'0')} ${ap}`;
+  };
+  const openKitchen = () => {
+    setKitchenForm({ enabled: kitchen.enabled, open: kitchen.open || '07:00', close: kitchen.close || '23:00' });
+    setShowKitchen(true);
+  };
+  const saveKitchen = async () => {
+    setSavingKitchen(true);
+    try {
+      const r = await api.put('/hotel/kitchen-hours', kitchenForm);
+      setKitchen(r.data.data); toast.success('Kitchen hours saved'); setShowKitchen(false);
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to save kitchen hours'); }
+    finally { setSavingKitchen(false); }
+  };
 
   const categories = ['all', ...new Set(items.map(i => i.category))];
   const visible = items.filter(i => {
@@ -208,6 +232,7 @@ const FoodManagement = () => {
                 ? <button className="btn btn-outline" onClick={exitSelect}>✕ Cancel</button>
                 : <button className="btn btn-outline" onClick={() => setSelectMode(true)}>☑ Select</button>
             )}
+            <button className="btn btn-outline" onClick={openKitchen}>🕐 Kitchen Hours</button>
             <button className="btn btn-outline" onClick={() => setShowStarter(true)}>✨ Starter Menu</button>
             <button className="btn btn-outline" onClick={() => setShowScan(true)}>📷 Scan Menu Card</button>
             <button className="btn btn-outline" onClick={() => setShowBulk(true)}>⬆ Bulk Upload</button>
@@ -231,6 +256,12 @@ const FoodManagement = () => {
         <div style={{padding:'6px 14px',background:'var(--gray-100)',color:'var(--gray-500)',borderRadius:20,fontSize:13,fontWeight:600}}>
           ○ {items.filter(i=>!i.is_available).length} Unavailable
         </div>
+        <button onClick={openKitchen} style={{padding:'6px 14px',borderRadius:20,fontSize:13,fontWeight:700,cursor:'pointer',border:'1px solid',
+          background: kitchen.enabled ? (kitchen.isOpen ? 'var(--success-light)' : 'var(--danger-light)') : 'var(--gray-100)',
+          color: kitchen.enabled ? (kitchen.isOpen ? 'var(--success)' : 'var(--danger)') : 'var(--gray-500)',
+          borderColor: kitchen.enabled ? (kitchen.isOpen ? '#A7F3D0' : '#FECACA') : 'var(--border)'}}>
+          🍳 {kitchen.enabled ? `${fmt12(kitchen.open)}–${fmt12(kitchen.close)} · ${kitchen.isOpen ? 'Serving now' : 'Closed now'}` : 'Kitchen: always open'}
+        </button>
       </div>
 
       {selectMode && (
@@ -423,6 +454,44 @@ const FoodManagement = () => {
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={()=>setDelItem(null)}>Cancel</button>
           <button className="btn btn-danger" onClick={handleDelete}>Remove</button>
+        </div>
+      </Modal>
+
+      {/* Kitchen Hours Modal */}
+      <Modal open={showKitchen} onClose={() => setShowKitchen(false)} title="🕐 Kitchen Hours" width={440}>
+        <p style={{fontSize:13.5,color:'var(--gray-500)',marginBottom:18,lineHeight:1.55}}>
+          Limit food ordering to your kitchen's serving hours. Outside these hours, guests see
+          <strong> "Currently not serving" </strong> and can't place food orders. Room-service requests are unaffected.
+        </p>
+        <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',marginBottom:18,fontSize:14,fontWeight:600,color:'var(--gray-800)'}}>
+          <input type="checkbox" checked={kitchenForm.enabled}
+            onChange={e => setKitchenForm(f => ({ ...f, enabled: e.target.checked }))}
+            style={{width:18,height:18,cursor:'pointer'}} />
+          Limit ordering to kitchen hours
+        </label>
+        <div style={{display:'flex',gap:14,opacity:kitchenForm.enabled?1:0.5,pointerEvents:kitchenForm.enabled?'auto':'none'}}>
+          <div style={{flex:1}}>
+            <label style={{display:'block',fontSize:12,fontWeight:700,color:'var(--gray-500)',marginBottom:5}}>Opens at</label>
+            <input type="time" className="form-control" value={kitchenForm.open}
+              onChange={e => setKitchenForm(f => ({ ...f, open: e.target.value }))} />
+          </div>
+          <div style={{flex:1}}>
+            <label style={{display:'block',fontSize:12,fontWeight:700,color:'var(--gray-500)',marginBottom:5}}>Closes at</label>
+            <input type="time" className="form-control" value={kitchenForm.close}
+              onChange={e => setKitchenForm(f => ({ ...f, close: e.target.value }))} />
+          </div>
+        </div>
+        {kitchenForm.enabled && kitchenForm.open && kitchenForm.close && (
+          <div style={{marginTop:14,fontSize:13,color:'var(--gray-500)'}}>
+            Serving <strong>{fmt12(kitchenForm.open)}</strong> to <strong>{fmt12(kitchenForm.close)}</strong>
+            {kitchenForm.close <= kitchenForm.open && <span style={{color:'var(--accent-strong,#B45309)'}}> (overnight — closes next day)</span>}
+          </div>
+        )}
+        <div className="modal-footer" style={{marginTop:24}}>
+          <button className="btn btn-outline" onClick={() => setShowKitchen(false)}>Cancel</button>
+          <button className="btn btn-brand" onClick={saveKitchen} disabled={savingKitchen}>
+            {savingKitchen ? 'Saving…' : 'Save hours'}
+          </button>
         </div>
       </Modal>
     </div>

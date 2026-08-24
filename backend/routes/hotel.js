@@ -60,6 +60,31 @@ const dailyResetCutoffIso = () => {
   return new Date(cut - IST).toISOString();    // convert back to real UTC
 };
 
+// Kitchen serving hours (IST). Returns whether food ordering is open right now.
+// Handles windows that cross midnight (e.g. 18:00–02:00). If the feature is off
+// or the times are missing/invalid, the kitchen is treated as always open so a
+// misconfiguration can never silently block every hotel's ordering.
+const toMin = (hhmm) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim());
+  if (!m) return null;
+  const h = +m[1], mi = +m[2];
+  if (h > 23 || mi > 59) return null;
+  return h * 60 + mi;
+};
+const kitchenStatus = (hotel) => {
+  const enabled = !!hotel?.kitchen_hours_enabled;
+  const open = hotel?.kitchen_open || null;
+  const close = hotel?.kitchen_close || null;
+  const o = toMin(open), c = toMin(close);
+  if (!enabled || o == null || c == null || o === c) {
+    return { enabled, open, close, isOpen: true };
+  }
+  const ist = new Date(Date.now() + 5.5 * 3600 * 1000);
+  const now = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  const isOpen = o < c ? (now >= o && now < c) : (now >= o || now < c);  // c<o ⇒ overnight
+  return { enabled, open, close, isOpen };
+};
+
 // "Today"/"Yesterday" filters use Indian midnight, not server (UTC) midnight —
 // the server runs in UTC where midnight is 5:30 AM IST, which hid late-evening
 // requests from the "Today" view for Indian hotels.
@@ -304,6 +329,35 @@ router.delete('/food/:id', MW, async (req, res) => {
     const { error } = await supabase.from('food_items').delete().eq('id', req.params.id).eq('hotel_id', req.hotelId);
     if (error) throw error;
     res.json({ success: true, message: 'Item deleted' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ── Kitchen hours ────────────────────────────────────────────────────────────
+router.get('/kitchen-hours', MW, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('hotels')
+      .select('kitchen_hours_enabled, kitchen_open, kitchen_close').eq('id', req.hotelId).single();
+    if (error) throw error;
+    res.json({ success: true, data: { ...kitchenStatus(data) } });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.put('/kitchen-hours', MW, async (req, res) => {
+  try {
+    const enabled = !!req.body.enabled;
+    const open  = String(req.body.open  || '').trim();
+    const close = String(req.body.close || '').trim();
+    if (enabled) {
+      if (toMin(open) == null || toMin(close) == null)
+        return res.status(400).json({ success: false, message: 'Please set a valid open and close time (HH:MM).' });
+      if (toMin(open) === toMin(close))
+        return res.status(400).json({ success: false, message: 'Open and close time cannot be the same.' });
+    }
+    const { data, error } = await supabase.from('hotels')
+      .update({ kitchen_hours_enabled: enabled, kitchen_open: open || null, kitchen_close: close || null })
+      .eq('id', req.hotelId).select('kitchen_hours_enabled, kitchen_open, kitchen_close').single();
+    if (error) throw error;
+    res.json({ success: true, data: { ...kitchenStatus(data) }, message: 'Kitchen hours saved' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -784,7 +838,7 @@ router.get('/guest/:qrToken', async (req, res) => {
       serviceOptions = allSvc.some(r => r.is_default) ? active : [...defaults, ...active];
     }
 
-    res.json({ success: true, data: { hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type }, menu, serviceOptions } });
+    res.json({ success: true, data: { hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type }, menu, serviceOptions, kitchen: kitchenStatus(hotel) } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -792,6 +846,17 @@ router.post('/guest/:qrToken/order', async (req, res) => {
   try {
     const { data: room, error } = await supabase.from('rooms').select('*').eq('qr_token', req.params.qrToken).eq('is_active', true).single();
     if (error || !room) return res.status(404).json({ success: false, message: 'Invalid QR' });
+
+    // Kitchen hours gate: outside serving hours, no new food orders. Fetched
+    // defensively so that if migration 015 hasn't run yet (columns absent) the
+    // kitchen is simply treated as open rather than breaking ordering.
+    const { data: kh } = await supabase.from('hotels')
+      .select('kitchen_hours_enabled, kitchen_open, kitchen_close').eq('id', room.hotel_id).single();
+    const ks = kitchenStatus(kh || {});
+    if (ks.enabled && !ks.isOpen) {
+      return res.status(403).json({ success: false, code: 'KITCHEN_CLOSED',
+        message: `The kitchen is currently closed. Food ordering is open ${ks.open}–${ks.close}.` });
+    }
 
     const { items, guestNote = '' } = req.body;
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ success: false, message: 'No items in order' });

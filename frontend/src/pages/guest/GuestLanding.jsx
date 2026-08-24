@@ -80,6 +80,7 @@ const GuestLanding = () => {
   const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || 'en');
   const [menuLoading, setMenuLoading] = useState(false);
   const [services, setServices] = useState(SERVICE_OPTIONS); // hotel's own list; falls back to defaults
+  const [kitchen, setKitchen] = useState({ enabled:false, isOpen:true, open:'', close:'' });
 
   const [wakeOpen, setWakeOpen] = useState(false);
   const [wakeTime, setWakeTime] = useState('07:00');
@@ -116,6 +117,7 @@ const GuestLanding = () => {
         if (reqLang !== langRef.current) return;   // a newer switch superseded this
         setHotel(r.data.data.hotel); setRoom(r.data.data.room); setMenu(r.data.data.menu); setPage('app');
         if (Array.isArray(r.data.data.serviceOptions) && r.data.data.serviceOptions.length) setServices(r.data.data.serviceOptions);
+        if (r.data.data.kitchen) setKitchen(r.data.data.kitchen);
       })
       .catch(() => setPage(p => p === 'app' ? 'app' : 'error'))
       .finally(() => { if (reqLang === langRef.current) setMenuLoading(false); });
@@ -136,7 +138,14 @@ const GuestLanding = () => {
   }, [tab]);
 
   // Cart helpers
+  const kitchenClosed = kitchen.enabled && !kitchen.isOpen;
+  const fmt12g = (hhmm) => {
+    if (!hhmm) return '';
+    const [h, m] = hhmm.split(':').map(Number);
+    return `${((h + 11) % 12) + 1}:${String(m).padStart(2,'0')} ${h < 12 ? 'AM' : 'PM'}`;
+  };
   const addToCart = (item) => {
+    if (kitchenClosed) return;
     setCart(prev => {
       const ex = prev.find(c => c.foodItem === item.id);
       if (ex) return prev.map(c => c.foodItem===item.id ? {...c,quantity:c.quantity+1} : c);
@@ -335,6 +344,14 @@ const GuestLanding = () => {
 
           return (
           <div>
+            {kitchenClosed && (
+              <div style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:12,padding:'14px 16px',marginBottom:14,textAlign:'center'}}>
+                <div style={{fontSize:15,fontWeight:800,color:'#B91C1C',marginBottom:2}}>🌙 {t.notServing}</div>
+                <div style={{fontSize:13,color:'#7F1D1D'}}>
+                  {t.kitchenHours}: <strong>{fmt12g(kitchen.open)} – {fmt12g(kitchen.close)}</strong>
+                </div>
+              </div>
+            )}
             {menuLoading && (
               <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'8px 0 12px',fontSize:13,color:'#0D9488',fontWeight:600}}>
                 <span className="gl-spinner" style={{width:15,height:15,borderWidth:2,margin:0}}/> {t.translatingMenu}
@@ -395,7 +412,9 @@ const GuestLanding = () => {
                           </div>
                         </div>
                         <div className="gl-qty-control">
-                          {qty === 0
+                          {kitchenClosed
+                            ? <button className="gl-add-btn" disabled style={{opacity:0.4,cursor:'not-allowed'}}>{t.add}</button>
+                            : qty === 0
                             ? <button className="gl-add-btn" onClick={()=>addToCart(item)}>{t.add}</button>
                             : <div className="gl-stepper">
                                 <button onClick={()=>qty===1?removeFromCart(item.id):changeQty(item.id,-1)}>−</button>
