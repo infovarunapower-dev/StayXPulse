@@ -313,11 +313,17 @@ router.post('/food/bulk-delete', MW, async (req, res) => {
   try {
     const ids = Array.isArray(req.body.ids) ? req.body.ids.filter(Boolean) : [];
     if (!ids.length) return res.status(400).json({ success: false, message: 'No items selected.' });
-    const { data, error } = await supabase.from('food_items')
-      .delete().eq('hotel_id', req.hotelId).in('id', ids).select('id');
-    if (error) throw error;
-    const n = (data || []).length;
-    res.json({ success: true, deleted: n, message: `${n} item${n === 1 ? '' : 's'} deleted` });
+    // Delete in chunks so any number of items works — a very long id list would
+    // otherwise overflow the query string. 200 UUIDs per batch is well within limits.
+    let deleted = 0;
+    for (let i = 0; i < ids.length; i += 200) {
+      const batch = ids.slice(i, i + 200);
+      const { data, error } = await supabase.from('food_items')
+        .delete().eq('hotel_id', req.hotelId).in('id', batch).select('id');
+      if (error) throw error;
+      deleted += (data || []).length;
+    }
+    res.json({ success: true, deleted, message: `${deleted} item${deleted === 1 ? '' : 's'} deleted` });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
