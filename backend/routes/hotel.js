@@ -321,6 +321,22 @@ router.post('/food/bulk-delete', MW, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// Read a veg / non-veg column from a spreadsheet row, tolerant of how people
+// actually label it. Checks the non-veg signal FIRST because "non-veg" contains
+// the substring "veg". Defaults to veg only when nothing says otherwise.
+const VEG_KEYS = ['isveg','is_veg','veg','vegnonveg','veg_non_veg','veg/non-veg','veg / non-veg','veg/nonveg',
+  'veg or non-veg','veg or non veg','veg?','vegetarian','type','food type','foodtype'];
+const detectVeg = (r) => {
+  let raw = '';
+  for (const k of VEG_KEYS) {
+    if (r[k] != null && String(r[k]).trim() !== '') { raw = String(r[k]); break; }
+  }
+  const s = raw.toLowerCase().trim();
+  if (!s) return true;   // no info → assume veg
+  if (/non|\bnv\b|n-v|nonveg|\bfalse\b|\bno\b|^0$|egg|chicken|mutton|fish|prawn|meat|\bnv\b/.test(s)) return false;
+  return true;           // veg / true / yes / v / 1 / etc.
+};
+
 // Bulk upload
 router.post('/food/bulk', MW, memUpload.single('file'), async (req, res) => {
   try {
@@ -361,7 +377,7 @@ router.post('/food/bulk', MW, memUpload.single('file'), async (req, res) => {
         description: r.description || '',
         price: parseFloat(r.price) || 0,
         category: r.category,
-        is_veg: String(r.isveg || r.is_veg || r.veg || 'true').toLowerCase() !== 'false',
+        is_veg: detectVeg(r),
         is_available: true,
         image_emoji: r.emoji || r.imageemoji || '🍽',
       }));
