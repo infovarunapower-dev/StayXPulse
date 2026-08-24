@@ -27,8 +27,19 @@ const EMOJIS = ['🍽','🥘','🍜','🍛','🥗','🍱','🥞','🍚','🍖','
 
 const BLANK = { name:'', description:'', price:'', category:'', isVeg:true, imageEmoji:'🍽' };
 
-const FoodCard = ({ item, onEdit, onToggle, onDelete }) => (
-  <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:16,opacity:item.is_available?1:0.6,transition:'opacity 0.2s'}}>
+const FoodCard = ({ item, onEdit, onToggle, onDelete, selectMode, selected, onToggleSelect }) => (
+  <div
+    onClick={selectMode ? () => onToggleSelect(item.id) : undefined}
+    style={{position:'relative',background:'var(--surface)',
+      border:'2px solid', borderColor: selected ? 'var(--brand)' : 'var(--border)',
+      borderRadius:14,padding:16,opacity:item.is_available?1:0.6,transition:'all 0.15s',
+      cursor:selectMode?'pointer':'default', boxShadow: selected ? '0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent)' : 'none'}}>
+    {selectMode && (
+      <div style={{position:'absolute',top:10,left:10,zIndex:2,width:24,height:24,borderRadius:6,
+        border:'2px solid', borderColor: selected?'var(--brand)':'var(--gray-300)',
+        background: selected?'var(--brand)':'#fff', display:'grid',placeItems:'center',
+        color:'#fff',fontSize:14,fontWeight:800}}>{selected?'✓':''}</div>
+    )}
     <div style={{fontSize:36,textAlign:'center',marginBottom:10,background:'var(--gray-50)',borderRadius:10,padding:'12px 0'}}>{item.image_emoji}</div>
     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
       <div style={{fontWeight:700,fontSize:14,color:'var(--gray-900)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.name}</div>
@@ -37,7 +48,7 @@ const FoodCard = ({ item, onEdit, onToggle, onDelete }) => (
     <div style={{fontSize:11,color:'var(--gray-400)',marginBottom:4}}>{item.category}</div>
     {item.description && <div style={{fontSize:12,color:'var(--gray-500)',marginBottom:8,lineHeight:1.4,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{item.description}</div>}
     <div style={{fontSize:17,fontWeight:800,color:'var(--brand)',marginBottom:10}}>₹{item.price}</div>
-    <div style={{borderTop:'1px solid var(--border)',paddingTop:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+    <div onClick={e=>e.stopPropagation()} style={{borderTop:'1px solid var(--border)',paddingTop:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
       <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'var(--gray-500)',fontWeight:500}}>
         <div style={{position:'relative',width:36,height:20}}>
           <input type="checkbox" checked={item.is_available} onChange={e=>onToggle(item.id,e.target.checked)} style={{opacity:0,width:0,height:0,position:'absolute'}} />
@@ -65,6 +76,9 @@ const FoodManagement = () => {
   const [form,     setForm]    = useState(BLANK);
   const [saving,   setSaving]  = useState(false);
   const [delItem,  setDelItem] = useState(null);
+  const [selectMode,  setSelectMode]  = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkDeleting,setBulkDeleting] = useState(false);
   const [showBulk, setShowBulk]= useState(false);
   const [bulkFile, setBulkFile]= useState(null);
   const [uploading,setUploading]=useState(false);
@@ -113,6 +127,23 @@ const FoodManagement = () => {
       await api.patch(`/hotel/food/${id}/availability`, { isAvailable:val });
       setItems(prev => prev.map(i => i.id===id ? {...i,is_available:val} : i));
     } catch { toast.error('Failed to update'); }
+  };
+
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+  const exitSelect = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const bulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    if (!window.confirm(`Delete ${ids.length} selected item${ids.length===1?'':'s'}? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    try {
+      const r = await api.post('/hotel/food/bulk-delete', { ids });
+      toast.success(r.data?.message || 'Items deleted');
+      exitSelect(); load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to delete'); }
+    finally { setBulkDeleting(false); }
   };
 
   const handleDelete = async () => {
@@ -172,6 +203,11 @@ const FoodManagement = () => {
       <PageHeader title="Food Management" subtitle="Manage your menu — add items, control availability, bulk upload"
         action={
           <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+            {items.length > 0 && (
+              selectMode
+                ? <button className="btn btn-outline" onClick={exitSelect}>✕ Cancel</button>
+                : <button className="btn btn-outline" onClick={() => setSelectMode(true)}>☑ Select</button>
+            )}
             <button className="btn btn-outline" onClick={() => setShowStarter(true)}>✨ Starter Menu</button>
             <button className="btn btn-outline" onClick={() => setShowScan(true)}>📷 Scan Menu Card</button>
             <button className="btn btn-outline" onClick={() => setShowBulk(true)}>⬆ Bulk Upload</button>
@@ -197,6 +233,23 @@ const FoodManagement = () => {
         </div>
       </div>
 
+      {selectMode && (
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginBottom:16,padding:'12px 16px',
+          background:'var(--brand-light)',border:'1px solid var(--brand)',borderRadius:12}}>
+          <span style={{fontWeight:700,color:'var(--brand)',fontSize:14}}>{selectedIds.size} selected</span>
+          <button className="btn btn-sm btn-outline" onClick={() => setSelectedIds(new Set(visible.map(i=>i.id)))}>
+            Select all ({visible.length})
+          </button>
+          {selectedIds.size > 0 && <button className="btn btn-sm btn-outline" onClick={() => setSelectedIds(new Set())}>Clear</button>}
+          <div style={{flex:1}} />
+          <button className="btn btn-sm" disabled={!selectedIds.size || bulkDeleting}
+            style={{background:'var(--danger)',color:'#fff',borderRadius:8,padding:'6px 16px',fontWeight:700,opacity:(!selectedIds.size||bulkDeleting)?0.5:1}}
+            onClick={bulkDelete}>
+            {bulkDeleting ? 'Deleting…' : `🗑 Delete ${selectedIds.size || ''} selected`}
+          </button>
+        </div>
+      )}
+
       {loading ? <Spinner /> : visible.length === 0 ? (
         <div style={{textAlign:'center',padding:'60px 0'}}>
           <div style={{fontSize:48,marginBottom:12}}>🍽</div>
@@ -207,7 +260,8 @@ const FoodManagement = () => {
         </div>
       ) : (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))',gap:16}}>
-          {visible.map(item => <FoodCard key={item.id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={setDelItem} />)}
+          {visible.map(item => <FoodCard key={item.id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={setDelItem}
+            selectMode={selectMode} selected={selectedIds.has(item.id)} onToggleSelect={toggleSelect} />)}
         </div>
       )}
 

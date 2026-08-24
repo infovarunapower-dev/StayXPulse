@@ -307,6 +307,20 @@ router.delete('/food/:id', MW, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// Bulk delete — remove several menu items at once. Scoped to this hotel so a
+// stray id from another hotel can never be deleted.
+router.post('/food/bulk-delete', MW, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.filter(Boolean) : [];
+    if (!ids.length) return res.status(400).json({ success: false, message: 'No items selected.' });
+    const { data, error } = await supabase.from('food_items')
+      .delete().eq('hotel_id', req.hotelId).in('id', ids).select('id');
+    if (error) throw error;
+    const n = (data || []).length;
+    res.json({ success: true, deleted: n, message: `${n} item${n === 1 ? '' : 's'} deleted` });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // Bulk upload
 router.post('/food/bulk', MW, memUpload.single('file'), async (req, res) => {
   try {
