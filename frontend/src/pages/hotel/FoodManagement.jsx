@@ -79,9 +79,9 @@ const FoodManagement = () => {
   const [selectMode,  setSelectMode]  = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkDeleting,setBulkDeleting] = useState(false);
-  const [kitchen,     setKitchen]     = useState({ enabled:false, open:'', close:'', isOpen:true });
+  const [kitchen,     setKitchen]     = useState({ enabled:false, slots:[], isOpen:true });
   const [showKitchen, setShowKitchen] = useState(false);
-  const [kitchenForm, setKitchenForm] = useState({ enabled:false, open:'07:00', close:'23:00' });
+  const [kitchenForm, setKitchenForm] = useState({ enabled:false, slots:[{ open:'07:00', close:'23:00' }] });
   const [savingKitchen, setSavingKitchen] = useState(false);
   const [showBulk, setShowBulk]= useState(false);
   const [bulkFile, setBulkFile]= useState(null);
@@ -111,17 +111,22 @@ const FoodManagement = () => {
     return `${h12}:${String(m).padStart(2,'0')} ${ap}`;
   };
   const openKitchen = () => {
-    setKitchenForm({ enabled: kitchen.enabled, open: kitchen.open || '07:00', close: kitchen.close || '23:00' });
+    const slots = (kitchen.slots && kitchen.slots.length) ? kitchen.slots.map(s => ({ ...s })) : [{ open:'07:00', close:'23:00' }];
+    setKitchenForm({ enabled: kitchen.enabled, slots });
     setShowKitchen(true);
   };
+  const setSlot = (idx, key, val) => setKitchenForm(f => ({ ...f, slots: f.slots.map((s,i) => i===idx ? { ...s, [key]:val } : s) }));
+  const addSlot = () => setKitchenForm(f => ({ ...f, slots: [...f.slots, { open:'', close:'' }] }));
+  const removeSlot = (idx) => setKitchenForm(f => ({ ...f, slots: f.slots.filter((_,i) => i!==idx) }));
   const saveKitchen = async () => {
     setSavingKitchen(true);
     try {
-      const r = await api.put('/hotel/kitchen-hours', kitchenForm);
+      const r = await api.put('/hotel/kitchen-hours', { enabled: kitchenForm.enabled, slots: kitchenForm.slots });
       setKitchen(r.data.data); toast.success('Kitchen hours saved'); setShowKitchen(false);
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to save kitchen hours'); }
     finally { setSavingKitchen(false); }
   };
+  const slotsLabel = (slots) => (slots || []).filter(s=>s.open&&s.close).map(s => `${fmt12(s.open)}–${fmt12(s.close)}`).join(', ');
 
   const categories = ['all', ...new Set(items.map(i => i.category))];
   const visible = items.filter(i => {
@@ -260,7 +265,7 @@ const FoodManagement = () => {
           background: kitchen.enabled ? (kitchen.isOpen ? 'var(--success-light)' : 'var(--danger-light)') : 'var(--gray-100)',
           color: kitchen.enabled ? (kitchen.isOpen ? 'var(--success)' : 'var(--danger)') : 'var(--gray-500)',
           borderColor: kitchen.enabled ? (kitchen.isOpen ? '#A7F3D0' : '#FECACA') : 'var(--border)'}}>
-          🍳 {kitchen.enabled ? `${fmt12(kitchen.open)}–${fmt12(kitchen.close)} · ${kitchen.isOpen ? 'Serving now' : 'Closed now'}` : 'Kitchen: always open'}
+          🍳 {kitchen.enabled ? `${slotsLabel(kitchen.slots)} · ${kitchen.isOpen ? 'Serving now' : 'Closed now'}` : 'Kitchen: always open'}
         </button>
       </div>
 
@@ -469,24 +474,30 @@ const FoodManagement = () => {
             style={{width:18,height:18,cursor:'pointer'}} />
           Limit ordering to kitchen hours
         </label>
-        <div style={{display:'flex',gap:14,opacity:kitchenForm.enabled?1:0.5,pointerEvents:kitchenForm.enabled?'auto':'none'}}>
-          <div style={{flex:1}}>
-            <label style={{display:'block',fontSize:12,fontWeight:700,color:'var(--gray-500)',marginBottom:5}}>Opens at</label>
-            <input type="time" className="form-control" value={kitchenForm.open}
-              onChange={e => setKitchenForm(f => ({ ...f, open: e.target.value }))} />
+        <div style={{opacity:kitchenForm.enabled?1:0.5,pointerEvents:kitchenForm.enabled?'auto':'none'}}>
+          <div style={{fontSize:12,fontWeight:700,color:'var(--gray-500)',marginBottom:8}}>Serving windows</div>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {kitchenForm.slots.map((s, idx) => (
+              <div key={idx} style={{display:'flex',gap:10,alignItems:'center'}}>
+                <input type="time" className="form-control" style={{flex:1}} value={s.open}
+                  onChange={e => setSlot(idx, 'open', e.target.value)} />
+                <span style={{color:'var(--gray-400)'}}>to</span>
+                <input type="time" className="form-control" style={{flex:1}} value={s.close}
+                  onChange={e => setSlot(idx, 'close', e.target.value)} />
+                <button type="button" onClick={() => removeSlot(idx)} disabled={kitchenForm.slots.length===1}
+                  title="Remove this window"
+                  style={{background:'var(--danger-light)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:7,
+                    width:34,height:34,fontSize:14,cursor:kitchenForm.slots.length===1?'not-allowed':'pointer',
+                    opacity:kitchenForm.slots.length===1?0.4:1,flexShrink:0}}>🗑</button>
+              </div>
+            ))}
           </div>
-          <div style={{flex:1}}>
-            <label style={{display:'block',fontSize:12,fontWeight:700,color:'var(--gray-500)',marginBottom:5}}>Closes at</label>
-            <input type="time" className="form-control" value={kitchenForm.close}
-              onChange={e => setKitchenForm(f => ({ ...f, close: e.target.value }))} />
+          <button type="button" onClick={addSlot} className="btn btn-sm btn-outline" style={{marginTop:10}}>+ Add another time</button>
+          <div style={{marginTop:12,fontSize:12,color:'var(--gray-400)',lineHeight:1.5}}>
+            Add a window per shift (e.g. breakfast, lunch, dinner). Guests can order whenever the current time falls in any window.
+            A window whose close time is earlier than its open time is treated as overnight.
           </div>
         </div>
-        {kitchenForm.enabled && kitchenForm.open && kitchenForm.close && (
-          <div style={{marginTop:14,fontSize:13,color:'var(--gray-500)'}}>
-            Serving <strong>{fmt12(kitchenForm.open)}</strong> to <strong>{fmt12(kitchenForm.close)}</strong>
-            {kitchenForm.close <= kitchenForm.open && <span style={{color:'var(--accent-strong,#B45309)'}}> (overnight — closes next day)</span>}
-          </div>
-        )}
         <div className="modal-footer" style={{marginTop:24}}>
           <button className="btn btn-outline" onClick={() => setShowKitchen(false)}>Cancel</button>
           <button className="btn btn-brand" onClick={saveKitchen} disabled={savingKitchen}>

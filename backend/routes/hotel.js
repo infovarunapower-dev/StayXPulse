@@ -73,16 +73,24 @@ const toMin = (hhmm) => {
 };
 const kitchenStatus = (hotel) => {
   const enabled = !!hotel?.kitchen_hours_enabled;
-  const open = hotel?.kitchen_open || null;
-  const close = hotel?.kitchen_close || null;
-  const o = toMin(open), c = toMin(close);
-  if (!enabled || o == null || c == null || o === c) {
-    return { enabled, open, close, isOpen: true };
+  // Prefer the multi-window slots array; fall back to the legacy single window.
+  let raw = Array.isArray(hotel?.kitchen_slots) ? hotel.kitchen_slots : [];
+  if (!raw.length && hotel?.kitchen_open && hotel?.kitchen_close) {
+    raw = [{ open: hotel.kitchen_open, close: hotel.kitchen_close }];
+  }
+  const valid = raw
+    .map(s => ({ open: s.open, close: s.close, o: toMin(s.open), c: toMin(s.close) }))
+    .filter(s => s.o != null && s.c != null && s.o !== s.c);
+  const slots = valid.map(s => ({ open: s.open, close: s.close }));
+  // open/close kept for older clients that read a single window.
+  const first = slots[0] || { open: hotel?.kitchen_open || null, close: hotel?.kitchen_close || null };
+  if (!enabled || valid.length === 0) {
+    return { enabled, slots, open: first.open, close: first.close, isOpen: true };
   }
   const ist = new Date(Date.now() + 5.5 * 3600 * 1000);
   const now = ist.getUTCHours() * 60 + ist.getUTCMinutes();
-  const isOpen = o < c ? (now >= o && now < c) : (now >= o || now < c);  // c<o ⇒ overnight
-  return { enabled, open, close, isOpen };
+  const inSlot = (s) => s.o < s.c ? (now >= s.o && now < s.c) : (now >= s.o || now < s.c);  // c<o ⇒ overnight
+  return { enabled, slots, open: first.open, close: first.close, isOpen: valid.some(inSlot) };
 };
 
 // "Today"/"Yesterday" filters use Indian midnight, not server (UTC) midnight —
@@ -335,29 +343,46 @@ router.delete('/food/:id', MW, async (req, res) => {
 // ── Kitchen hours ────────────────────────────────────────────────────────────
 router.get('/kitchen-hours', MW, async (req, res) => {
   try {
-    const { data, error } = await supabase.from('hotels')
+    // Fall back to the legacy columns if migration 016 (kitchen_slots) hasn't run.
+    let sel = await supabase.from('hotels')
+      .select('kitchen_hours_enabled, kitchen_slots, kitchen_open, kitchen_close').eq('id', req.hotelId).single();
+    if (sel.error) sel = await supabase.from('hotels')
       .select('kitchen_hours_enabled, kitchen_open, kitchen_close').eq('id', req.hotelId).single();
-    if (error) throw error;
-    res.json({ success: true, data: { ...kitchenStatus(data) } });
+    if (sel.error) throw sel.error;
+    res.json({ success: true, data: { ...kitchenStatus(sel.data) } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 router.put('/kitchen-hours', MW, async (req, res) => {
   try {
     const enabled = !!req.body.enabled;
-    const open  = String(req.body.open  || '').trim();
-    const close = String(req.body.close || '').trim();
+    // Accept the new `slots` array; fall back to a single open/close (older app).
+    let raw = Array.isArray(req.body.slots) ? req.body.slots : null;
+    if (!raw && (req.body.open || req.body.close)) raw = [{ open: req.body.open, close: req.body.close }];
+    const slots = (raw || [])
+      .map(s => ({ open: String(s.open || '').trim(), close: String(s.close || '').trim() }))
+      .filter(s => s.open || s.close);
     if (enabled) {
-      if (toMin(open) == null || toMin(close) == null)
-        return res.status(400).json({ success: false, message: 'Please set a valid open and close time (HH:MM).' });
-      if (toMin(open) === toMin(close))
-        return res.status(400).json({ success: false, message: 'Open and close time cannot be the same.' });
+      if (slots.length === 0)
+        return res.status(400).json({ success: false, message: 'Add at least one serving window.' });
+      for (const s of slots) {
+        if (toMin(s.open) == null || toMin(s.close) == null)
+          return res.status(400).json({ success: false, message: 'Each window needs a valid open and close time (HH:MM).' });
+        if (toMin(s.open) === toMin(s.close))
+          return res.status(400).json({ success: false, message: 'A window’s open and close time cannot be the same.' });
+      }
     }
-    const { data, error } = await supabase.from('hotels')
-      .update({ kitchen_hours_enabled: enabled, kitchen_open: open || null, kitchen_close: close || null })
-      .eq('id', req.hotelId).select('kitchen_hours_enabled, kitchen_open, kitchen_close').single();
-    if (error) throw error;
-    res.json({ success: true, data: { ...kitchenStatus(data) }, message: 'Kitchen hours saved' });
+    const first = slots[0] || {};
+    const legacy = { kitchen_hours_enabled: enabled, kitchen_open: first.open || null, kitchen_close: first.close || null };
+    // Try with kitchen_slots; if that column doesn't exist yet, save the legacy
+    // single window (first slot) so ordering hours still work pre-migration.
+    let up = await supabase.from('hotels')
+      .update({ ...legacy, kitchen_slots: slots })
+      .eq('id', req.hotelId).select('kitchen_hours_enabled, kitchen_slots, kitchen_open, kitchen_close').single();
+    if (up.error) up = await supabase.from('hotels')
+      .update(legacy).eq('id', req.hotelId).select('kitchen_hours_enabled, kitchen_open, kitchen_close').single();
+    if (up.error) throw up.error;
+    res.json({ success: true, data: { ...kitchenStatus(up.data) }, message: 'Kitchen hours saved' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -851,11 +876,12 @@ router.post('/guest/:qrToken/order', async (req, res) => {
     // defensively so that if migration 015 hasn't run yet (columns absent) the
     // kitchen is simply treated as open rather than breaking ordering.
     const { data: kh } = await supabase.from('hotels')
-      .select('kitchen_hours_enabled, kitchen_open, kitchen_close').eq('id', room.hotel_id).single();
+      .select('kitchen_hours_enabled, kitchen_slots, kitchen_open, kitchen_close').eq('id', room.hotel_id).single();
     const ks = kitchenStatus(kh || {});
     if (ks.enabled && !ks.isOpen) {
+      const windows = (ks.slots || []).map(s => `${s.open}–${s.close}`).join(', ');
       return res.status(403).json({ success: false, code: 'KITCHEN_CLOSED',
-        message: `The kitchen is currently closed. Food ordering is open ${ks.open}–${ks.close}.` });
+        message: `The kitchen is currently closed. Food ordering is open ${windows || `${ks.open}–${ks.close}`}.` });
     }
 
     const { items, guestNote = '' } = req.body;

@@ -80,7 +80,7 @@ const GuestLanding = () => {
   const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || 'en');
   const [menuLoading, setMenuLoading] = useState(false);
   const [services, setServices] = useState(SERVICE_OPTIONS); // hotel's own list; falls back to defaults
-  const [kitchen, setKitchen] = useState({ enabled:false, isOpen:true, open:'', close:'' });
+  const [kitchen, setKitchen] = useState({ enabled:false, isOpen:true, slots:[], open:'', close:'' });
 
   const [wakeOpen, setWakeOpen] = useState(false);
   const [wakeTime, setWakeTime] = useState('07:00');
@@ -348,7 +348,12 @@ const GuestLanding = () => {
               <div style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:12,padding:'14px 16px',marginBottom:14,textAlign:'center'}}>
                 <div style={{fontSize:15,fontWeight:800,color:'#B91C1C',marginBottom:2}}>🌙 {t.notServing}</div>
                 <div style={{fontSize:13,color:'#7F1D1D'}}>
-                  {t.kitchenHours}: <strong>{fmt12g(kitchen.open)} – {fmt12g(kitchen.close)}</strong>
+                  {t.kitchenHours}: <strong>{
+                    (kitchen.slots && kitchen.slots.length
+                      ? kitchen.slots
+                      : [{ open: kitchen.open, close: kitchen.close }]
+                    ).filter(s=>s.open&&s.close).map(s => `${fmt12g(s.open)}–${fmt12g(s.close)}`).join(' · ')
+                  }</strong>
                 </div>
               </div>
             )}

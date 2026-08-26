@@ -14,7 +14,7 @@ WITH expected(table_name, column_name) AS (VALUES
   ('hotels','gst_number'),('hotels','logo_url'),('hotels','user_id'),('hotels','is_active'),
   ('hotels','subscription_status'),('hotels','trial_start_date'),('hotels','trial_end_date'),
   ('hotels','current_plan_id'),('hotels','plan_valid_from'),('hotels','plan_valid_to'),('hotels','created_at'),
-  ('hotels','kitchen_hours_enabled'),('hotels','kitchen_open'),('hotels','kitchen_close'),
+  ('hotels','kitchen_hours_enabled'),('hotels','kitchen_open'),('hotels','kitchen_close'),('hotels','kitchen_slots'),
   -- users
   ('users','name'),('users','email'),('users','password_hash'),('users','role'),
   ('users','hotel_id'),('users','is_active'),('users','last_login'),
