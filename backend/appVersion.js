@@ -8,12 +8,14 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '1.8',
-  versionCode: 9,
-  releasedAt:  '2026-08-09T11:30:00Z',
+  version:     '1.9',
+  versionCode: 10,
+  releasedAt:  '2026-08-24T16:30:00Z',
   notes: [
-    'Billing details at checkout — enter name, address and contact before paying; it appears on your invoice',
-    'Bigger hotel logo on the printable QR code',
-    'Company name added under the QR footer',
+    'Kitchen Hours — food ordering automatically closes outside your serving times',
+    'Select multiple menu items and delete them together',
+    'Bulk menu upload now reads Veg / Non-Veg correctly from your sheet',
+    'Rooms are now limited to your plan',
+    'Order history shows Today / Yesterday labels',
   ],
 };
