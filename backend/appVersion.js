@@ -8,14 +8,11 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '1.9',
-  versionCode: 10,
-  releasedAt:  '2026-08-24T16:30:00Z',
+  version:     '2.0',
+  versionCode: 11,
+  releasedAt:  '2026-08-26T15:30:00Z',
   notes: [
-    'Kitchen Hours — food ordering automatically closes outside your serving times',
-    'Select multiple menu items and delete them together',
-    'Bulk menu upload now reads Veg / Non-Veg correctly from your sheet',
-    'Rooms are now limited to your plan',
-    'Order history shows Today / Yesterday labels',
+    'Kitchen Hours now supports multiple serving windows — set breakfast, lunch and dinner separately',
+    'Guests see all your serving windows when the kitchen is closed',
   ],
 };
