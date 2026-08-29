@@ -8,11 +8,11 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '2.0',
-  versionCode: 11,
-  releasedAt:  '2026-08-26T15:30:00Z',
+  version:     '2.1',
+  versionCode: 12,
+  releasedAt:  '2026-08-26T16:30:00Z',
   notes: [
-    'Kitchen Hours now supports multiple serving windows — set breakfast, lunch and dinner separately',
-    'Guests see all your serving windows when the kitchen is closed',
+    'Stay signed in — the app no longer logs you out when you minimise or reopen it',
+    'Longer login sessions so you are not asked to sign in every week',
   ],
 };

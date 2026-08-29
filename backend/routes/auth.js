@@ -24,7 +24,9 @@ router.post('/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ success: false, message: 'Invalid email or password.' });
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    // 7 days was far too short — it logged users out weekly. Honour "remember me"
+    // (used by the native app, which stays signed in) with a long-lived token.
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: req.body.rememberMe ? '90d' : '30d' });
 
     let hotel = null;
     if (user.hotel_id) {
@@ -112,7 +114,7 @@ router.post('/register', optionalLogo, async (req, res) => {
 
     // Auto-login: issue a session token so the just-registered hotel can go
     // straight to choosing/paying for a plan without a separate login step.
-    const token = jwt.sign({ id: userRow.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: userRow.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
     // Credentials go ONLY to the address entered on the signup form — this is the
     // one time the plaintext password exists, so a silent failure would strand the

@@ -1,11 +1,24 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import api from '../utils/api';
 
 const AuthContext = createContext(null);
 
+// The native app should stay logged in like any other app — sessionStorage is
+// wiped when Android kills the backgrounded web-view, which logged users out on
+// every minimise. So on native we always persist the token in localStorage.
+const IS_NATIVE = Capacitor.isNativePlatform();
+
 // Helper — get token from either storage
 const getStoredToken = () =>
   localStorage.getItem('token') || sessionStorage.getItem('token') || null;
+
+// Persist the token: localStorage (survives app restarts) when remembered or on
+// native; sessionStorage (cleared on close) only for a non-remembered web login.
+const storeToken = (token, remember) => {
+  if (remember || IS_NATIVE) { localStorage.setItem('token', token); sessionStorage.removeItem('token'); }
+  else { sessionStorage.setItem('token', token); localStorage.removeItem('token'); }
+};
 
 export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null);
@@ -37,14 +50,13 @@ export const AuthProvider = ({ children }) => {
   const login = async ({ email, password, rememberMe }) => {
     setError(null);
     try {
-      const { data } = await api.post('/auth/login', { email, password, rememberMe });
+      // On native we always keep the session so the app behaves like any app;
+      // pass that to the server too so it issues the longer-lived token.
+      const remember = !!rememberMe || IS_NATIVE;
+      const { data } = await api.post('/auth/login', { email, password, rememberMe: remember });
 
       // Store token FIRST before updating state
-      if (rememberMe) {
-        localStorage.setItem('token', data.token);
-      } else {
-        sessionStorage.setItem('token', data.token);
-      }
+      storeToken(data.token, remember);
 
       setUser(data.user);
       return { success: true, role: data.user.role };
@@ -59,8 +71,7 @@ export const AuthProvider = ({ children }) => {
   // so a new hotel can go directly to the plan page without a separate login.
   const loginWithToken = async (token, remember = false) => {
     setError(null);
-    if (remember) localStorage.setItem('token', token);
-    else sessionStorage.setItem('token', token);
+    storeToken(token, remember || IS_NATIVE);
     try {
       const { data } = await api.get('/auth/me');
       setUser(data.user);
