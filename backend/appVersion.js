@@ -8,11 +8,11 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '2.3',
-  versionCode: 14,
-  releasedAt:  '2026-08-26T18:30:00Z',
+  version:     '2.4',
+  versionCode: 15,
+  releasedAt:  '2026-08-26T19:30:00Z',
   notes: [
-    'The app now opens straight to your dashboard — you stay logged in every time you reopen it',
-    'Your session is saved securely on the device and no longer depends on the network at startup',
+    'The app version now shows on the login screen and sidebar, so you always know which build you are on',
+    'Stay signed in — opening the app takes you straight to your dashboard',
   ],
 };

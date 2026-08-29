@@ -1,6 +1,7 @@
 import React from 'react';
 import ThemeToggle from '../common/ThemeToggle';
 import sunverMark from '../../assets/sunver-mark.png';
+import { APP_VERSION } from '../../version';
 import './AuthLayout.css';
 
 const AuthLayout = ({ children }) => (
@@ -51,6 +52,9 @@ const AuthLayout = ({ children }) => (
             <span className="auth-company-name">SUNVER</span>
           </div>
           <div className="auth-company-sub">Coresynergy Solutions Pvt Ltd</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: 'var(--gray-400)', fontWeight: 600, letterSpacing: '0.3px' }}>
+            App version {APP_VERSION}
+          </div>
         </div>
       </div>
     </div>

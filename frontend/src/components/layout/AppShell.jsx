@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import ThemeToggle from '../common/ThemeToggle';
 import useNewOrderAlert from '../../hooks/useNewOrderAlert';
 import sunverMark from '../../assets/sunver-mark.png';
+import { APP_VERSION } from '../../version';
 import './AppShell.css';
 
 const SuperAdminMenu = [
@@ -105,7 +106,7 @@ const AppShell = ({ children }) => {
             <div className="shell-avatar">{initials}</div>
             <div className="shell-user-info">
               <div className="shell-user-name">{user?.name}</div>
-              <div className="shell-user-role">{user?.role === 'superadmin' ? 'Super Admin' : 'Hotel Admin'}</div>
+              <div className="shell-user-role">{user?.role === 'superadmin' ? 'Super Admin' : 'Hotel Admin'} · v{APP_VERSION}</div>
             </div>
           </div>
           <button className="shell-logout-btn" onClick={handleLogout} title="Sign out">⏻</button>
