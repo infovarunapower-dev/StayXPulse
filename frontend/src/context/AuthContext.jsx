@@ -91,6 +91,20 @@ export const AuthProvider = ({ children }) => {
     };
 
     (async () => {
+      // Persistence self-test — proves, in one look, WHERE the failure is:
+      //   • prefWorks   : native Preferences round-trips this session
+      //   • prefSurvived: a marker written on a PREVIOUS launch survived the kill
+      let prefWorks = null, prefSurvived = null;
+      if (IS_NATIVE) {
+        try { const r = await Preferences.get({ key: 'sxp-alive' }); prefSurvived = !!(r && r.value); } catch { prefSurvived = false; }
+        try {
+          await Preferences.set({ key: 'sxp-rw', value: 'ok' });
+          const rw = await Preferences.get({ key: 'sxp-rw' });
+          prefWorks = !!(rw && rw.value === 'ok');
+        } catch { prefWorks = false; }
+        try { await Preferences.set({ key: 'sxp-alive', value: String(Date.now()) }); } catch {}
+      }
+
       // Restore token + profile from durable native storage if the web store was
       // cleared (e.g. WebView storage wiped on kill).
       let fromPref = false;
@@ -101,8 +115,8 @@ export const AuthProvider = ({ children }) => {
       const token = getStoredToken();
       const cached = readCachedUser();
       // Startup diagnostic — the login screen surfaces this so we can see whether
-      // the session actually survived the app being killed.
-      boot({ step: 'start', native: IS_NATIVE, token: !!token, cachedUser: !!cached, fromPref });
+      // the session actually survived the app being killed, and why not.
+      boot({ step: 'start', native: IS_NATIVE, token: !!token, cachedUser: !!cached, fromPref, prefWorks, prefSurvived });
 
       if (!token) { finishLoading(); return; }          // truly no session → login
       if (cached && !cancelled) {

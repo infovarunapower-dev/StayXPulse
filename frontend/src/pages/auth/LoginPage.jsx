@@ -121,12 +121,13 @@ const LoginPage = () => {
       </div>
 
       {boot && (
-        <div style={{ marginTop: 16, padding: '8px 12px', borderRadius: 8, fontSize: 12,
-          background: boot.token ? '#FEF3C7' : '#F3F4F6', color: boot.token ? '#92600A' : '#6B7280',
-          border: '1px solid ' + (boot.token ? '#FDE68A' : '#E5E7EB'), textAlign: 'center' }}>
-          {boot.token
-            ? `Startup: saved session was FOUND (${boot.fromPref ? 'device storage' : 'app storage'}) — ${boot.step === 'rejected' ? 'but the server rejected it' : 'checking…'}`
-            : 'Startup: NO saved session found — the login was cleared when the app closed'}
+        <div style={{ marginTop: 16, padding: '10px 12px', borderRadius: 8, fontSize: 12, lineHeight: 1.6,
+          background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB', textAlign: 'left' }}>
+          <div style={{ fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>Startup diagnostic</div>
+          <div>• Native app: <b>{String(boot.native)}</b></div>
+          <div>• Permanent save works: <b>{boot.prefWorks === null ? 'n/a (web)' : String(boot.prefWorks)}</b></div>
+          <div>• Survived last close: <b>{boot.prefSurvived === null ? 'n/a (web)' : String(boot.prefSurvived)}</b></div>
+          <div>• Session token found: <b>{String(boot.token)}</b> · saved login: <b>{String(boot.cachedUser)}</b></div>
         </div>
       )}
     </AuthLayout>

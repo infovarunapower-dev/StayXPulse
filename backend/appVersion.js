@@ -8,8 +8,8 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '2.5',
-  versionCode: 16,
+  version:     '2.6',
+  versionCode: 17,
   releasedAt:  '2026-08-26T20:30:00Z',
   notes: [
     'Reopening the app no longer bounces you to login while your saved session is being checked',
