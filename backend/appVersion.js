@@ -8,11 +8,11 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '2.1',
-  versionCode: 12,
-  releasedAt:  '2026-08-26T16:30:00Z',
+  version:     '2.2',
+  versionCode: 13,
+  releasedAt:  '2026-08-26T17:30:00Z',
   notes: [
-    'Stay signed in — the app no longer logs you out when you minimise or reopen it',
-    'Longer login sessions so you are not asked to sign in every week',
+    'Really fixed the sign-out issue — closing or reopening the app keeps you logged in',
+    'A brief network glitch on startup no longer signs you out',
   ],
 };

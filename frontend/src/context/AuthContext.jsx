@@ -1,23 +1,34 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
 import api from '../utils/api';
 
 const AuthContext = createContext(null);
+const TOKEN_KEY = 'token';
 
 // The native app should stay logged in like any other app — sessionStorage is
-// wiped when Android kills the backgrounded web-view, which logged users out on
-// every minimise. So on native we always persist the token in localStorage.
+// wiped when Android kills the backgrounded web-view, so on native we persist
+// the token in localStorage AND mirror it into Capacitor Preferences (native
+// storage that survives app kills, updates, and even a WebView-storage wipe).
 const IS_NATIVE = Capacitor.isNativePlatform();
 
-// Helper — get token from either storage
+// Helper — get token from either web store
 const getStoredToken = () =>
-  localStorage.getItem('token') || sessionStorage.getItem('token') || null;
+  localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || null;
 
-// Persist the token: localStorage (survives app restarts) when remembered or on
-// native; sessionStorage (cleared on close) only for a non-remembered web login.
+// Persist the token. localStorage is the synchronous store api.js reads;
+// sessionStorage is only for a non-remembered *web* login; Preferences is the
+// durable native backup.
 const storeToken = (token, remember) => {
-  if (remember || IS_NATIVE) { localStorage.setItem('token', token); sessionStorage.removeItem('token'); }
-  else { sessionStorage.setItem('token', token); localStorage.removeItem('token'); }
+  if (remember || IS_NATIVE) { localStorage.setItem(TOKEN_KEY, token); sessionStorage.removeItem(TOKEN_KEY); }
+  else { sessionStorage.setItem(TOKEN_KEY, token); localStorage.removeItem(TOKEN_KEY); }
+  if (IS_NATIVE) Preferences.set({ key: TOKEN_KEY, value: token }).catch(() => {});
+};
+
+const clearToken = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  if (IS_NATIVE) Preferences.remove({ key: TOKEN_KEY }).catch(() => {});
 };
 
 export const AuthProvider = ({ children }) => {
@@ -25,26 +36,41 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
 
-  // On mount: if a token exists, validate it once
+  // On mount: rehydrate the token from durable native storage if needed, then
+  // validate it. Crucially, a transient error (cold-start network blip, a 5xx,
+  // a timeout) must NOT log the user out — only a genuine 401/403 does. This was
+  // the bug: killing/reopening the app fired /auth/me before the network was
+  // ready, and the old catch wiped a valid session.
   useEffect(() => {
-    const token = getStoredToken();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    api.get('/auth/me')
-      .then(({ data }) => {
-        setUser(data.user);
-      })
-      .catch(() => {
-        // Token invalid — clear everything
-        localStorage.removeItem('token');
-        sessionStorage.removeItem('token');
-        setUser(null);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    let cancelled = false;
+
+    const validate = async (attempt = 0) => {
+      try {
+        const { data } = await api.get('/auth/me');
+        if (!cancelled) { setUser(data.user); setLoading(false); }
+      } catch (err) {
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          clearToken();                       // genuinely invalid/expired
+          if (!cancelled) { setUser(null); setLoading(false); }
+        } else if (attempt < 3) {
+          setTimeout(() => { if (!cancelled) validate(attempt + 1); }, 700 * (attempt + 1)); // transient → keep token, retry
+        } else if (!cancelled) {
+          setLoading(false);                  // give up for now, but keep the token for the next launch
+        }
+      }
+    };
+
+    (async () => {
+      // If the WebView store was cleared, restore the token from native storage.
+      if (IS_NATIVE && !getStoredToken()) {
+        try { const { value } = await Preferences.get({ key: TOKEN_KEY }); if (value) localStorage.setItem(TOKEN_KEY, value); } catch {}
+      }
+      if (!getStoredToken()) { if (!cancelled) setLoading(false); return; }
+      validate();
+    })();
+
+    return () => { cancelled = true; };
   }, []); // empty deps — runs exactly once
 
   const login = async ({ email, password, rememberMe }) => {
@@ -76,8 +102,10 @@ export const AuthProvider = ({ children }) => {
       const { data } = await api.get('/auth/me');
       setUser(data.user);
       return { success: true, role: data.user.role };
-    } catch {
-      logout();
+    } catch (err) {
+      // Only drop the session if the token is actually rejected; a transient
+      // error shouldn't undo a fresh registration login.
+      if (err?.response?.status === 401 || err?.response?.status === 403) { clearToken(); setUser(null); }
       return { success: false };
     }
   };
@@ -93,8 +121,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    sessionStorage.removeItem('token');
+    clearToken();
     setUser(null);
     setError(null);
   };
