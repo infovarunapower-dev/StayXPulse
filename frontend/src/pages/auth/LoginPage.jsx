@@ -4,9 +4,14 @@ import AuthLayout from '../../components/auth/AuthLayout';
 import Input from '../../components/common/Input';
 import { useAuth } from '../../context/AuthContext';
 
+// Reads the startup diagnostic the AuthProvider records, so this screen can
+// explain WHY the user is here — did a saved session exist at launch or not.
+const bootInfo = () => { try { return JSON.parse(localStorage.getItem('sxp-boot') || 'null'); } catch { return null; } };
+
 const LoginPage = () => {
   const { login, error, clearError } = useAuth();
   const navigate = useNavigate();
+  const boot = bootInfo();
 
   const [form, setForm]               = useState({ email: '', password: '', rememberMe: false });
   const [submitting, setSubmitting]   = useState(false);
@@ -114,6 +119,16 @@ const LoginPage = () => {
           Register your hotel
         </Link>
       </div>
+
+      {boot && (
+        <div style={{ marginTop: 16, padding: '8px 12px', borderRadius: 8, fontSize: 12,
+          background: boot.token ? '#FEF3C7' : '#F3F4F6', color: boot.token ? '#92600A' : '#6B7280',
+          border: '1px solid ' + (boot.token ? '#FDE68A' : '#E5E7EB'), textAlign: 'center' }}>
+          {boot.token
+            ? `Startup: saved session was FOUND (${boot.fromPref ? 'device storage' : 'app storage'}) — ${boot.step === 'rejected' ? 'but the server rejected it' : 'checking…'}`
+            : 'Startup: NO saved session found — the login was cleared when the app closed'}
+        </div>
+      )}
     </AuthLayout>
   );
 };

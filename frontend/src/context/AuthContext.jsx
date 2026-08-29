@@ -60,38 +60,60 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let cancelled = false;
 
-    // Background validation. Never blocks the UI: on a genuine 401/403 it signs
-    // out; a transient failure (cold-start network blip) is retried and the
-    // session is kept, so relaunching never bounces the user to login.
-    const validate = async (attempt = 0) => {
+    const finishLoading = () => { if (!cancelled) setLoading(false); };
+    const boot = (obj) => { try { localStorage.setItem('sxp-boot', JSON.stringify({ ...obj, at: new Date().toISOString() })); } catch {} };
+
+    // Validate the restored session. Signs out ONLY on a real 401/403; a
+    // transient failure (cold-start network blip) is retried and the session is
+    // kept. `blocking` = we had no cached profile to show, so keep the spinner
+    // until this resolves rather than flashing the login screen.
+    const validate = async (attempt = 0, blocking = false) => {
       try {
         const { data } = await api.get('/auth/me');
         if (!cancelled) { setUser(data.user); storeUser(data.user); }
+        boot({ step: 'validated', ok: true });
+        finishLoading();
       } catch (err) {
         const status = err?.response?.status;
         if (status === 401 || status === 403) {
           clearToken(); clearUser();
           if (!cancelled) setUser(null);
+          boot({ step: 'rejected', status });
+          finishLoading();
         } else if (attempt < 4) {
-          setTimeout(() => { if (!cancelled) validate(attempt + 1); }, 800 * (attempt + 1)); // keep session, retry
+          boot({ step: 'retry', attempt, err: status || 'network' });
+          setTimeout(() => { if (!cancelled) validate(attempt + 1, blocking); }, 800 * (attempt + 1)); // keep session, retry
+        } else {
+          boot({ step: 'gaveup', err: status || 'network' });
+          finishLoading();   // keep the token for next time; lands on login only if there was no cached profile
         }
-        // else: give up quietly, keep the cached session for the next attempt
       }
     };
 
     (async () => {
       // Restore token + profile from durable native storage if the web store was
       // cleared (e.g. WebView storage wiped on kill).
+      let fromPref = false;
       if (IS_NATIVE) {
-        if (!getStoredToken()) { try { const { value } = await Preferences.get({ key: TOKEN_KEY }); if (value) localStorage.setItem(TOKEN_KEY, value); } catch {} }
+        if (!getStoredToken()) { try { const { value } = await Preferences.get({ key: TOKEN_KEY }); if (value) { localStorage.setItem(TOKEN_KEY, value); fromPref = true; } } catch {} }
         if (!localStorage.getItem(USER_KEY)) { try { const { value } = await Preferences.get({ key: USER_KEY }); if (value) localStorage.setItem(USER_KEY, value); } catch {} }
       }
-      if (!getStoredToken()) { if (!cancelled) setLoading(false); return; }
-      // Open straight into the app with the cached profile — no network wait.
+      const token = getStoredToken();
       const cached = readCachedUser();
-      if (cached && !cancelled) setUser(cached);
-      if (!cancelled) setLoading(false);
-      validate();   // confirm/refresh in the background
+      // Startup diagnostic — the login screen surfaces this so we can see whether
+      // the session actually survived the app being killed.
+      boot({ step: 'start', native: IS_NATIVE, token: !!token, cachedUser: !!cached, fromPref });
+
+      if (!token) { finishLoading(); return; }          // truly no session → login
+      if (cached && !cancelled) {
+        setUser(cached);        // open straight into the app, no network wait
+        finishLoading();
+        validate(0, false);     // confirm in the background
+      } else {
+        // We have a token but no cached profile — keep the spinner (do NOT flash
+        // to login) until the server confirms who this is.
+        validate(0, true);
+      }
     })();
 
     return () => { cancelled = true; };
