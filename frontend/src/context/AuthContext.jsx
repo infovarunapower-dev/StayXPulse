@@ -31,6 +31,22 @@ const clearToken = () => {
   if (IS_NATIVE) Preferences.remove({ key: TOKEN_KEY }).catch(() => {});
 };
 
+// Cache the signed-in profile so the app can open straight into the dashboard
+// on relaunch without waiting on (or being blocked by) the network. Mirrored to
+// Preferences on native for durability.
+const USER_KEY = 'sxp-user';
+const storeUser = (user) => {
+  try { localStorage.setItem(USER_KEY, JSON.stringify(user)); } catch {}
+  if (IS_NATIVE) Preferences.set({ key: USER_KEY, value: JSON.stringify(user) }).catch(() => {});
+};
+const readCachedUser = () => {
+  try { const s = localStorage.getItem(USER_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+};
+const clearUser = () => {
+  try { localStorage.removeItem(USER_KEY); } catch {}
+  if (IS_NATIVE) Preferences.remove({ key: USER_KEY }).catch(() => {});
+};
+
 export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -44,30 +60,38 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let cancelled = false;
 
+    // Background validation. Never blocks the UI: on a genuine 401/403 it signs
+    // out; a transient failure (cold-start network blip) is retried and the
+    // session is kept, so relaunching never bounces the user to login.
     const validate = async (attempt = 0) => {
       try {
         const { data } = await api.get('/auth/me');
-        if (!cancelled) { setUser(data.user); setLoading(false); }
+        if (!cancelled) { setUser(data.user); storeUser(data.user); }
       } catch (err) {
         const status = err?.response?.status;
         if (status === 401 || status === 403) {
-          clearToken();                       // genuinely invalid/expired
-          if (!cancelled) { setUser(null); setLoading(false); }
-        } else if (attempt < 3) {
-          setTimeout(() => { if (!cancelled) validate(attempt + 1); }, 700 * (attempt + 1)); // transient → keep token, retry
-        } else if (!cancelled) {
-          setLoading(false);                  // give up for now, but keep the token for the next launch
+          clearToken(); clearUser();
+          if (!cancelled) setUser(null);
+        } else if (attempt < 4) {
+          setTimeout(() => { if (!cancelled) validate(attempt + 1); }, 800 * (attempt + 1)); // keep session, retry
         }
+        // else: give up quietly, keep the cached session for the next attempt
       }
     };
 
     (async () => {
-      // If the WebView store was cleared, restore the token from native storage.
-      if (IS_NATIVE && !getStoredToken()) {
-        try { const { value } = await Preferences.get({ key: TOKEN_KEY }); if (value) localStorage.setItem(TOKEN_KEY, value); } catch {}
+      // Restore token + profile from durable native storage if the web store was
+      // cleared (e.g. WebView storage wiped on kill).
+      if (IS_NATIVE) {
+        if (!getStoredToken()) { try { const { value } = await Preferences.get({ key: TOKEN_KEY }); if (value) localStorage.setItem(TOKEN_KEY, value); } catch {} }
+        if (!localStorage.getItem(USER_KEY)) { try { const { value } = await Preferences.get({ key: USER_KEY }); if (value) localStorage.setItem(USER_KEY, value); } catch {} }
       }
       if (!getStoredToken()) { if (!cancelled) setLoading(false); return; }
-      validate();
+      // Open straight into the app with the cached profile — no network wait.
+      const cached = readCachedUser();
+      if (cached && !cancelled) setUser(cached);
+      if (!cancelled) setLoading(false);
+      validate();   // confirm/refresh in the background
     })();
 
     return () => { cancelled = true; };
@@ -84,7 +108,7 @@ export const AuthProvider = ({ children }) => {
       // Store token FIRST before updating state
       storeToken(data.token, remember);
 
-      setUser(data.user);
+      setUser(data.user); storeUser(data.user);
       return { success: true, role: data.user.role };
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please try again.';
@@ -100,12 +124,12 @@ export const AuthProvider = ({ children }) => {
     storeToken(token, remember || IS_NATIVE);
     try {
       const { data } = await api.get('/auth/me');
-      setUser(data.user);
+      setUser(data.user); storeUser(data.user);
       return { success: true, role: data.user.role };
     } catch (err) {
       // Only drop the session if the token is actually rejected; a transient
       // error shouldn't undo a fresh registration login.
-      if (err?.response?.status === 401 || err?.response?.status === 403) { clearToken(); setUser(null); }
+      if (err?.response?.status === 401 || err?.response?.status === 403) { clearToken(); clearUser(); setUser(null); }
       return { success: false };
     }
   };
@@ -115,13 +139,14 @@ export const AuthProvider = ({ children }) => {
   const refreshUser = async () => {
     try {
       const { data } = await api.get('/auth/me');
-      setUser(data.user);
+      setUser(data.user); storeUser(data.user);
       return data.user;
     } catch { return null; }
   };
 
   const logout = () => {
     clearToken();
+    clearUser();
     setUser(null);
     setError(null);
   };

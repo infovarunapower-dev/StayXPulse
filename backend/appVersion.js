@@ -8,11 +8,11 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '2.2',
-  versionCode: 13,
-  releasedAt:  '2026-08-26T17:30:00Z',
+  version:     '2.3',
+  versionCode: 14,
+  releasedAt:  '2026-08-26T18:30:00Z',
   notes: [
-    'Really fixed the sign-out issue — closing or reopening the app keeps you logged in',
-    'A brief network glitch on startup no longer signs you out',
+    'The app now opens straight to your dashboard — you stay logged in every time you reopen it',
+    'Your session is saved securely on the device and no longer depends on the network at startup',
   ],
 };
