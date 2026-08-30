@@ -2,4 +2,4 @@
 // Bump this with every release, in sync with:
 //   • frontend/android/app/build.gradle  (versionName / versionCode)
 //   • backend/appVersion.js              (version / versionCode)
-export const APP_VERSION = '2.6';
+export const APP_VERSION = '2.7';

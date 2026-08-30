@@ -1,10 +1,31 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import api from '../utils/api';
 
 const AuthContext = createContext(null);
 const TOKEN_KEY = 'token';
+
+// ── Durable native session file ──────────────────────────────────────────────
+// The real cause of the "logged out after kill" bug: Preferences (SharedPrefs)
+// writes ASYNC (apply) and Samsung's abrupt force-close can drop the unflushed
+// write. A file write we AWAIT is committed to disk immediately (close() flushes)
+// — the same idea Gmail/WhatsApp use to stay signed in across kills. This file
+// is the source of truth on native; localStorage/Preferences are fast mirrors.
+const AUTH_FILE = 'sxp-session.json';
+const fileWriteSession = async (token, user) => {
+  if (!IS_NATIVE) return;
+  try { await Filesystem.writeFile({ path: AUTH_FILE, directory: Directory.Data, encoding: Encoding.UTF8, data: JSON.stringify({ token, user }) }); } catch {}
+};
+const fileReadSession = async () => {
+  if (!IS_NATIVE) return null;
+  try { const r = await Filesystem.readFile({ path: AUTH_FILE, directory: Directory.Data, encoding: Encoding.UTF8 }); return JSON.parse(r.data); } catch { return null; }
+};
+const fileClearSession = async () => {
+  if (!IS_NATIVE) return;
+  try { await Filesystem.deleteFile({ path: AUTH_FILE, directory: Directory.Data }); } catch {}
+};
 
 // The native app should stay logged in like any other app — sessionStorage is
 // wiped when Android kills the backgrounded web-view, so on native we persist
@@ -71,12 +92,13 @@ export const AuthProvider = ({ children }) => {
       try {
         const { data } = await api.get('/auth/me');
         if (!cancelled) { setUser(data.user); storeUser(data.user); }
+        fileWriteSession(getStoredToken(), data.user);   // keep the on-disk copy fresh
         boot({ step: 'validated', ok: true });
         finishLoading();
       } catch (err) {
         const status = err?.response?.status;
         if (status === 401 || status === 403) {
-          clearToken(); clearUser();
+          clearToken(); clearUser(); fileClearSession();
           if (!cancelled) setUser(null);
           boot({ step: 'rejected', status });
           finishLoading();
@@ -94,29 +116,24 @@ export const AuthProvider = ({ children }) => {
       // Persistence self-test — proves, in one look, WHERE the failure is:
       //   • prefWorks   : native Preferences round-trips this session
       //   • prefSurvived: a marker written on a PREVIOUS launch survived the kill
-      let prefWorks = null, prefSurvived = null;
+      // Restore the session from the on-disk file FIRST (most reliable), then
+      // Preferences, then whatever is already in localStorage.
+      let fileSurvived = false;
       if (IS_NATIVE) {
-        try { const r = await Preferences.get({ key: 'sxp-alive' }); prefSurvived = !!(r && r.value); } catch { prefSurvived = false; }
-        try {
-          await Preferences.set({ key: 'sxp-rw', value: 'ok' });
-          const rw = await Preferences.get({ key: 'sxp-rw' });
-          prefWorks = !!(rw && rw.value === 'ok');
-        } catch { prefWorks = false; }
-        try { await Preferences.set({ key: 'sxp-alive', value: String(Date.now()) }); } catch {}
-      }
-
-      // Restore token + profile from durable native storage if the web store was
-      // cleared (e.g. WebView storage wiped on kill).
-      let fromPref = false;
-      if (IS_NATIVE) {
-        if (!getStoredToken()) { try { const { value } = await Preferences.get({ key: TOKEN_KEY }); if (value) { localStorage.setItem(TOKEN_KEY, value); fromPref = true; } } catch {} }
+        const f = await fileReadSession();
+        if (f && f.token) {
+          fileSurvived = true;
+          if (!getStoredToken()) localStorage.setItem(TOKEN_KEY, f.token);
+          if (f.user && !localStorage.getItem(USER_KEY)) { try { localStorage.setItem(USER_KEY, JSON.stringify(f.user)); } catch {} }
+        }
+        if (!getStoredToken()) { try { const { value } = await Preferences.get({ key: TOKEN_KEY }); if (value) localStorage.setItem(TOKEN_KEY, value); } catch {} }
         if (!localStorage.getItem(USER_KEY)) { try { const { value } = await Preferences.get({ key: USER_KEY }); if (value) localStorage.setItem(USER_KEY, value); } catch {} }
       }
       const token = getStoredToken();
       const cached = readCachedUser();
-      // Startup diagnostic — the login screen surfaces this so we can see whether
-      // the session actually survived the app being killed, and why not.
-      boot({ step: 'start', native: IS_NATIVE, token: !!token, cachedUser: !!cached, fromPref, prefWorks, prefSurvived });
+      // Startup diagnostic — surfaced on the login screen so we can see whether
+      // the session survived the app being killed, and via which store.
+      boot({ step: 'start', native: IS_NATIVE, token: !!token, cachedUser: !!cached, fileSurvived });
 
       if (!token) { finishLoading(); return; }          // truly no session → login
       if (cached && !cancelled) {
@@ -143,8 +160,10 @@ export const AuthProvider = ({ children }) => {
 
       // Store token FIRST before updating state
       storeToken(data.token, remember);
+      storeUser(data.user);
+      await fileWriteSession(data.token, data.user);   // committed to disk before we return
 
-      setUser(data.user); storeUser(data.user);
+      setUser(data.user);
       return { success: true, role: data.user.role };
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please try again.';
@@ -161,11 +180,12 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data } = await api.get('/auth/me');
       setUser(data.user); storeUser(data.user);
+      await fileWriteSession(token, data.user);
       return { success: true, role: data.user.role };
     } catch (err) {
       // Only drop the session if the token is actually rejected; a transient
       // error shouldn't undo a fresh registration login.
-      if (err?.response?.status === 401 || err?.response?.status === 403) { clearToken(); clearUser(); setUser(null); }
+      if (err?.response?.status === 401 || err?.response?.status === 403) { clearToken(); clearUser(); fileClearSession(); setUser(null); }
       return { success: false };
     }
   };
@@ -176,6 +196,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data } = await api.get('/auth/me');
       setUser(data.user); storeUser(data.user);
+      fileWriteSession(getStoredToken(), data.user);
       return data.user;
     } catch { return null; }
   };
@@ -183,6 +204,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     clearToken();
     clearUser();
+    fileClearSession();
     setUser(null);
     setError(null);
   };

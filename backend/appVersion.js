@@ -8,11 +8,10 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '2.6',
-  versionCode: 17,
-  releasedAt:  '2026-08-26T20:30:00Z',
+  version:     '2.7',
+  versionCode: 18,
+  releasedAt:  '2026-08-26T21:30:00Z',
   notes: [
-    'Reopening the app no longer bounces you to login while your saved session is being checked',
-    'The login screen now shows whether a saved session was found at startup',
+    'Stay signed in for good — your session is now saved to disk, so closing and reopening the app keeps you logged in',
   ],
 };
