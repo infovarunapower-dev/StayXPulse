@@ -8,8 +8,8 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '2.7',
-  versionCode: 18,
+  version:     '2.8',
+  versionCode: 19,
   releasedAt:  '2026-08-26T21:30:00Z',
   notes: [
     'Stay signed in for good — your session is now saved to disk, so closing and reopening the app keeps you logged in',

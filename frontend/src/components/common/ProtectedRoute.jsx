@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-const Loader = () => (
+export const Loader = () => (
   <div style={{
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     height: '100vh', background: 'var(--bg)',

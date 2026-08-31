@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import ProtectedRoute from './components/common/ProtectedRoute';
+import ProtectedRoute, { Loader } from './components/common/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
 
 import LoginPage          from './pages/auth/LoginPage';
@@ -28,6 +28,27 @@ import UpgradePlan     from './pages/hotel/UpgradePlan';
 import Subscription    from './pages/hotel/Subscription';
 import HotelProfile    from './pages/hotel/HotelProfile';
 import GuestLanding    from './pages/guest/GuestLanding';
+
+// Where a signed-in user belongs, by role.
+const homeFor = (user) => (user?.role === 'superadmin' ? '/admin/dashboard' : '/hotel/dashboard');
+
+// Public pages (login/register): if the session is already restored, never show
+// the form — send the user straight to their dashboard. This is what keeps the
+// native app from parking a logged-in user on /login after a cold restart.
+const PublicOnlyRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <Loader />;
+  if (user) return <Navigate to={homeFor(user)} replace />;
+  return children;
+};
+
+// Root/unknown routes: go to the dashboard if signed in, else to login — never
+// unconditionally to /login (that discarded a valid restored session).
+const HomeRedirect = () => {
+  const { user, loading } = useAuth();
+  if (loading) return <Loader />;
+  return <Navigate to={user ? homeFor(user) : '/login'} replace />;
+};
 
 const SA = ({ children }) => (
   <ProtectedRoute allowedRoles={['superadmin']}>
@@ -87,8 +108,8 @@ const App = () => (
       <AccessGuard />
       <AuthGuard />
       <Routes>
-        <Route path="/login"                  element={<LoginPage />} />
-        <Route path="/register"               element={<RegisterPage />} />
+        <Route path="/login"                  element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+        <Route path="/register"               element={<PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>} />
         <Route path="/forgot-password"        element={<ForgotPasswordPage />} />
         <Route path="/reset-password/:token"  element={<ResetPasswordPage />} />
         <Route path="/guest/:qrToken"         element={<GuestLanding />} />
@@ -115,8 +136,8 @@ const App = () => (
         <Route path="/hotel/profile"           element={<HA><HotelProfile /></HA>} />
         <Route path="/hotel/subscription"      element={<HA><Subscription /></HA>} />
 
-        <Route path="/"   element={<Navigate to="/login" replace />} />
-        <Route path="*"   element={<Navigate to="/login" replace />} />
+        <Route path="/"   element={<HomeRedirect />} />
+        <Route path="*"   element={<HomeRedirect />} />
       </Routes>
     </BrowserRouter>
   </AuthProvider>
