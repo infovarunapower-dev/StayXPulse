@@ -4,15 +4,9 @@ import AuthLayout from '../../components/auth/AuthLayout';
 import Input from '../../components/common/Input';
 import { useAuth } from '../../context/AuthContext';
 
-// Reads the startup diagnostic the AuthProvider records, so this screen can
-// explain WHY the user is here — did a saved session exist at launch or not.
-const bootInfo = () => { try { return JSON.parse(localStorage.getItem('sxp-boot') || 'null'); } catch { return null; } };
-const yn = (v) => (v === true ? 'Yes' : v === false ? 'No' : '—');
-
 const LoginPage = () => {
   const { login, error, clearError } = useAuth();
   const navigate = useNavigate();
-  const boot = bootInfo();
 
   const [form, setForm]               = useState({ email: '', password: '', rememberMe: false });
   const [submitting, setSubmitting]   = useState(false);
@@ -120,16 +114,6 @@ const LoginPage = () => {
           Register your hotel
         </Link>
       </div>
-
-      {boot && boot.native !== undefined && (
-        <div style={{ marginTop: 16, padding: '10px 12px', borderRadius: 8, fontSize: 12, lineHeight: 1.6,
-          background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB', textAlign: 'left' }}>
-          <div style={{ fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>Startup diagnostic</div>
-          <div>• Native app: <b>{yn(boot.native)}</b></div>
-          <div>• Session file survived close: <b>{yn(boot.fileSurvived)}</b></div>
-          <div>• Session token found: <b>{yn(boot.token)}</b> · saved login: <b>{yn(boot.cachedUser)}</b></div>
-        </div>
-      )}
     </AuthLayout>
   );
 };
