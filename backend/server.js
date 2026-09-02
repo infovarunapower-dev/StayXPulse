@@ -110,6 +110,7 @@ app.use('/api/hotel', require('./routes/hotel'));
 app.use('/api/payments', require('./routes/payment'));
 app.use('/api/email', require('./routes/email'));
 app.use('/api/master', require('./routes/master'));
+app.use('/api/sanvi', require('./routes/sanvi'));
 
 // ── Terminal error handler ────────────────────────────────────────────────────
 // Without this, anything thrown by middleware (notably multer's file-size and

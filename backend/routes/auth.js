@@ -66,8 +66,10 @@ const optionalLogo = (req, res, next) => {
 
 router.post('/register', optionalLogo, async (req, res) => {
   try {
-    const { hotelName, phone, email, address, gstNumber, intent } = req.body;
+    const { hotelName, phone, email, address, gstNumber, intent, utm } = req.body;
     const isBuy = intent === 'buy';   // direct-purchase: no free trial
+    // Marketing attribution captured from the landing/register URL (may be absent).
+    const u = (k) => (utm && typeof utm === 'object' && utm[k] ? String(utm[k]).slice(0, 200) : null);
     if (!hotelName?.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
     if (!phone?.trim()) return res.status(400).json({ success: false, message: 'Phone number is required.' });
     if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email address is required.' });
@@ -96,14 +98,20 @@ router.post('/register', optionalLogo, async (req, res) => {
     // "✅ Uploaded".
     const { url: logoUrl } = await uploadHotelLogo(req.file);   // non-fatal: signup proceeds without a logo
 
-    const { data: hotel, error: hotelError } = await supabase.from('hotels').insert({
+    const baseHotel = {
       hotel_name: hotelName.trim(), phone: phone.trim(), email: cleanEmail,
       address: address.trim(), gst_number: gstNumber?.trim() ? gstNumber.trim().toUpperCase() : null,
       logo_url: logoUrl,
       user_id: userId, is_active: true,
       subscription_status: isBuy ? 'expired' : 'trial',   // direct-buy has no trial → must subscribe to activate
       trial_end_date: trialEndDate.toISOString(),
-    }).select().single();
+    };
+    const utmCols = { utm_source: u('utm_source'), utm_medium: u('utm_medium'), utm_campaign: u('utm_campaign'), utm_content: u('utm_content') };
+    // Self-heal: if migration 017 (utm_* columns) hasn't run yet, register still works.
+    let { data: hotel, error: hotelError } = await supabase.from('hotels').insert({ ...baseHotel, ...utmCols }).select().single();
+    if (hotelError && /column|schema cache|utm_/i.test(hotelError.message || '')) {
+      ({ data: hotel, error: hotelError } = await supabase.from('hotels').insert(baseHotel).select().single());
+    }
     if (hotelError) throw hotelError;
 
     const { data: userRow, error: userError } = await supabase.from('users').insert({

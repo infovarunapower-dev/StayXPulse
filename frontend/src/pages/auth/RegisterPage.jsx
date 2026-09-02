@@ -14,6 +14,10 @@ const RegisterPage = () => {
   const logoRef   = useRef(null);
   const [searchParams] = useSearchParams();
   const intent = searchParams.get('intent') === 'buy' ? 'buy' : 'trial';   // ?intent=buy → no trial, choose a plan
+  // Marketing attribution: carry the ad/post tags from the landing URL through
+  // to signup so we can tie a hotel back to the exact campaign that brought it.
+  const utm = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content']
+    .reduce((o, k) => { const v = searchParams.get(k); if (v) o[k] = v; return o; }, {});
 
   const [step, setStep]       = useState(0);
   const [submitting, setSub]  = useState(false);
@@ -73,6 +77,7 @@ const RegisterPage = () => {
       fd.append('address',   form.address);
       fd.append('gstNumber', form.gstNumber.toUpperCase());
       fd.append('intent', intent);
+      if (Object.keys(utm).length) fd.append('utm', JSON.stringify(utm));
       if (form.logo) fd.append('logo', form.logo);
 
       const { data } = await api.post('/auth/register', fd, {
