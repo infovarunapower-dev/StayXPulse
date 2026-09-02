@@ -66,7 +66,7 @@ router.get('/events', sanviAuth, async (req, res) => {
         let q = supabase.from('hotels').select(cols).order('created_at', { ascending: true }).limit(limit);
         if (since) q = q.gt('created_at', since);
         return q;
-      }, 'created_at, trial_start_date'),
+      }, 'created_at'),
       (since ? supabase.from('payment_orders').select('id, hotel_id, amount, initiated_at, created_at').gt('initiated_at', since) : supabase.from('payment_orders').select('id, hotel_id, amount, initiated_at, created_at')).order('initiated_at', { ascending: true }).limit(limit),
       (since ? supabase.from('payments').select('id, hotel_id, payment_id, amount, paid_at').gt('paid_at', since) : supabase.from('payments').select('id, hotel_id, payment_id, amount, paid_at')).order('paid_at', { ascending: true }).limit(limit),
       supabase.from('rooms').select('hotel_id'),
@@ -83,7 +83,7 @@ router.get('/events', sanviAuth, async (req, res) => {
 
     const events = [];
     (hotels || []).forEach(h => events.push({
-      id: `trial_${h.id}`, ts: h.trial_start_date || h.created_at, type: 'trial_started',
+      id: `trial_${h.id}`, ts: h.created_at, type: 'trial_started',
       product: PRODUCT, value: 0, lead: leadOf(h), meta: clean({ ...(utmOf(h) || {}), rooms: rooms[h.id] }),
     }));
     (orders || []).forEach(o => { const h = hotelMap[o.hotel_id]; events.push({
@@ -100,7 +100,7 @@ router.get('/events', sanviAuth, async (req, res) => {
     feed = feed.slice(0, limit);
     const next_since = feed.length ? feed[feed.length - 1].ts : (since || new Date(0).toISOString());
     res.set('Cache-Control', 'no-store');
-    res.json({ events: feed, next_since, _diag: { hotels: (hotels || []).length, orders: (orders || []).length, payments: (payments || []).length } });
+    res.json({ events: feed, next_since });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
