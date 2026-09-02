@@ -100,7 +100,7 @@ router.get('/events', sanviAuth, async (req, res) => {
     feed = feed.slice(0, limit);
     const next_since = feed.length ? feed[feed.length - 1].ts : (since || new Date(0).toISOString());
     res.set('Cache-Control', 'no-store');
-    res.json({ events: feed, next_since });
+    res.json({ events: feed, next_since, _diag: { hotels: (hotels || []).length, orders: (orders || []).length, payments: (payments || []).length } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
