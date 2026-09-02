@@ -43,30 +43,40 @@ const monthsBetween = (from, to) => {
   return 1;
 };
 
+// Run a hotels select that includes utm_* columns, falling back to a select
+// WITHOUT them if migration 017 hasn't run yet — so leads/trials never vanish
+// just because the utm columns don't exist. `build(cols)` returns a query.
+const UTM = 'utm_source, utm_medium, utm_campaign, utm_content';
+const selectHotels = async (build, extraCols) => {
+  const withUtm  = `id, hotel_name, email, phone, ${extraCols ? extraCols + ', ' : ''}${UTM}`;
+  const baseCols = `id, hotel_name, email, phone${extraCols ? ', ' + extraCols : ''}`;
+  let res = await build(withUtm);
+  if (res.error) res = await build(baseCols);
+  return res.data || [];
+};
+
 // ── GET /api/sanvi/events ─────────────────────────────────────────────────────
-// Funnel events we actually have data for: trial_started (hotel created),
-// checkout_started (payment attempt), payment_success. Stable ids for dedupe.
 router.get('/events', sanviAuth, async (req, res) => {
   try {
     const since = req.query.since ? new Date(req.query.since).toISOString() : null;
     const limit = clampLimit(req.query.limit);
-    const gt = (q, col) => (since ? q.gt(col, since) : q);
 
-    const [{ data: hotels }, { data: orders }, { data: payments }, { data: roomRows }] = await Promise.all([
-      gt(supabase.from('hotels').select('id, hotel_name, email, phone, created_at, trial_start_date, utm_source, utm_medium, utm_campaign, utm_content').order('created_at', { ascending: true }), 'created_at').limit(limit),
-      gt(supabase.from('payment_orders').select('id, hotel_id, amount, initiated_at, created_at').order('initiated_at', { ascending: true }), 'initiated_at').limit(limit),
-      gt(supabase.from('payments').select('id, hotel_id, payment_id, amount, paid_at').order('paid_at', { ascending: true }), 'paid_at').limit(limit),
+    const [hotels, { data: orders }, { data: payments }, { data: roomRows }] = await Promise.all([
+      selectHotels((cols) => {
+        let q = supabase.from('hotels').select(cols).order('created_at', { ascending: true }).limit(limit);
+        if (since) q = q.gt('created_at', since);
+        return q;
+      }, 'created_at, trial_start_date'),
+      (since ? supabase.from('payment_orders').select('id, hotel_id, amount, initiated_at, created_at').gt('initiated_at', since) : supabase.from('payment_orders').select('id, hotel_id, amount, initiated_at, created_at')).order('initiated_at', { ascending: true }).limit(limit),
+      (since ? supabase.from('payments').select('id, hotel_id, payment_id, amount, paid_at').gt('paid_at', since) : supabase.from('payments').select('id, hotel_id, payment_id, amount, paid_at')).order('paid_at', { ascending: true }).limit(limit),
       supabase.from('rooms').select('hotel_id'),
     ]);
 
-    // hotel lookup + room counts (for meta.rooms)
-    const hotelIds = [...new Set([...(orders || []).map(o => o.hotel_id), ...(payments || []).map(p => p.hotel_id)])];
-    let hotelMap = Object.fromEntries((hotels || []).map(h => [h.id, h]));
-    const missing = hotelIds.filter(id => id && !hotelMap[id]);
-    if (missing.length) {
-      const { data: extra } = await supabase.from('hotels')
-        .select('id, hotel_name, email, phone, utm_source, utm_medium, utm_campaign, utm_content').in('id', missing);
-      (extra || []).forEach(h => { hotelMap[h.id] = h; });
+    const hotelMap = Object.fromEntries((hotels || []).map(h => [h.id, h]));
+    const need = [...new Set([...(orders || []).map(o => o.hotel_id), ...(payments || []).map(p => p.hotel_id)])].filter(id => id && !hotelMap[id]);
+    if (need.length) {
+      const extra = await selectHotels((cols) => supabase.from('hotels').select(cols).in('id', need));
+      extra.forEach(h => { hotelMap[h.id] = h; });
     }
     const rooms = {};
     (roomRows || []).forEach(r => { rooms[r.hotel_id] = (rooms[r.hotel_id] || 0) + 1; });
@@ -74,24 +84,20 @@ router.get('/events', sanviAuth, async (req, res) => {
     const events = [];
     (hotels || []).forEach(h => events.push({
       id: `trial_${h.id}`, ts: h.trial_start_date || h.created_at, type: 'trial_started',
-      product: PRODUCT, value: 0, lead: leadOf(h),
-      meta: clean({ ...(utmOf(h) || {}), rooms: rooms[h.id] }),
+      product: PRODUCT, value: 0, lead: leadOf(h), meta: clean({ ...(utmOf(h) || {}), rooms: rooms[h.id] }),
     }));
     (orders || []).forEach(o => { const h = hotelMap[o.hotel_id]; events.push({
       id: `co_${o.id}`, ts: o.initiated_at || o.created_at, type: 'checkout_started',
-      product: PRODUCT, value: Number(o.amount) || 0, lead: leadOf(h),
-      meta: clean({ ...(utmOf(h) || {}), rooms: rooms[o.hotel_id] }),
+      product: PRODUCT, value: Number(o.amount) || 0, lead: leadOf(h), meta: clean({ ...(utmOf(h) || {}), rooms: rooms[o.hotel_id] }),
     }); });
     (payments || []).forEach(p => { const h = hotelMap[p.hotel_id]; events.push({
       id: `pay_${p.payment_id || p.id}`, ts: p.paid_at, type: 'payment_success',
-      product: PRODUCT, value: Number(p.amount) || 0, lead: leadOf(h),
-      meta: clean({ ...(utmOf(h) || {}), rooms: rooms[p.hotel_id] }),
+      product: PRODUCT, value: Number(p.amount) || 0, lead: leadOf(h), meta: clean({ ...(utmOf(h) || {}), rooms: rooms[p.hotel_id] }),
     }); });
 
     let feed = events.filter(e => e.ts && (!since || new Date(e.ts) > new Date(since)));
     feed.sort((a, b) => new Date(a.ts) - new Date(b.ts));
-    feed = feed.slice(0, limit).map(e => (e.meta || (e.meta = undefined), e));
-
+    feed = feed.slice(0, limit);
     const next_since = feed.length ? feed[feed.length - 1].ts : (since || new Date(0).toISOString());
     res.set('Cache-Control', 'no-store');
     res.json({ events: feed, next_since });
@@ -114,12 +120,12 @@ router.get('/orders', sanviAuth, async (req, res) => {
 
     const planIds  = [...new Set((payments || []).map(p => p.plan_id).filter(Boolean))];
     const hotelIds = [...new Set((payments || []).map(p => p.hotel_id).filter(Boolean))];
-    const [{ data: plans }, { data: hotels }, { data: roomRows }] = await Promise.all([
-      planIds.length  ? supabase.from('plans').select('id, name').in('id', planIds)   : Promise.resolve({ data: [] }),
-      hotelIds.length ? supabase.from('hotels').select('id, hotel_name, email, phone, utm_content').in('id', hotelIds) : Promise.resolve({ data: [] }),
+    const [{ data: plans }, hotels, { data: roomRows }] = await Promise.all([
+      planIds.length  ? supabase.from('plans').select('id, name').in('id', planIds) : Promise.resolve({ data: [] }),
+      hotelIds.length ? selectHotels((cols) => supabase.from('hotels').select(cols).in('id', hotelIds)) : Promise.resolve([]),
       supabase.from('rooms').select('hotel_id'),
     ]);
-    const planMap  = Object.fromEntries((plans  || []).map(p => [p.id, p.name]));
+    const planMap  = Object.fromEntries((plans || []).map(p => [p.id, p.name]));
     const hotelMap = Object.fromEntries((hotels || []).map(h => [h.id, h]));
     const rooms = {};
     (roomRows || []).forEach(r => { rooms[r.hotel_id] = (rooms[r.hotel_id] || 0) + 1; });
