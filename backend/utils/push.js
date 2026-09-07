@@ -12,6 +12,7 @@ const supabase = require('./supabase');
 
 let _admin = null;      // the initialised firebase-admin app's messaging(), cached
 let _initTried = false; // so we log/attempt init exactly once per lambda
+let _initError = null;  // last init failure message (for the health diagnostic)
 
 // Lazily initialise firebase-admin from the server-side service account. Returns
 // the admin namespace, or null if it can't be configured (missing/invalid env,
@@ -44,7 +45,8 @@ function getAdmin() {
     console.log('[push] firebase-admin initialised — FCM push enabled.');
     return _admin;
   } catch (e) {
-    console.error('[push] init failed — push disabled (no-op):', e.message);
+    _initError = (e && (e.code ? e.code + ': ' : '') + e.message) || String(e);
+    console.error('[push] init failed — push disabled (no-op):', _initError);
     _admin = null;
     return null;
   }
@@ -150,8 +152,11 @@ function pushHealth() {
       clientEmail = c.client_email ? c.client_email.split('@')[1] || 'present' : null;
     } catch (_) { parseOk = false; }
   }
+  // check the module is even resolvable on this deploy
+  let moduleFound = true;
+  try { require.resolve('firebase-admin'); } catch (_) { moduleFound = false; }
   const admin = getAdmin();
-  return { present, form, parseOk, projectId, clientEmailDomain: clientEmail, adminInit: !!admin };
+  return { present, form, parseOk, projectId, clientEmailDomain: clientEmail, moduleFound, adminInit: !!admin, initError: _initError };
 }
 
 module.exports = { sendPushToHotel, pushHealth };
