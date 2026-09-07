@@ -7,18 +7,21 @@
 //
 //  If FCM_SERVICE_ACCOUNT is not set, every call safely no-ops with a log, so
 //  orders/requests keep working before Firebase is wired up.
+//
+//  NOTE: firebase-admin v13+ uses the MODULAR API — require the subpaths
+//  ('firebase-admin/app', 'firebase-admin/messaging'), NOT admin.apps /
+//  admin.credential.cert (those are undefined on the default export in v14).
 // ─────────────────────────────────────────────────────────────────────────────
 const supabase = require('./supabase');
 
-let _admin = null;      // the initialised firebase-admin app's messaging(), cached
+let _messaging = null;  // cached getMessaging() instance once initialised
 let _initTried = false; // so we log/attempt init exactly once per lambda
 let _initError = null;  // last init failure message (for the health diagnostic)
 
 // Lazily initialise firebase-admin from the server-side service account. Returns
-// the admin namespace, or null if it can't be configured (missing/invalid env,
-// or the package isn't installed yet). Never throws.
-function getAdmin() {
-  if (_initTried) return _admin;
+// the messaging instance, or null if it can't be configured. Never throws.
+function getMessagingClient() {
+  if (_initTried) return _messaging;
   _initTried = true;
   try {
     const raw = process.env.FCM_SERVICE_ACCOUNT;
@@ -26,28 +29,31 @@ function getAdmin() {
       console.warn('[push] FCM_SERVICE_ACCOUNT not set — push disabled (no-op). Orders/requests still work.');
       return null;
     }
-    // Accept either raw JSON or base64-encoded JSON (Vercel env vars mangle
-    // newlines in the private_key; base64 sidesteps that entirely).
+    // Accept either raw JSON or base64-encoded JSON (Vercel env vars can mangle
+    // the private_key newlines; base64 sidesteps that entirely).
     let jsonStr = raw.trim();
     if (!jsonStr.startsWith('{')) {
       try { jsonStr = Buffer.from(jsonStr, 'base64').toString('utf8'); } catch (_) { /* fall through */ }
     }
     const cred = JSON.parse(jsonStr);
-    // Some env pipelines turn "\n" into literal backslash-n in the private key.
+    // Some env pipelines turn a real newline into literal backslash-n.
     if (cred.private_key && cred.private_key.includes('\\n')) {
       cred.private_key = cred.private_key.replace(/\\n/g, '\n');
     }
-    const admin = require('firebase-admin');
-    if (!admin.apps.length) {
-      admin.initializeApp({ credential: admin.credential.cert(cred) });
+    // v14 modular API (subpath requires kept lazy so a missing package can't
+    // take down the whole hotel router at import time).
+    const { initializeApp, cert, getApps } = require('firebase-admin/app');
+    const { getMessaging } = require('firebase-admin/messaging');
+    if (!getApps().length) {
+      initializeApp({ credential: cert(cred) });
     }
-    _admin = admin;
+    _messaging = getMessaging();
     console.log('[push] firebase-admin initialised — FCM push enabled.');
-    return _admin;
+    return _messaging;
   } catch (e) {
-    _initError = (e && (e.code ? e.code + ': ' : '') + e.message) || String(e);
+    _initError = (e && ((e.code ? e.code + ': ' : '') + e.message)) || String(e);
     console.error('[push] init failed — push disabled (no-op):', _initError);
-    _admin = null;
+    _messaging = null;
     return null;
   }
 }
@@ -76,8 +82,8 @@ function stringifyData(data) {
  */
 async function sendPushToHotel(hotelId, { title, body, data } = {}) {
   try {
-    const admin = getAdmin();
-    if (!admin) return;                       // not configured yet → no-op
+    const messaging = getMessagingClient();
+    if (!messaging) return;                   // not configured yet → no-op
     if (!hotelId) { console.warn('[push] sendPushToHotel called without hotelId'); return; }
 
     const { data: rows, error } = await supabase
@@ -109,7 +115,7 @@ async function sendPushToHotel(hotelId, { title, body, data } = {}) {
       },
     };
 
-    const resp = await admin.messaging().sendEachForMulticast(message);
+    const resp = await messaging.sendEachForMulticast(message);
     console.log(`[push] hotel ${hotelId}: sent ${resp.successCount}/${tokens.length} (fail ${resp.failureCount}).`);
 
     // Deactivate tokens FCM says are permanently dead (app uninstalled / token
@@ -118,6 +124,7 @@ async function sendPushToHotel(hotelId, { title, body, data } = {}) {
     resp.responses.forEach((r, i) => {
       if (!r.success) {
         const code = (r.error && r.error.code) || '';
+        console.warn(`[push] token ${i} failed: ${code}`);
         if (/registration-token-not-registered|invalid-registration-token|invalid-argument/i.test(code)) {
           dead.push(tokens[i]);
         }
@@ -148,15 +155,13 @@ function pushHealth() {
       const c = JSON.parse(s);
       parseOk = true;
       projectId = c.project_id || null;
-      // don't return the email itself — just whether it exists + its domain
       clientEmail = c.client_email ? c.client_email.split('@')[1] || 'present' : null;
     } catch (_) { parseOk = false; }
   }
-  // check the module is even resolvable on this deploy
   let moduleFound = true;
   try { require.resolve('firebase-admin'); } catch (_) { moduleFound = false; }
-  const admin = getAdmin();
-  return { present, form, parseOk, projectId, clientEmailDomain: clientEmail, moduleFound, adminInit: !!admin, initError: _initError };
+  const messaging = getMessagingClient();
+  return { present, form, parseOk, projectId, clientEmailDomain: clientEmail, moduleFound, adminInit: !!messaging, initError: _initError };
 }
 
 module.exports = { sendPushToHotel, pushHealth };
