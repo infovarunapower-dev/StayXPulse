@@ -7,6 +7,7 @@ const { protect, authorize }     = require('../middleware/auth');
 const { logoUpload, uploadHotelLogo } = require('../utils/logoUpload');
 const { isValidGstin } = require('../utils/gst');
 const supabase = require('../utils/supabase');
+const { sendPushToHotel } = require('../utils/push');
 
 const HA  = [protect, authorize('hoteladmin')];
 const val = (req, res) => {
@@ -46,6 +47,55 @@ const requireActiveHotel = (req, res, next) => {
 
 const MW      = [...HA, withHotel, requireActiveHotel]; // product endpoints — gated
 const MW_OPEN = [...HA, withHotel];                     // billing/status — always reachable
+
+// ── Android push (FCM) device registration ──────────────────────────────────
+// MW_OPEN (not MW): a hotel whose trial lapsed must still be able to register
+// its device so it gets notified — this isn't a "product" action.
+//
+// POST /hotel/push-token   { token, platform? }  → upsert + (re)activate
+// DELETE /hotel/push-token { token }             → deactivate (explicit logout)
+//
+// The token is the device's identity: an UPSERT on `token` re-homes it to the
+// current user/hotel if the same phone is later used by a different admin.
+// IMPORTANT: closing/swiping/OS-killing the app must NOT hit DELETE — only an
+// explicit logout does. See frontend AuthContext.logout().
+router.post('/push-token', MW_OPEN, async (req, res) => {
+  try {
+    const token = String(req.body.token || '').trim();
+    if (!token) return res.status(400).json({ success: false, message: 'token required' });
+    const platform = String(req.body.platform || 'android').slice(0, 20);
+    const { error } = await supabase.from('device_tokens').upsert({
+      token,
+      user_id: req.user.id,
+      hotel_id: req.hotelId,
+      platform,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'token' });
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[push-token POST]', e.message);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+router.delete('/push-token', MW_OPEN, async (req, res) => {
+  try {
+    const token = String(req.body.token || req.query.token || '').trim();
+    if (!token) return res.status(400).json({ success: false, message: 'token required' });
+    // Only deactivate a token that belongs to THIS user (don't let one account
+    // silence another's device).
+    const { error } = await supabase.from('device_tokens')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('token', token).eq('user_id', req.user.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[push-token DELETE]', e.message);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 
 // Guest order history resets daily at 12:00 noon IST (typical checkout) so a new
 // guest doesn't see the previous guest's requests. Returns the ISO timestamp of
@@ -915,6 +965,15 @@ router.post('/guest/:qrToken/order', async (req, res) => {
       hotel_id: room.hotel_id, room_id: room.id, room_number: room.number, items: priced, total_amount: totalAmount, guest_note: String(guestNote).slice(0, 500),
     }).select().single();
     if (orderError) throw orderError;
+    // Push to the hotel's Android devices AFTER the insert succeeds. Awaited but
+    // error-safe by contract (never throws) — so a push problem can't fail the
+    // order. Awaiting matters on Vercel: a fire-and-forget promise can be killed
+    // when the lambda returns.
+    await sendPushToHotel(room.hotel_id, {
+      title: 'StayXPulse — New Food Order',
+      body: `Room ${room.number} — ₹${totalAmount}`,
+      data: { type: 'food_order', id: order.id, route: '/hotel/food-orders' },
+    });
     res.status(201).json({ success: true, data: order, message: 'Order placed successfully!' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -941,6 +1000,11 @@ router.post('/guest/:qrToken/service', async (req, res) => {
 
     const { data: sr, error: srError } = await supabase.from('service_requests').insert(insert).select().single();
     if (srError) throw srError;
+    await sendPushToHotel(room.hotel_id, {
+      title: 'StayXPulse — Service Request',
+      body: `Room ${room.number}: ${insert.type}`,
+      data: { type: 'service_request', id: sr.id, route: '/hotel/service-requests' },
+    });
     res.status(201).json({ success: true, data: sr, message: 'Request submitted!' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });

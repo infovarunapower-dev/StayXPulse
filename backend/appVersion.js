@@ -8,10 +8,10 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '2.9',
-  versionCode: 20,
-  releasedAt:  '2026-08-26T21:30:00Z',
+  version:     '3.0',
+  versionCode: 21,
+  releasedAt:  '2026-09-07T00:00:00Z',
   notes: [
-    'Stay signed in — reopening the app takes you straight to your dashboard',
+    'Push notifications — new food orders and service requests now ring your phone even when the app is closed',
   ],
 };

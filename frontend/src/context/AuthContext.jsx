@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import api from '../utils/api';
+import { unregisterPush } from '../utils/pushBridge';
 
 const AuthContext = createContext(null);
 const TOKEN_KEY = 'token';
@@ -201,7 +202,10 @@ export const AuthProvider = ({ children }) => {
     } catch { return null; }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Deactivate this device's push token FIRST, while the JWT is still present,
+    // so a logged-out phone stops receiving this hotel's alerts. Error-safe.
+    try { await unregisterPush(); } catch (_) {}
     clearToken();
     clearUser();
     fileClearSession();

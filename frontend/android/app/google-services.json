@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "583226135702",
+    "project_id": "stayxpulse-8b794",
+    "storage_bucket": "stayxpulse-8b794.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:583226135702:android:008e984506e77eab9cdeb7",
+        "android_client_info": {
+          "package_name": "com.stayxpulse.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUbFA3Cqvd3LS9b-krV9QnfxjI2uT7rfA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
