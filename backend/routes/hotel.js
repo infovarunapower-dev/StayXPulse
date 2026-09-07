@@ -7,7 +7,7 @@ const { protect, authorize }     = require('../middleware/auth');
 const { logoUpload, uploadHotelLogo } = require('../utils/logoUpload');
 const { isValidGstin } = require('../utils/gst');
 const supabase = require('../utils/supabase');
-const { sendPushToHotel } = require('../utils/push');
+const { sendPushToHotel, pushHealth } = require('../utils/push');
 
 const HA  = [protect, authorize('hoteladmin')];
 const val = (req, res) => {
@@ -59,6 +59,21 @@ const MW_OPEN = [...HA, withHotel];                     // billing/status — al
 // current user/hotel if the same phone is later used by a different admin.
 // IMPORTANT: closing/swiping/OS-killing the app must NOT hit DELETE — only an
 // explicit logout does. See frontend AuthContext.logout().
+// TEMP diagnostic — reports FCM config health + active token count. No secrets.
+// Remove after push is verified working.
+router.get('/push-health', async (req, res) => {
+  try {
+    const health = pushHealth();
+    const { count } = await supabase
+      .from('device_tokens')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true);
+    res.json({ ...health, activeTokens: count });
+  } catch (e) {
+    res.json({ error: e.message });
+  }
+});
+
 router.post('/push-token', MW_OPEN, async (req, res) => {
   try {
     const token = String(req.body.token || '').trim();

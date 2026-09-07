@@ -132,4 +132,26 @@ async function sendPushToHotel(hotelId, { title, body, data } = {}) {
   }
 }
 
-module.exports = { sendPushToHotel };
+// Diagnostic only: reports whether the FCM credential is present + valid and
+// whether firebase-admin initialised — WITHOUT exposing any secret value.
+function pushHealth() {
+  const raw = process.env.FCM_SERVICE_ACCOUNT || '';
+  const present = !!raw.trim();
+  let parseOk = false, projectId = null, clientEmail = null, form = null;
+  if (present) {
+    try {
+      let s = raw.trim();
+      if (!s.startsWith('{')) { form = 'base64'; s = Buffer.from(s, 'base64').toString('utf8'); }
+      else { form = 'json'; }
+      const c = JSON.parse(s);
+      parseOk = true;
+      projectId = c.project_id || null;
+      // don't return the email itself — just whether it exists + its domain
+      clientEmail = c.client_email ? c.client_email.split('@')[1] || 'present' : null;
+    } catch (_) { parseOk = false; }
+  }
+  const admin = getAdmin();
+  return { present, form, parseOk, projectId, clientEmailDomain: clientEmail, adminInit: !!admin };
+}
+
+module.exports = { sendPushToHotel, pushHealth };
