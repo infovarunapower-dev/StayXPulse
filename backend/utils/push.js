@@ -106,11 +106,10 @@ async function sendPushToHotel(hotelId, { title, body, data } = {}) {
       android: {
         priority: 'high',
         notification: {
-          channelId: 'stayxpulse_alerts',
-          sound: 'default',
+          channelId: 'stayxpulse_alerts_v2',
+          sound: 'stayxpulse_alert',   // res/raw/stayxpulse_alert.mp3 (channel owns the sound on Android 8+)
           priority: 'high',
           defaultVibrateTimings: true,
-          defaultSound: true,
         },
       },
     };

@@ -8,10 +8,10 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '3.0',
-  versionCode: 21,
-  releasedAt:  '2026-09-07T00:00:00Z',
+  version:     '3.1',
+  versionCode: 22,
+  releasedAt:  '2026-09-24T00:00:00Z',
   notes: [
-    'Push notifications — new food orders and service requests now ring your phone even when the app is closed',
+    'Custom notification sound for new orders, service requests and reminders',
   ],
 };

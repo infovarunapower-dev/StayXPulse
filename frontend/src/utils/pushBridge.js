@@ -16,7 +16,12 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import api from './api';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
-const CHANNEL_ID = 'stayxpulse_alerts';
+// v2 channel: Android LOCKS a channel's sound at creation, so switching to the
+// custom sound requires a NEW channel id. The old 'stayxpulse_alerts' (default
+// sound) is deleted below.
+const CHANNEL_ID = 'stayxpulse_alerts_v2';
+const OLD_CHANNEL_ID = 'stayxpulse_alerts';
+const CUSTOM_SOUND = 'stayxpulse_alert';   // res/raw/stayxpulse_alert.mp3 (no extension)
 const TOKEN_LS = 'sxp-push-token';   // last token we registered (for logout DELETE)
 
 let listenersBound = false;  // guard: bind FCM listeners exactly once per app run
@@ -62,10 +67,12 @@ async function ensureChannel() {
       description: 'New food orders and service requests',
       importance: 5,   // MAX/HIGH → heads-up banner
       visibility: 1,   // public on lock screen
-      sound: 'default',
+      sound: CUSTOM_SOUND,
       vibration: true,
       lights: true,
     });
+    // Remove the old default-sound channel so users don't see two channels.
+    try { await PushNotifications.deleteChannel({ id: OLD_CHANNEL_ID }); } catch (_) {}
     channelReady = true;
   } catch (e) {
     // createChannel is Android-only; ignore elsewhere.
