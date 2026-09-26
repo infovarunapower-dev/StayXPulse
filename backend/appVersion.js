@@ -8,10 +8,10 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '3.1',
-  versionCode: 22,
-  releasedAt:  '2026-09-24T00:00:00Z',
+  version:     '3.2',
+  versionCode: 23,
+  releasedAt:  '2026-09-26T00:00:00Z',
   notes: [
-    'Custom notification sound for new orders, service requests and reminders',
+    'Custom alert sound now plays in-app too (open app + web), matching notifications',
   ],
 };
