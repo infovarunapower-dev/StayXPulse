@@ -30,6 +30,11 @@
       "dest": "/frontend/stayxpulse_alert.mp3",
       "headers": { "Content-Type": "audio/mpeg", "Cache-Control": "public, max-age=86400" }
     },
+    {
+      "src": "/sw.js",
+      "dest": "/frontend/sw.js",
+      "headers": { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/" }
+    },
     { "src": "/(.*)", "dest": "/frontend/index.html" }
   ]
 }

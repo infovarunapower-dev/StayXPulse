@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { registerPush, setNavigator } from '../utils/pushBridge';
+import { registerWebPush } from '../utils/webPush';
 
 export default function PushManager() {
   const { user } = useAuth();
@@ -15,7 +16,10 @@ export default function PushManager() {
   useEffect(() => { setNavigator(navigate); }, [navigate]);
 
   useEffect(() => {
-    if (user && user.role === 'hoteladmin') registerPush();
+    if (user && user.role === 'hoteladmin') {
+      registerPush();      // native Android (FCM) — no-op on web
+      registerWebPush();   // browser (VAPID web push) — no-op on native
+    }
   }, [user]);
 
   return null;

@@ -7,7 +7,7 @@ const { protect, authorize }     = require('../middleware/auth');
 const { logoUpload, uploadHotelLogo } = require('../utils/logoUpload');
 const { isValidGstin } = require('../utils/gst');
 const supabase = require('../utils/supabase');
-const { sendPushToHotel } = require('../utils/push');
+const { sendPushToHotel, vapidPublicKey } = require('../utils/push');
 
 const HA  = [protect, authorize('hoteladmin')];
 const val = (req, res) => {
@@ -59,6 +59,12 @@ const MW_OPEN = [...HA, withHotel];                     // billing/status — al
 // current user/hotel if the same phone is later used by a different admin.
 // IMPORTANT: closing/swiping/OS-killing the app must NOT hit DELETE — only an
 // explicit logout does. See frontend AuthContext.logout().
+// Public: the browser needs the VAPID public key to subscribe to web push.
+// (Public keys are safe to expose; the private key stays server-side.)
+router.get('/webpush-key', (req, res) => {
+  res.json({ key: vapidPublicKey() });
+});
+
 router.post('/push-token', MW_OPEN, async (req, res) => {
   try {
     const token = String(req.body.token || '').trim();

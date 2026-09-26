@@ -58,6 +58,23 @@ function getMessagingClient() {
   }
 }
 
+// ── Web Push (VAPID) init — browsers, even when the tab is closed ────────────
+let _webpush = null, _webTried = false;
+function getWebPush() {
+  if (_webTried) return _webpush;
+  _webTried = true;
+  try {
+    const pub = process.env.VAPID_PUBLIC_KEY, priv = process.env.VAPID_PRIVATE_KEY;
+    if (!pub || !priv) { console.warn('[push] VAPID keys not set — web push disabled (no-op).'); return null; }
+    const webpush = require('web-push');
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:info@stayxpulse.sunver.in', pub, priv);
+    _webpush = webpush;
+    console.log('[push] web-push (VAPID) initialised.');
+    return _webpush;
+  } catch (e) { console.error('[push] web-push init failed:', e.message); return null; }
+}
+function vapidPublicKey() { return process.env.VAPID_PUBLIC_KEY || null; }
+
 // FCM data payload values MUST be strings. Coerce everything.
 function stringifyData(data) {
   const out = {};
@@ -81,25 +98,35 @@ function stringifyData(data) {
  * @param {{title:string, body:string, data?:object}} msg
  */
 async function sendPushToHotel(hotelId, { title, body, data } = {}) {
+  if (!hotelId) { console.warn('[push] sendPushToHotel called without hotelId'); return; }
+  let rows;
   try {
-    const messaging = getMessagingClient();
-    if (!messaging) return;                   // not configured yet → no-op
-    if (!hotelId) { console.warn('[push] sendPushToHotel called without hotelId'); return; }
-
-    const { data: rows, error } = await supabase
+    const res = await supabase
       .from('device_tokens')
-      .select('token')
+      .select('token, platform')
       .eq('hotel_id', hotelId)
       .eq('is_active', true);
-    if (error) { console.error('[push] token lookup failed:', error.message); return; }
+    if (res.error) { console.error('[push] token lookup failed:', res.error.message); return; }
+    rows = res.data || [];
+  } catch (e) { console.error('[push] token lookup threw:', e.message); return; }
 
-    const tokens = (rows || []).map(r => r.token).filter(Boolean);
-    if (!tokens.length) {
-      console.log(`[push] no active device tokens for hotel ${hotelId} — nothing to send.`);
-      return;
-    }
+  const androidTokens = rows.filter(r => (r.platform || 'android') !== 'web').map(r => r.token).filter(Boolean);
+  const webSubs       = rows.filter(r => r.platform === 'web').map(r => r.token).filter(Boolean);
 
-    const message = {
+  // Android (FCM) and web (VAPID) are independent transports — run both.
+  await Promise.all([
+    sendFcm(hotelId, androidTokens, { title, body, data }),
+    sendWeb(hotelId, webSubs,       { title, body, data }),
+  ]);
+}
+
+// Android devices via FCM. Error-safe.
+async function sendFcm(hotelId, tokens, { title, body, data }) {
+  try {
+    if (!tokens.length) return;
+    const messaging = getMessagingClient();
+    if (!messaging) return;
+    const resp = await messaging.sendEachForMulticast({
       tokens,
       notification: { title, body },
       data: stringifyData(data),
@@ -112,32 +139,45 @@ async function sendPushToHotel(hotelId, { title, body, data } = {}) {
           defaultVibrateTimings: true,
         },
       },
-    };
-
-    const resp = await messaging.sendEachForMulticast(message);
-    console.log(`[push] hotel ${hotelId}: sent ${resp.successCount}/${tokens.length} (fail ${resp.failureCount}).`);
-
-    // Deactivate tokens FCM says are permanently dead (app uninstalled / token
-    // rotated). Keep transient failures active so we retry them next time.
+    });
+    console.log(`[push] FCM hotel ${hotelId}: sent ${resp.successCount}/${tokens.length} (fail ${resp.failureCount}).`);
     const dead = [];
     resp.responses.forEach((r, i) => {
       if (!r.success) {
         const code = (r.error && r.error.code) || '';
-        console.warn(`[push] token ${i} failed: ${code}`);
-        if (/registration-token-not-registered|invalid-registration-token|invalid-argument/i.test(code)) {
-          dead.push(tokens[i]);
-        }
+        if (/registration-token-not-registered|invalid-registration-token|invalid-argument/i.test(code)) dead.push(tokens[i]);
       }
     });
     if (dead.length) {
-      await supabase.from('device_tokens')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .in('token', dead);
-      console.log(`[push] deactivated ${dead.length} dead token(s).`);
+      await supabase.from('device_tokens').update({ is_active: false, updated_at: new Date().toISOString() }).in('token', dead);
+      console.log(`[push] deactivated ${dead.length} dead FCM token(s).`);
     }
-  } catch (e) {
-    console.error('[push] sendPushToHotel failed (non-fatal):', e.message);
-  }
+  } catch (e) { console.error('[push] sendFcm failed (non-fatal):', e.message); }
+}
+
+// Browsers via Web Push (VAPID) — fires even when the tab is closed. Each stored
+// "token" is the JSON-stringified PushSubscription. Error-safe.
+async function sendWeb(hotelId, subs, { title, body, data }) {
+  try {
+    if (!subs.length) return;
+    const webpush = getWebPush();
+    if (!webpush) return;
+    const payload = JSON.stringify({ title, body, data: data || {} });
+    let ok = 0; const dead = [];
+    await Promise.all(subs.map(async (raw) => {
+      try {
+        await webpush.sendNotification(JSON.parse(raw), payload);
+        ok++;
+      } catch (err) {
+        const sc = err && err.statusCode;
+        if (sc === 404 || sc === 410) dead.push(raw); // subscription gone
+      }
+    }));
+    console.log(`[push] WEB hotel ${hotelId}: sent ${ok}/${subs.length} (dead ${dead.length}).`);
+    if (dead.length) {
+      await supabase.from('device_tokens').update({ is_active: false, updated_at: new Date().toISOString() }).in('token', dead);
+    }
+  } catch (e) { console.error('[push] sendWeb failed (non-fatal):', e.message); }
 }
 
 // Diagnostic only: reports whether the FCM credential is present + valid and
@@ -163,4 +203,4 @@ function pushHealth() {
   return { present, form, parseOk, projectId, clientEmailDomain: clientEmail, moduleFound, adminInit: !!messaging, initError: _initError };
 }
 
-module.exports = { sendPushToHotel, pushHealth };
+module.exports = { sendPushToHotel, pushHealth, vapidPublicKey };
