@@ -25,6 +25,11 @@
       "dest": "/frontend/stayxpulse.apk",
       "headers": { "Content-Type": "application/vnd.android.package-archive", "Content-Disposition": "attachment; filename=\"StayXPulse.apk\"" }
     },
+    {
+      "src": "/stayxpulse_alert.mp3",
+      "dest": "/frontend/stayxpulse_alert.mp3",
+      "headers": { "Content-Type": "audio/mpeg", "Cache-Control": "public, max-age=86400" }
+    },
     { "src": "/(.*)", "dest": "/frontend/index.html" }
   ]
 }
