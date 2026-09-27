@@ -24,6 +24,10 @@ router.post('/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ success: false, message: 'Invalid email or password.' });
 
+    // Record last login (best-effort) — powers the Super Admin "recently active
+    // hotels" list. Must not break login if it fails.
+    try { await supabase.from('users').update({ last_login: new Date().toISOString() }).eq('id', user.id); } catch (_) {}
+
     // 7 days was far too short — it logged users out weekly. Honour "remember me"
     // (used by the native app, which stays signed in) with a long-lived token.
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: req.body.rememberMe ? '90d' : '30d' });

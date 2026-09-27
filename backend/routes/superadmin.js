@@ -70,11 +70,29 @@ router.get('/summary', SA, async (req, res) => {
       if (!vErr) visitors = v;
     } catch (_) { /* migration 020 not run yet */ }
 
+    // Recently active hotels — hotel admins ordered by last login (name + email).
+    let activeHotelsList = [];
+    try {
+      const { data: au } = await supabase
+        .from('users')
+        .select('name, email, last_login, hotels(hotel_name)')
+        .eq('role', 'hoteladmin')
+        .not('last_login', 'is', null)
+        .order('last_login', { ascending: false })
+        .limit(8);
+      activeHotelsList = (au || []).map(u => ({
+        hotelName: (u.hotels && u.hotels.hotel_name) || u.name || '—',
+        email: u.email,
+        lastLogin: u.last_login,
+      }));
+    } catch (_) { /* ignore */ }
+
     res.json({
       success: true,
       data: {
         stats: { totalHotels, activeHotels, trialHotels, expiredHotels, totalRevenue },
         visitors,
+        activeHotels: activeHotelsList,
         monthlyRevenue: [],
         recentPayments: (recentPayments || []).map(p => ({
           ...p,
@@ -88,6 +106,31 @@ router.get('/summary', SA, async (req, res) => {
         })),
       },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── VISITOR DETAIL (for the clickable dashboard cards) ──────────────────────
+// range = today | 7d | all. Returns the latest 100 anonymous visits.
+router.get('/visits', SA, async (req, res) => {
+  try {
+    const range = req.query.range || 'all';
+    let q = supabase.from('page_visits')
+      .select('path, referrer, user_agent, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (range === '7d') {
+      q = q.gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString());
+    } else if (range === 'today') {
+      // IST (UTC+5:30) midnight, to match the summary's "today".
+      const istMin = 330;
+      const istNow = new Date(Date.now() + istMin * 60000);
+      const istMid = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate());
+      q = q.gte('created_at', new Date(istMid - istMin * 60000).toISOString());
+    }
+    const { data } = await q;
+    res.json({ success: true, data: data || [] });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
