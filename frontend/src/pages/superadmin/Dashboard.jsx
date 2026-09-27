@@ -16,6 +16,7 @@ const Dashboard = () => {
   const monthly = data?.data?.monthlyRevenue || [];
   const recent  = data?.data?.recentPayments || [];
   const expiring = data?.data?.expiringSoon  || [];
+  const v = data?.data?.visitors || null;
 
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const chartData = monthly.map(m => ({
@@ -34,6 +35,31 @@ const Dashboard = () => {
         <StatCard icon="⏳" label="On Trial"        value={s.trialHotels   || 0} color="amber" onClick={() => navigate('/admin/hotels')} />
         <StatCard icon="💰" label="Total Revenue"  value={fmtCurrency(s.totalRevenue)} color="green" onClick={() => navigate('/admin/payments')} />
       </div>
+
+      {v && (
+        <>
+          <div style={{ margin: '22px 0 10px', fontWeight: 700, fontSize: 15, color: 'var(--gray-700)' }}>
+            Website Visitors
+          </div>
+          <div className="stats-grid">
+            <StatCard icon="👣" label="Total Visits"    value={v.total  || 0} color="blue"  />
+            <StatCard icon="🧑" label="Unique Visitors"  value={v.unique || 0} color="green" />
+            <StatCard icon="📅" label="Today"            value={v.today  || 0} color="amber" />
+            <StatCard icon="📈" label="Last 7 Days"      value={v.last7  || 0} color="blue"  />
+          </div>
+          {Array.isArray(v.topPaths) && v.topPaths.length > 0 && (
+            <Card>
+              <CardHeader title="Top Pages" />
+              {v.topPaths.map((p, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
+                  <span style={{ fontWeight: 600 }}>{p.path}</span>
+                  <span style={{ color: 'var(--gray-500)', fontVariantNumeric: 'tabular-nums' }}>{p.visits} visits</span>
+                </div>
+              ))}
+            </Card>
+          )}
+        </>
+      )}
 
       <div className="grid-2">
         {/* Monthly Revenue chart */}

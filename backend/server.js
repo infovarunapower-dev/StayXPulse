@@ -112,6 +112,7 @@ app.use('/api/email', require('./routes/email'));
 app.use('/api/master', require('./routes/master'));
 app.use('/api/sanvi', require('./routes/sanvi'));
 app.use('/api/cron', require('./routes/cron'));
+app.use('/api/analytics', require('./routes/analytics'));
 
 // ── Terminal error handler ────────────────────────────────────────────────────
 // Without this, anything thrown by middleware (notably multer's file-size and

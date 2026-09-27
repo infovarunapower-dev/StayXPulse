@@ -62,10 +62,19 @@ router.get('/summary', SA, async (req, res) => {
       .lte('plan_valid_to', in7.toISOString())
       .gte('plan_valid_to', new Date().toISOString());
 
+    // Website visitor stats (first-party). Self-healing: if migration 020 /
+    // the RPC isn't in place yet, fall back to nulls so the dashboard still loads.
+    let visitors = null;
+    try {
+      const { data: v, error: vErr } = await supabase.rpc('analytics_summary');
+      if (!vErr) visitors = v;
+    } catch (_) { /* migration 020 not run yet */ }
+
     res.json({
       success: true,
       data: {
         stats: { totalHotels, activeHotels, trialHotels, expiredHotels, totalRevenue },
+        visitors,
         monthlyRevenue: [],
         recentPayments: (recentPayments || []).map(p => ({
           ...p,
