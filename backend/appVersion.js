@@ -8,10 +8,10 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '3.3',
-  versionCode: 24,
+  version:     '3.4',
+  versionCode: 25,
   releasedAt:  '2026-09-27T00:00:00Z',
   notes: [
-    'Super Admin: website visitor stats on the dashboard',
+    'Super Admin: visitor details + recently active hotels on the dashboard',
   ],
 };
