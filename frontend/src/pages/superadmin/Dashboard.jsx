@@ -122,6 +122,9 @@ const Dashboard = () => {
                 <Table
                   columns={[
                     { key: 'created_at', label: 'Time', render: (r) => fmtDateTime(r.created_at) },
+                    { key: 'hotel_name', label: 'Hotel / User', render: (r) => r.hotel_name
+                        ? <span style={{ fontWeight: 600 }}>{r.hotel_name}</span>
+                        : <span style={{ color: 'var(--gray-400)' }}>Anonymous</span> },
                     { key: 'path', label: 'Page' },
                     { key: 'referrer', label: 'Source', render: (r) => sourceOf(r.referrer) },
                     { key: 'user_agent', label: 'Device', render: (r) => deviceOf(r.user_agent) },
