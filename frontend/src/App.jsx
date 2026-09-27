@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute, { Loader } from './components/common/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
 import PushManager from './components/PushManager';
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 
 import LoginPage          from './pages/auth/LoginPage';
 import RegisterPage       from './pages/auth/RegisterPage';
@@ -109,6 +110,7 @@ const App = () => (
       <AccessGuard />
       <AuthGuard />
       <PushManager />
+      <VercelAnalytics />
       <Routes>
         <Route path="/login"                  element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route path="/register"               element={<PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>} />
