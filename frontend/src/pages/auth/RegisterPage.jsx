@@ -6,8 +6,6 @@ import Input from '../../components/common/Input';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 
-const STEPS = ['Hotel Details', 'Contact & Location', 'Review & Submit'];
-
 const RegisterPage = () => {
   const navigate  = useNavigate();
   const { loginWithToken } = useAuth();
@@ -19,7 +17,7 @@ const RegisterPage = () => {
   const utm = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content']
     .reduce((o, k) => { const v = searchParams.get(k); if (v) o[k] = v; return o; }, {});
 
-  const [step, setStep]       = useState(0);
+  const [showMore, setShowMore] = useState(false);   // optional GST / Logo / Address
   const [submitting, setSub]  = useState(false);
   const [errors, setErrors]   = useState({});
   const [logoPreview, setLP]  = useState(null);
@@ -43,31 +41,28 @@ const RegisterPage = () => {
     setLP(URL.createObjectURL(file));
   };
 
-  const validateStep = (s) => {
+  // Single-page validation — only the three essentials are required.
+  const validateAll = () => {
     const errs = {};
-    if (s === 0) {
-      if (!form.hotelName.trim()) errs.hotelName = 'Hotel name is required';
-      // GST is optional; validate the format only if something was entered.
-      if (form.gstNumber.trim() && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(form.gstNumber.trim().toUpperCase())) errs.gstNumber = 'Not a valid GSTIN — or leave it blank';
-    }
-    if (s === 1) {
-      if (!form.phone.trim()) errs.phone = 'Phone is required';
-      if (!form.email.trim()) errs.email = 'Email is required';
-      else if (!/\S+@\S+\.\S+/.test(form.email)) errs.email = 'Enter a valid email';
-      if (!form.address.trim()) errs.address = 'Address is required';
-    }
+    if (!form.hotelName.trim()) errs.hotelName = 'Hotel name is required';
+    if (!form.phone.trim()) errs.phone = 'Phone is required';
+    if (!form.email.trim()) errs.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(form.email)) errs.email = 'Enter a valid email';
+    // GST is optional; validate the format only if something was entered.
+    if (form.gstNumber.trim() && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(form.gstNumber.trim().toUpperCase())) errs.gstNumber = 'Not a valid GSTIN — or leave it blank';
     return errs;
-  };
-
-  const nextStep = () => {
-    const errs = validateStep(step);
-    if (Object.keys(errs).length) { setErrors(errs); return; }
-    setErrors({});
-    setStep(s => s + 1);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errs = validateAll();
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      // Reveal the optional section if the only problem is a bad GST hidden inside it.
+      if (errs.gstNumber) setShowMore(true);
+      return;
+    }
+    setErrors({});
     setSub(true);
     try {
       const fd = new FormData();
@@ -163,60 +158,29 @@ const RegisterPage = () => {
     );
   }
 
-  // ── Step indicators ────────────────────────────────────────────────────────
-  // All three labels side by side need more width than the auth card has, so
-  // the last one used to spill outside it. Only the current step is labelled;
-  // the others stay as numbered dots, which fits at any width.
-  const StepBar = () => (
-    <div style={{ marginBottom: '28px' }}>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        {STEPS.map((label, i) => (
-          <React.Fragment key={label}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
-              <div style={{
-                width: '28px', height: '28px', borderRadius: '50%',
-                background: i < step ? 'var(--success)' : i === step ? 'var(--brand)' : 'var(--gray-200)',
-                color: i <= step ? '#fff' : 'var(--gray-400)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '13px', fontWeight: 700, flexShrink: 0,
-              }}>
-                {i < step ? '✓' : i + 1}
-              </div>
-              {i === step && (
-                <span style={{
-                  fontSize: '13px', fontWeight: 700, color: 'var(--gray-900)',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>
-                  {label}
-                </span>
-              )}
-            </div>
-            {i < STEPS.length - 1 && (
-              <div style={{ flex: 1, minWidth: '10px', height: '2px', background: i < step ? 'var(--success)' : 'var(--gray-200)', borderRadius: '1px' }} />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--gray-400)', fontWeight: 600, marginTop: '8px' }}>
-        Step {step + 1} of {STEPS.length}
-      </div>
-    </div>
-  );
-
   return (
     <AuthLayout>
       <div className="auth-card-title">Register Your Hotel</div>
       <div className="auth-card-sub">{intent === 'buy' ? 'Register your hotel, then choose a plan to activate' : 'Get started with a 14-day free trial — no credit card needed'}</div>
 
-      <StepBar />
+      <form onSubmit={handleSubmit}>
 
-      <form onSubmit={step === 2 ? handleSubmit : (e) => e.preventDefault()}>
+        {/* ── The three essentials ── */}
+        <Input label="Hotel Name *" placeholder="The Grand Palace" value={form.hotelName}
+          onChange={set('hotelName')} error={errors.hotelName} autoFocus />
+        <Input label="Phone Number *" placeholder="+91 98765 43210" value={form.phone}
+          onChange={set('phone')} error={errors.phone} />
+        <Input label="Email Address *" type="email" placeholder="info@hotel.com" value={form.email}
+          onChange={set('email')} error={errors.email} />
 
-        {/* ── Step 0: Hotel Details ── */}
-        {step === 0 && (
+        {/* ── Optional details (collapsed by default) ── */}
+        <button type="button" onClick={() => setShowMore(s => !s)}
+          style={{ background: 'none', border: 'none', color: 'var(--brand)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: '4px 0', marginBottom: 4 }}>
+          {showMore ? '▾ Hide extra details' : '▸ Add GST, logo & address (optional)'}
+        </button>
+
+        {showMore && (
           <>
-            <Input label="Hotel Name *" placeholder="The Grand Palace" value={form.hotelName}
-              onChange={set('hotelName')} error={errors.hotelName} autoFocus />
             <div className="form-group">
               <label className="form-label">GST Number <span style={{color:'var(--gray-400)',fontWeight:400}}>(optional)</span></label>
               <input className={`form-control${errors.gstNumber ? ' error' : ''}`}
@@ -226,7 +190,13 @@ const RegisterPage = () => {
               {errors.gstNumber && <div className="form-error">⚠ {errors.gstNumber}</div>}
             </div>
             <div className="form-group">
-              <label className="form-label">Hotel Logo (optional)</label>
+              <label className="form-label">Full Address <span style={{color:'var(--gray-400)',fontWeight:400}}>(optional)</span></label>
+              <textarea className="form-control"
+                placeholder="Street, City, State, PIN code" value={form.address}
+                onChange={set('address')} rows={3} style={{ resize: 'vertical' }} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Hotel Logo <span style={{color:'var(--gray-400)',fontWeight:400}}>(optional)</span></label>
               <input type="file" ref={logoRef} accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={handleLogo} />
               <div
                 onClick={() => logoRef.current.click()}
@@ -251,59 +221,9 @@ const RegisterPage = () => {
           </>
         )}
 
-        {/* ── Step 1: Contact & Location ── */}
-        {step === 1 && (
-          <>
-            <Input label="Phone Number *" placeholder="+91 98765 43210" value={form.phone}
-              onChange={set('phone')} error={errors.phone} autoFocus />
-            <Input label="Email Address *" type="email" placeholder="info@hotel.com" value={form.email}
-              onChange={set('email')} error={errors.email} />
-            <div className="form-group">
-              <label className="form-label">Full Address *</label>
-              <textarea className={`form-control${errors.address ? ' error' : ''}`}
-                placeholder="Street, City, State, PIN code" value={form.address}
-                onChange={set('address')} rows={3} style={{ resize: 'vertical' }} />
-              {errors.address && <div className="form-error">⚠ {errors.address}</div>}
-            </div>
-          </>
-        )}
-
-        {/* ── Step 2: Review ── */}
-        {step === 2 && (
-          <div style={{ background: 'var(--gray-50)', borderRadius: '12px', padding: '20px', marginBottom: '8px' }}>
-            {[
-              { label: 'Hotel Name',  value: form.hotelName },
-              { label: 'GST Number',  value: form.gstNumber, mono: true },
-              { label: 'Phone',       value: form.phone },
-              { label: 'Email',       value: form.email },
-              { label: 'Address',     value: form.address },
-              { label: 'Logo',        value: logoPreview ? '✅ Uploaded' : '— (skipped)' },
-            ].map(({ label, value, mono }) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--border)', fontSize: '14px', gap: '12px' }}>
-                <span style={{ color: 'var(--gray-500)', fontWeight: 600, flexShrink: 0 }}>{label}</span>
-                <span style={{ fontWeight: 600, color: 'var(--gray-800)', textAlign: 'right', fontFamily: mono ? 'var(--font-mono)' : 'inherit', wordBreak: 'break-all' }}>{value}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── Navigation ── */}
-        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-          {step > 0 && (
-            <button type="button" className="btn btn-outline" onClick={() => setStep(s => s - 1)} style={{ flex: 1 }}>
-              ← Back
-            </button>
-          )}
-          {step < 2 ? (
-            <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={nextStep}>
-              Continue →
-            </button>
-          ) : (
-            <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={submitting}>
-              {submitting ? <><span className="spinner" /> Registering…</> : '🏨 Register Hotel'}
-            </button>
-          )}
-        </div>
+        <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 20 }} disabled={submitting}>
+          {submitting ? <><span className="spinner" /> Registering…</> : '🏨 Register Hotel'}
+        </button>
       </form>
 
       <div className="auth-switch">

@@ -77,7 +77,7 @@ router.post('/register', optionalLogo, async (req, res) => {
     if (!hotelName?.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
     if (!phone?.trim()) return res.status(400).json({ success: false, message: 'Phone number is required.' });
     if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email address is required.' });
-    if (!address?.trim()) return res.status(400).json({ success: false, message: 'Address is required.' });
+    // Address is OPTIONAL — a hotel can add it later from its profile.
     // GST is OPTIONAL — homestays / unregistered businesses can register without
     // one. If provided, it must be a valid GSTIN (its first two digits drive the
     // CGST/SGST-vs-IGST split on invoices); a blank value bills as IGST 18% and
@@ -104,7 +104,7 @@ router.post('/register', optionalLogo, async (req, res) => {
 
     const baseHotel = {
       hotel_name: hotelName.trim(), phone: phone.trim(), email: cleanEmail,
-      address: address.trim(), gst_number: gstNumber?.trim() ? gstNumber.trim().toUpperCase() : null,
+      address: address?.trim() || null, gst_number: gstNumber?.trim() ? gstNumber.trim().toUpperCase() : null,
       logo_url: logoUrl,
       user_id: userId, is_active: true,
       subscription_status: isBuy ? 'expired' : 'trial',   // direct-buy has no trial → must subscribe to activate
