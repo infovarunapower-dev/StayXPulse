@@ -18,7 +18,7 @@ const CLIENT_URL = (_envUrl && !/vercel\.app|localhost/i.test(_envUrl))
   : 'https://stayxpulse.sunver.in';
 
 // Single QR Card component
-const QRCard = ({ room, hotel, onDelete, onView }) => {
+const QRCard = ({ room, hotel, onDelete, onView, onEditWifi }) => {
   const canvasRef = useRef(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
 
@@ -199,10 +199,14 @@ const QRCard = ({ room, hotel, onDelete, onView }) => {
           : <Spinner size={32} />}
       </div>
       <div style={{fontSize:13,fontWeight:600,color:'var(--gray-700)'}}>{room.floor || '—'} · {room.type}</div>
-      <div style={{display:'flex',gap:8,justifyContent:'center',marginTop:12}}>
+      <div style={{fontSize:12,color:room.wifi_ssid?'var(--brand)':'var(--gray-400)',marginTop:4}}>
+        📶 {room.wifi_ssid ? room.wifi_ssid : 'No WiFi set'}
+      </div>
+      <div style={{display:'flex',gap:8,justifyContent:'center',marginTop:12,flexWrap:'wrap'}}>
         <button className="btn btn-sm btn-brand" onClick={downloadQR} disabled={!qrDataUrl}>⬇ Download</button>
         <button className="btn btn-sm btn-outline"
           onClick={() => window.open(`/guest/${room.qr_token}`, '_blank')}>Preview</button>
+        <button className="btn btn-sm btn-outline" onClick={() => onEditWifi(room)}>📶 WiFi</button>
         <button className="btn btn-sm" style={{background:'var(--danger-light)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}
           onClick={() => onDelete(room)}>🗑</button>
       </div>
@@ -217,7 +221,27 @@ const QRManagement = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [delRoom, setDelRoom] = useState(null);
   const [saving,  setSaving]  = useState(false);
-  const [form,    setForm]    = useState({ number:'', floor:'', type:'Standard' });
+  const [form,    setForm]    = useState({ number:'', floor:'', type:'Standard', wifiSsid:'', wifiPassword:'' });
+  const [editRoom, setEditRoom] = useState(null);                 // room being WiFi-edited
+  const [wifiForm, setWifiForm] = useState({ wifiSsid:'', wifiPassword:'' });
+
+  const openEditWifi = (room) => {
+    setEditRoom(room);
+    setWifiForm({ wifiSsid: room.wifi_ssid || '', wifiPassword: room.wifi_password || '' });
+  };
+  const saveWifi = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.patch(`/hotel/rooms/${editRoom.id}`, wifiForm);
+      toast.success(`WiFi updated for Room ${editRoom.number}`);
+      setEditRoom(null);
+      const { data } = await api.get('/hotel/rooms');
+      setRooms(data.data || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not update WiFi');
+    } finally { setSaving(false); }
+  };
 
   // Per-room activity viewer
   const [viewRoom,     setViewRoom]     = useState(null);
@@ -267,7 +291,7 @@ const QRManagement = () => {
     try {
       await api.post('/hotel/rooms', form);
       toast.success(`Room ${form.number} created! QR generated.`);
-      setForm({ number:'', floor:'', type:'Standard' });
+      setForm({ number:'', floor:'', type:'Standard', wifiSsid:'', wifiPassword:'' });
       setShowAdd(false);
       loadRooms();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to add room'); }
@@ -300,7 +324,7 @@ const QRManagement = () => {
         </div>
       ) : (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:16}}>
-          {rooms.map(r => <QRCard key={r.id} room={r} hotel={hotel} onDelete={setDelRoom} onView={openActivity} />)}
+          {rooms.map(r => <QRCard key={r.id} room={r} hotel={hotel} onDelete={setDelRoom} onView={openActivity} onEditWifi={openEditWifi} />)}
         </div>
       )}
 
@@ -325,12 +349,45 @@ const QRManagement = () => {
               </select>
             </div>
           </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">WiFi Name <span style={{color:'var(--gray-400)',fontWeight:400}}>(optional)</span></label>
+              <input className="form-control" placeholder="e.g. JaiGanesh_101"
+                value={form.wifiSsid} onChange={e => setForm(f=>({...f,wifiSsid:e.target.value}))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">WiFi Password <span style={{color:'var(--gray-400)',fontWeight:400}}>(optional)</span></label>
+              <input className="form-control" placeholder="Shown to the guest"
+                value={form.wifiPassword} onChange={e => setForm(f=>({...f,wifiPassword:e.target.value}))} />
+            </div>
+          </div>
           <div style={{background:'var(--brand-light)',borderRadius:8,padding:'10px 14px',fontSize:13,color:'var(--brand)',marginBottom:20}}>
-            💡 A unique QR code will be generated automatically. The QR will open a guest ordering page with your hotel name and room number.
+            💡 A unique QR code will be generated automatically. The QR opens a guest page with your hotel name, room number{form.wifiSsid ? ' and WiFi details' : ''}.
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-outline" onClick={() => setShowAdd(false)}>Cancel</button>
             <button type="submit" className="btn btn-brand" disabled={saving}>{saving ? 'Generating…' : '📱 Generate QR'}</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit WiFi Modal */}
+      <Modal open={!!editRoom} onClose={() => setEditRoom(null)} title={editRoom ? `WiFi — Room ${editRoom.number}` : 'WiFi'}>
+        <form onSubmit={saveWifi}>
+          <div className="form-group">
+            <label className="form-label">WiFi Name</label>
+            <input className="form-control" placeholder="e.g. JaiGanesh_101" autoFocus
+              value={wifiForm.wifiSsid} onChange={e => setWifiForm(f=>({...f,wifiSsid:e.target.value}))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">WiFi Password</label>
+            <input className="form-control" placeholder="Shown to the guest"
+              value={wifiForm.wifiPassword} onChange={e => setWifiForm(f=>({...f,wifiPassword:e.target.value}))} />
+          </div>
+          <div style={{fontSize:12,color:'var(--gray-500)',marginBottom:16}}>Leave both blank to remove WiFi from this room.</div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-outline" onClick={() => setEditRoom(null)}>Cancel</button>
+            <button type="submit" className="btn btn-brand" disabled={saving}>{saving ? 'Saving…' : 'Save WiFi'}</button>
           </div>
         </form>
       </Modal>

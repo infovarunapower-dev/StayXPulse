@@ -285,11 +285,25 @@ const GuestLanding = () => {
           {hotel.logoUrl && /^https?:\/\//.test(hotel.logoUrl)
             ? <img src={hotel.logoUrl} alt="logo" className="gl-logo"/>
             : <div className="gl-logo-placeholder">🏨</div>}
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div className="gl-hotel-name">{hotel.hotelName}</div>
             <div className="gl-room-info">{t.room} {room.number} &nbsp;·&nbsp; {translateRoomType(room.type, lang)}</div>
             <div className="gl-hotel-phone">📞 {hotel.phone}</div>
           </div>
+
+          {room.wifiSsid && (
+            <div style={{
+              marginLeft: 'auto', flexShrink: 0, alignSelf: 'flex-start',
+              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: 12, padding: '10px 14px', color: '#fff', maxWidth: 190,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.9, marginBottom: 4, letterSpacing: '0.02em' }}>📶 WiFi</div>
+              <div style={{ fontSize: 14, fontWeight: 700, wordBreak: 'break-all', lineHeight: 1.25 }}>{room.wifiSsid}</div>
+              {room.wifiPassword && (
+                <div style={{ fontSize: 13, marginTop: 3, wordBreak: 'break-all', opacity: 0.95 }}>🔑 {room.wifiPassword}</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

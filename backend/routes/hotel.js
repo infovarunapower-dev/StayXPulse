@@ -210,15 +210,43 @@ router.post('/rooms', [...MW, body('number').trim().notEmpty().withMessage('Room
     const ROOM_TYPES = ['Standard', 'Deluxe', 'Suite', 'Executive Suite', 'Villa'];
     const type = ROOM_TYPES.includes(req.body.type) ? req.body.type : 'Standard';
 
-    const { data, error } = await supabase.from('rooms').insert({
+    const insert = {
       hotel_id: req.hotelId,
       number: req.body.number,
       type,
       floor: req.body.floor || null,
       is_active: true,
-    }).select().single();
+      wifi_ssid: req.body.wifiSsid?.trim() || null,
+      wifi_password: req.body.wifiPassword?.trim() || null,
+    };
+    let { data, error } = await supabase.from('rooms').insert(insert).select().single();
+    // Self-heal: if migration 022 (wifi columns) hasn't run yet, insert without them.
+    if (error && /column|schema cache|wifi_/i.test(error.message || '')) {
+      const { wifi_ssid, wifi_password, ...base } = insert;
+      ({ data, error } = await supabase.from('rooms').insert(base).select().single());
+    }
     if (error) throw error;
     res.status(201).json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Edit a room's WiFi credentials (so existing rooms can get WiFi without being
+// recreated). Scoped to the caller's hotel.
+router.patch('/rooms/:id', MW, async (req, res) => {
+  try {
+    const update = {
+      wifi_ssid: req.body.wifiSsid?.trim() || null,
+      wifi_password: req.body.wifiPassword?.trim() || null,
+    };
+    const { data, error } = await supabase.from('rooms')
+      .update(update).eq('id', req.params.id).eq('hotel_id', req.hotelId).select().single();
+    if (error) {
+      if (/column|schema cache|wifi_/i.test(error.message || '')) {
+        return res.status(400).json({ success: false, message: 'Run migration 022 (room WiFi columns) first.' });
+      }
+      throw error;
+    }
+    res.json({ success: true, data });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -919,7 +947,7 @@ router.get('/guest/:qrToken', async (req, res) => {
       serviceOptions = allSvc.some(r => r.is_default) ? active : [...defaults, ...active];
     }
 
-    res.json({ success: true, data: { hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type }, menu, serviceOptions, kitchen: kitchenStatus(hotel) } });
+    res.json({ success: true, data: { hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type, wifiSsid: room.wifi_ssid || null, wifiPassword: room.wifi_password || null }, menu, serviceOptions, kitchen: kitchenStatus(hotel) } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
