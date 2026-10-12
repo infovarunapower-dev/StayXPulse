@@ -8,10 +8,10 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '3.4',
-  versionCode: 25,
-  releasedAt:  '2026-09-27T00:00:00Z',
+  version:     '3.5',
+  versionCode: 26,
+  releasedAt:  '2026-10-12T00:00:00Z',
   notes: [
-    'Super Admin: visitor details + recently active hotels on the dashboard',
+    'Per-room WiFi: set it on a room and guests see it on their page; simpler 1-page signup',
   ],
 };
