@@ -303,7 +303,7 @@ const GuestLanding = () => {
               </div>
               {room.wifiPassword && (
                 <div style={{ fontSize: 13, marginTop: 3, wordBreak: 'break-all', lineHeight: 1.3 }}>
-                  <span style={{ opacity: 0.8 }}>🔑 Password: </span><b>{room.wifiPassword}</b>
+                  <span style={{ opacity: 0.8 }}>Password: </span><b>{room.wifiPassword}</b>
                 </div>
               )}
             </div>
