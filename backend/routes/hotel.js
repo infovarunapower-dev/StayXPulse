@@ -9,6 +9,20 @@ const { isValidGstin } = require('../utils/gst');
 const supabase = require('../utils/supabase');
 const { sendPushToHotel, vapidPublicKey } = require('../utils/push');
 
+// Sunver Growth Engine (Requirement 3): the FIRST guest request a hotel ever
+// receives means the product actually worked for them → trial_activated. The
+// outbox event_id is per-hotel, so a later "first" on the other table is a
+// harmless no-op. Error-safe; no-ops until the webhook is configured.
+async function maybeTrialActivated(hotelId, table) {
+  try {
+    const { count } = await supabase.from(table).select('*', { count: 'exact', head: true }).eq('hotel_id', hotelId);
+    if ((count || 0) !== 1) return;   // only the very first row on this table
+    const sge = require('../utils/sge');
+    const { data: h } = await supabase.from('hotels').select('hotel_name, email, phone, sge_aid, attribution').eq('id', hotelId).single();
+    if (h) await sge.enqueue('trial_activated', `hotel-${hotelId}`, { ...sge.partyOf(h), channel: 'website', ...sge.attributionOf(h) });
+  } catch (_) { /* never affect the guest order */ }
+}
+
 const HA  = [protect, authorize('hoteladmin')];
 const val = (req, res) => {
   const e = validationResult(req);
@@ -1008,6 +1022,7 @@ router.post('/guest/:qrToken/order', async (req, res) => {
       body: `Room ${room.number} — ₹${totalAmount}`,
       data: { type: 'food_order', id: order.id, route: '/hotel/food-orders' },
     });
+    await maybeTrialActivated(room.hotel_id, 'food_orders');
     res.status(201).json({ success: true, data: order, message: 'Order placed successfully!' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -1039,6 +1054,7 @@ router.post('/guest/:qrToken/service', async (req, res) => {
       body: `Room ${room.number}: ${insert.type}`,
       data: { type: 'service_request', id: sr.id, route: '/hotel/service-requests' },
     });
+    await maybeTrialActivated(room.hotel_id, 'service_requests');
     res.status(201).json({ success: true, data: sr, message: 'Request submitted!' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });

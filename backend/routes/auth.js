@@ -74,6 +74,14 @@ router.post('/register', optionalLogo, async (req, res) => {
     const isBuy = intent === 'buy';   // direct-purchase: no free trial
     // Marketing attribution captured from the landing/register URL (may be absent).
     const u = (k) => (utm && typeof utm === 'object' && utm[k] ? String(utm[k]).slice(0, 200) : null);
+    // Sunver Growth Engine attribution (Requirement 2): the browser id + the full
+    // tag set, kept from the landing page through signup.
+    const sgeAid = req.body.sgeAid ? String(req.body.sgeAid).slice(0, 100) : null;
+    let attribution = null;
+    try {
+      const raw = req.body.attribution;
+      attribution = typeof raw === 'string' ? JSON.parse(raw) : (raw && typeof raw === 'object' ? raw : null);
+    } catch (_) { attribution = null; }
     if (!hotelName?.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
     if (!phone?.trim()) return res.status(400).json({ success: false, message: 'Phone number is required.' });
     if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email address is required.' });
@@ -111,9 +119,11 @@ router.post('/register', optionalLogo, async (req, res) => {
       trial_end_date: trialEndDate.toISOString(),
     };
     const utmCols = { utm_source: u('utm_source'), utm_medium: u('utm_medium'), utm_campaign: u('utm_campaign'), utm_content: u('utm_content') };
-    // Self-heal: if migration 017 (utm_* columns) hasn't run yet, register still works.
-    let { data: hotel, error: hotelError } = await supabase.from('hotels').insert({ ...baseHotel, ...utmCols }).select().single();
-    if (hotelError && /column|schema cache|utm_/i.test(hotelError.message || '')) {
+    const sgeCols = { sge_aid: sgeAid, attribution: attribution || null };
+    // Self-heal: if migrations 017 (utm_*) / 023 (sge_aid, attribution) haven't run
+    // yet, register still works.
+    let { data: hotel, error: hotelError } = await supabase.from('hotels').insert({ ...baseHotel, ...utmCols, ...sgeCols }).select().single();
+    if (hotelError && /column|schema cache|utm_|sge_|attribution/i.test(hotelError.message || '')) {
       ({ data: hotel, error: hotelError } = await supabase.from('hotels').insert(baseHotel).select().single());
     }
     if (hotelError) throw hotelError;
@@ -123,6 +133,21 @@ router.post('/register', optionalLogo, async (req, res) => {
       role: 'hoteladmin', hotel_id: hotel.id, is_active: true,
     }).select('id').single();
     if (userError) throw userError;
+
+    // Sunver Growth Engine (Requirement 3): lead_created on signup, and
+    // trial_started when a free trial begins. Error-safe; no-ops until the
+    // webhook is configured.
+    try {
+      const sge = require('../utils/sge');
+      const party = { ...sge.partyOf(hotel), channel: 'website' };
+      const attr = sge.attributionOf(hotel);
+      await sge.enqueue('lead_created', `hotel-${hotel.id}`, { ...party, ...attr });
+      if (!isBuy) {
+        await sge.enqueue('trial_started', `hotel-${hotel.id}`, {
+          ...party, ...attr, trial_days: 14, trial_ends_at: hotel.trial_end_date,
+        });
+      }
+    } catch (_) { /* never block signup */ }
 
     // Auto-login: issue a session token so the just-registered hotel can go
     // straight to choosing/paying for a plan without a separate login step.

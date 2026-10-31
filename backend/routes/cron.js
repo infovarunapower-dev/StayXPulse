@@ -104,4 +104,17 @@ const handler = async (req, res) => {
 router.get('/order-reminders', cronAuth, handler);
 router.post('/order-reminders', cronAuth, handler);
 
+// Drain the Sunver Growth Engine outbox (retries). Same CRON_SECRET guard.
+const sgeDrain = async (req, res) => {
+  try {
+    const { drain } = require('../utils/sge');
+    const out = await drain(50);
+    res.json({ success: true, ...out });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+router.get('/sge-drain', cronAuth, sgeDrain);
+router.post('/sge-drain', cronAuth, sgeDrain);
+
 module.exports = router;

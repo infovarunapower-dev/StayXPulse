@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import api from '../utils/api';
+import { captureAttribution } from '../utils/attribution';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 
@@ -23,7 +24,8 @@ function getVisitorId() {
 export default function VisitTracker() {
   const location = useLocation();
   useEffect(() => {
-    if (IS_NATIVE) return;                       // website visitors only
+    captureAttribution();                        // keep marketing tags for signup (web + native)
+    if (IS_NATIVE) return;                       // website visitors only (below)
     const path = location.pathname || '/';
     try {
       const key = `sxp-seen-${path}`;

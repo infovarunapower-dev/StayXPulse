@@ -5,6 +5,7 @@ import AuthLayout from '../../components/auth/AuthLayout';
 import Input from '../../components/common/Input';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
+import { readAttribution, getSgeAid } from '../../utils/attribution';
 
 const RegisterPage = () => {
   const navigate  = useNavigate();
@@ -72,7 +73,15 @@ const RegisterPage = () => {
       fd.append('address',   form.address);
       fd.append('gstNumber', form.gstNumber.toUpperCase());
       fd.append('intent', intent);
-      if (Object.keys(utm).length) fd.append('utm', JSON.stringify(utm));
+      // Sunver Growth Engine attribution: full tag set kept from the landing page
+      // (session), plus the utm_* subset the existing columns use.
+      const attr = readAttribution();
+      const utmSubset = {};
+      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'].forEach(k => { if (attr[k] || utm[k]) utmSubset[k] = attr[k] || utm[k]; });
+      if (Object.keys(utmSubset).length) fd.append('utm', JSON.stringify(utmSubset));
+      if (Object.keys(attr).length) fd.append('attribution', JSON.stringify(attr));
+      const aid = getSgeAid();
+      if (aid) fd.append('sgeAid', aid);
       if (form.logo) fd.append('logo', form.logo);
 
       const { data } = await api.post('/auth/register', fd, {

@@ -97,6 +97,28 @@ const activateSubscription = async ({ txnid, gatewayPaymentId, gateway = 'easebu
 
   await finishActivation(validFrom, validTo);
 
+  // Sunver Growth Engine (Requirement 3): first paid plan → sale_confirmed,
+  // any later one → renewal. event_id keys off the payment row (idempotent).
+  // Error-safe + no-ops until the webhook is configured.
+  try {
+    const sge = require('./sge');
+    const { count } = await supabase.from('payments')
+      .select('*', { count: 'exact', head: true }).eq('hotel_id', order.hotel_id);
+    const isRenewal = (count || 0) > 1;
+    await sge.enqueue(isRenewal ? 'renewal' : 'sale_confirmed', `payment-${payment.id}`, {
+      ...sge.partyOf(hotel),
+      channel: 'website',
+      reference: invoiceNumber || paymentRef,
+      plan_name: `${plan.name} - ${order.cycle}`,
+      gross_paise: sge.toPaise(order.amount),
+      tax_paise: sge.taxPaiseFromGross(order.amount),
+      confirmed_at: new Date().toISOString(),
+      occurred_at: new Date().toISOString(),
+      is_renewal: isRenewal,
+      ...sge.attributionOf(hotel),
+    });
+  } catch (_) { /* never affect activation */ }
+
   // Neither the PDF nor the email may fail the activation — the money is taken
   // and the subscription is live regardless.
   let pdfBuffer = null;
