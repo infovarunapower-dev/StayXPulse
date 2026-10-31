@@ -77,17 +77,4 @@ router.get('/account-status', lookupAuth, async (req, res) => {
   }
 });
 
-// TEMP diagnostic — reports whether SGE env vars are loaded + their lengths
-// (NO secret values). Remove after go-live is verified.
-router.get('/health', (req, res) => {
-  const lt = process.env.SGE_LOOKUP_TOKEN || '';
-  const ws = process.env.SGE_WEBHOOK_SECRET || '';
-  const wu = process.env.SGE_WEBHOOK_URL || '';
-  res.json({
-    lookupTokenSet: !!lt, lookupTokenLen: lt.length,
-    webhookSecretSet: !!ws, webhookSecretLen: ws.length,
-    webhookUrlSet: !!wu, webhookUrl: wu ? wu.replace(/\/+$/, '') : null,
-  });
-});
-
 module.exports = router;
