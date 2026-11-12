@@ -80,6 +80,8 @@ app.use('/api/auth/forgot-password', limiter(60,  5, 'Too many password reset re
 app.use('/api/hotel/food/scan-menu', limiter(60, 30, 'Menu scan limit reached. Please try again later.'));
 // Sunver Growth Engine trial-status lookup (~60/min per the spec).
 app.use('/api/sge/account-status',   limiter(1, 60, 'Rate limit exceeded.'));
+// POS integration feed — a hotel's PMS polls every ~10s; allow generous headroom.
+app.use('/api/integration',          limiter(1, 120, 'Rate limit exceeded.'));
 
 // Guest QR endpoints are unauthenticated, but they must NOT be limited per IP:
 // an entire hotel shares one NAT address, and the guest page polls for order
@@ -116,6 +118,7 @@ app.use('/api/sanvi', require('./routes/sanvi'));
 app.use('/api/cron', require('./routes/cron'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/sge', require('./routes/sge'));
+app.use('/api/integration', require('./routes/integration'));
 
 // ── Terminal error handler ────────────────────────────────────────────────────
 // Without this, anything thrown by middleware (notably multer's file-size and

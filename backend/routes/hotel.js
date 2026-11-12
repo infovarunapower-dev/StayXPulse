@@ -742,7 +742,12 @@ router.get('/food-orders', MW, async (req, res) => {
 
 router.patch('/food-orders/:id/status', MW, async (req, res) => {
   try {
-    const { data, error } = await supabase.from('food_orders').update({ status: req.body.status }).eq('id', req.params.id).eq('hotel_id', req.hotelId).select().single();
+    // updated_at lets the POS integration feed detect status changes (incl.
+    // cancelled). Self-heals if migration 025 hasn't run (column absent).
+    let { data, error } = await supabase.from('food_orders').update({ status: req.body.status, updated_at: new Date().toISOString() }).eq('id', req.params.id).eq('hotel_id', req.hotelId).select().single();
+    if (error && /updated_at|column|schema cache/i.test(error.message || '')) {
+      ({ data, error } = await supabase.from('food_orders').update({ status: req.body.status }).eq('id', req.params.id).eq('hotel_id', req.hotelId).select().single());
+    }
     if (error) throw error;
     res.json({ success: true, data });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
