@@ -81,6 +81,7 @@ const GuestLanding = () => {
   const [menuLoading, setMenuLoading] = useState(false);
   const [services, setServices] = useState(SERVICE_OPTIONS); // hotel's own list; falls back to defaults
   const [kitchen, setKitchen] = useState({ enabled:false, isOpen:true, slots:[], open:'', close:'' });
+  const [active, setActive] = useState(true);   // hotel subscription live? false ⇒ ordering paused
 
   const [wakeOpen, setWakeOpen] = useState(false);
   const [wakeTime, setWakeTime] = useState('07:00');
@@ -116,6 +117,8 @@ const GuestLanding = () => {
       .then(r => {
         if (reqLang !== langRef.current) return;   // a newer switch superseded this
         setHotel(r.data.data.hotel); setRoom(r.data.data.room); setMenu(r.data.data.menu); setPage('app');
+        setActive(r.data.data.active !== false);
+
         if (Array.isArray(r.data.data.serviceOptions) && r.data.data.serviceOptions.length) setServices(r.data.data.serviceOptions);
         if (r.data.data.kitchen) setKitchen(r.data.data.kitchen);
       })
@@ -243,6 +246,19 @@ const GuestLanding = () => {
       <div style={{fontSize:56,marginBottom:16}}>🔗</div>
       <div style={{fontSize:20,fontWeight:700,marginBottom:8}}>{t.invalidTitle}</div>
       <div style={{fontSize:14,color:'#9CA3AF'}}>{t.invalidBody}</div>
+    </div>
+  );
+
+  // Hotel's subscription has lapsed → ordering and requests are paused. The
+  // server also refuses the order/request POSTs, so this is a friendly screen
+  // rather than the only guard.
+  if (page==='app' && !active) return (
+    <div className="gl-error">
+      <div style={{fontSize:56,marginBottom:16}}>⏸️</div>
+      <div style={{fontSize:20,fontWeight:700,marginBottom:8}}>{t.unavailableTitle || 'Service temporarily unavailable'}</div>
+      <div style={{fontSize:14,color:'#9CA3AF',maxWidth:320,lineHeight:1.5}}>
+        {t.unavailableBody || 'Online ordering and room-service requests are paused right now. Please contact the front desk for anything you need.'}
+      </div>
     </div>
   );
 

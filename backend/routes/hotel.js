@@ -163,6 +163,19 @@ const kitchenStatus = (hotel) => {
   return { enabled, slots, open: first.open, close: first.close, isOpen: valid.some(inSlot) };
 };
 
+// Whether a hotel's subscription currently permits the LIVE product — guest
+// ordering included. Mirrors requireActiveHotel exactly: an active plan still
+// within its valid-to window, or a trial still within its end date. Any missing
+// field ⇒ treated as inactive. Used to stop guest QR ordering once a hotel's
+// trial/plan lapses (the dashboard is already blocked by requireActiveHotel).
+const isHotelSubActive = (h) => {
+  if (!h) return false;
+  const now = Date.now();
+  const active   = h.subscription_status === 'active' && h.plan_valid_to  && new Date(h.plan_valid_to).getTime()  > now;
+  const trialing = h.subscription_status === 'trial'  && h.trial_end_date && new Date(h.trial_end_date).getTime() > now;
+  return !!(active || trialing);
+};
+
 // "Today"/"Yesterday" filters use Indian midnight, not server (UTC) midnight —
 // the server runs in UTC where midnight is 5:30 AM IST, which hid late-evening
 // requests from the "Today" view for Indian hotels.
@@ -966,7 +979,10 @@ router.get('/guest/:qrToken', async (req, res) => {
       serviceOptions = allSvc.some(r => r.is_default) ? active : [...defaults, ...active];
     }
 
-    res.json({ success: true, data: { hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type, wifiSsid: room.wifi_ssid || null, wifiPassword: room.wifi_password || null }, menu, serviceOptions, kitchen: kitchenStatus(hotel) } });
+    // `active` tells the guest page whether this hotel's subscription is live.
+    // When false, the page shows a "temporarily unavailable" notice and the
+    // order/request POSTs below also refuse — ordering stops until the hotel pays.
+    res.json({ success: true, data: { active: isHotelSubActive(hotel), hotel: { _id: hotel.id, hotelName: hotel.hotel_name, phone: hotel.phone, logoUrl: hotel.logo_url }, room: { _id: room.id, number: room.number, type: room.type, wifiSsid: room.wifi_ssid || null, wifiPassword: room.wifi_password || null }, menu, serviceOptions, kitchen: kitchenStatus(hotel) } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -979,7 +995,13 @@ router.post('/guest/:qrToken/order', async (req, res) => {
     // defensively so that if migration 015 hasn't run yet (columns absent) the
     // kitchen is simply treated as open rather than breaking ordering.
     const { data: kh } = await supabase.from('hotels')
-      .select('kitchen_hours_enabled, kitchen_slots, kitchen_open, kitchen_close').eq('id', room.hotel_id).single();
+      .select('kitchen_hours_enabled, kitchen_slots, kitchen_open, kitchen_close, subscription_status, plan_valid_to, trial_end_date').eq('id', room.hotel_id).single();
+    // Subscription gate: once a hotel's trial/plan has lapsed, guests can no
+    // longer place food orders (the hotel's dashboard is already blocked).
+    if (!isHotelSubActive(kh)) {
+      return res.status(403).json({ success: false, code: 'HOTEL_INACTIVE',
+        message: 'Online ordering is temporarily unavailable right now. Please contact the front desk.' });
+    }
     const ks = kitchenStatus(kh || {});
     if (ks.enabled && !ks.isOpen) {
       const windows = (ks.slots || []).map(s => `${s.open}–${s.close}`).join(', ');
@@ -1036,6 +1058,14 @@ router.post('/guest/:qrToken/service', async (req, res) => {
   try {
     const { data: room, error } = await supabase.from('rooms').select('*').eq('qr_token', req.params.qrToken).eq('is_active', true).single();
     if (error || !room) return res.status(404).json({ success: false, message: 'Invalid QR' });
+
+    // Subscription gate: lapsed hotels can't take new service requests either.
+    const { data: subH } = await supabase.from('hotels')
+      .select('subscription_status, plan_valid_to, trial_end_date').eq('id', room.hotel_id).single();
+    if (!isHotelSubActive(subH)) {
+      return res.status(403).json({ success: false, code: 'HOTEL_INACTIVE',
+        message: 'Service requests are temporarily unavailable right now. Please contact the front desk.' });
+    }
 
     const { type, note = '', scheduledFor } = req.body;
     if (!type || typeof type !== 'string' || !type.trim()) return res.status(400).json({ success: false, message: 'Request type required' });
