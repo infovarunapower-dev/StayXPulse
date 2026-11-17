@@ -228,6 +228,26 @@ const handleEasebuzzResult = async (payload, source) => {
     await supabase.from('payment_orders')
       .update({ status: 'failed', gateway_payment_id: payload.easepayid || null })
       .eq('txnid', txnid).eq('status', 'created');
+
+    // Sunver Growth Engine: tell the engine a payment attempt failed, so its
+    // agent can nudge the hotel to try again. Idempotent per txnid (the callback
+    // and the webhook both reach here). Error-safe; no-ops until configured.
+    try {
+      const sge = require('../utils/sge');
+      const { data: ord } = await supabase.from('payment_orders')
+        .select('hotel_id, hotels(hotel_name, email, phone, sge_aid, attribution)')
+        .eq('txnid', txnid).maybeSingle();
+      const h = ord && ord.hotels;
+      if (h) {
+        await sge.enqueue('payment_failed', `txn-${txnid}`, {
+          account_id: ord.hotel_id,
+          ...sge.partyOf(h),
+          reason: finalStatus,
+          occurred_at: new Date().toISOString(),
+          ...sge.attributionOf(h),
+        });
+      }
+    } catch (_) { /* never affect the payment result */ }
   }
   return { ok: false, reason: hashOk ? finalStatus : 'unverified', failed: true };
 };

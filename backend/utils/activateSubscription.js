@@ -107,11 +107,20 @@ const activateSubscription = async ({ txnid, gatewayPaymentId, gateway = 'easebu
     const isRenewal = (count || 0) > 1;
     await sge.enqueue(isRenewal ? 'renewal' : 'sale_confirmed', `payment-${payment.id}`, {
       ...sge.partyOf(hotel),
+      account_id: order.hotel_id,
       channel: 'website',
-      reference: invoiceNumber || paymentRef,
-      plan_name: `${plan.name} - ${order.cycle}`,
+      // Gateway transaction id — unique per payment — is what the engine keys on
+      // for idempotency. Invoice number is passed alongside for reconciliation.
+      reference: paymentRef,
+      invoice_number: invoiceNumber || null,
+      plan_name: plan.name,
+      rooms_limit: plan.max_rooms != null ? plan.max_rooms : null,
+      billing_period: order.cycle,             // monthly | quarterly | yearly
+      // NOTE for the engine: our prices are GST-INCLUSIVE, so gross_paise is the
+      // all-in amount charged and tax_paise is the GST slice *within* it.
       gross_paise: sge.toPaise(order.amount),
       tax_paise: sge.taxPaiseFromGross(order.amount),
+      period_ends_at: validTo,
       confirmed_at: new Date().toISOString(),
       occurred_at: new Date().toISOString(),
       is_renewal: isRenewal,

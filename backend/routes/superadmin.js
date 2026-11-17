@@ -191,6 +191,48 @@ router.patch('/hotels/:id/toggle', SA, async (req, res) => {
   }
 });
 
+// ─── RECORD A REFUND → reversal event ─────────────────────────────────────────
+// There is no self-serve refund in the app; refunds are issued manually on the
+// gateway. This endpoint only RECORDS that one happened and tells the Sunver
+// Growth Engine, so its revenue picture stays correct. It takes no money and
+// changes no subscription. `:id` is the payments row id.
+router.post('/payments/:id/refund', SA, async (req, res) => {
+  try {
+    const { data: payment, error } = await supabase.from('payments')
+      .select('id, hotel_id, amount, payment_id, invoice_number')
+      .eq('id', req.params.id).maybeSingle();
+    if (error || !payment) return res.status(404).json({ success: false, message: 'Payment not found' });
+
+    // Gross (GST-inclusive) rupees being refunded — defaults to the full payment.
+    const gross = req.body.amount != null ? Number(req.body.amount) : Number(payment.amount || 0);
+    if (!(gross > 0)) return res.status(400).json({ success: false, message: 'Refund amount must be positive' });
+    const refundReference = String(req.body.refundReference || `rf-${payment.id}-${Date.now()}`);
+
+    const grossPaise = Math.round(gross * 100);
+    const basePaise  = Math.round((gross / 1.18) * 100);   // taxable base (prices are GST-inclusive)
+    const taxPaise   = grossPaise - basePaise;
+
+    try {
+      const sge = require('../utils/sge');
+      await sge.enqueue('reversal', `payment-${payment.id}-${refundReference}`, {
+        account_id: payment.hotel_id,
+        sale_reference: payment.payment_id,            // the original payment's gateway ref
+        refund_reference: refundReference,
+        invoice_number: payment.invoice_number || null,
+        refunded_base_paise: basePaise,
+        refunded_tax_paise: taxPaise,
+        refunded_gross_paise: grossPaise,
+        reason: req.body.reason || null,
+        occurred_at: new Date().toISOString(),
+      });
+    } catch (e) { console.error('[sge] reversal enqueue failed:', e.message); }
+
+    res.json({ success: true, message: 'Refund recorded and reported to the growth engine', refundReference });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ─── ACTIVATE PLAN ────────────────────────────────────────────────────────────
 router.post('/hotels/:id/activate', [...SA,
   body('planId').notEmpty().withMessage('Plan is required'),

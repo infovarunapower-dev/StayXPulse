@@ -117,4 +117,49 @@ const sgeDrain = async (req, res) => {
 router.get('/sge-drain', cronAuth, sgeDrain);
 router.post('/sge-drain', cronAuth, sgeDrain);
 
+// Emit subscription_cancelled for PAID plans that lapsed unpaid at period end.
+// We look only at terms that ended in the last 2 days (small, bounded scan); a
+// renewal would have pushed plan_valid_to into the future, so it won't match.
+// The event_id is keyed to the exact period-end, so repeated runs across the
+// window are harmless no-ops (idempotent in the outbox).
+async function runLapseSweep() {
+  const sge = require('../utils/sge');
+  const now = Date.now();
+  const windowStart = new Date(now - 2 * 86400000).toISOString();
+  const nowIso = new Date(now).toISOString();
+  let swept = 0;
+
+  const { data: hotels } = await supabase
+    .from('hotels')
+    .select('id, hotel_name, email, phone, plan_valid_to, current_plan_id, sge_aid, attribution')
+    .not('current_plan_id', 'is', null)
+    .gte('plan_valid_to', windowStart)
+    .lt('plan_valid_to', nowIso)
+    .limit(500);
+
+  for (const h of hotels || []) {
+    await sge.enqueue('subscription_cancelled', `hotel-${h.id}-${h.plan_valid_to}`, {
+      account_id: h.id,
+      ...sge.partyOf(h),
+      reason: 'plan lapsed unpaid at period end',
+      occurred_at: new Date().toISOString(),
+      ...sge.attributionOf(h),
+    });
+    swept++;
+  }
+  return { swept };
+}
+
+const sgeLapseSweep = async (req, res) => {
+  try {
+    const out = await runLapseSweep();
+    res.json({ success: true, ...out });
+  } catch (e) {
+    console.error('[cron/sge-lapse-sweep]', e.message);
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+router.get('/sge-lapse-sweep', cronAuth, sgeLapseSweep);
+router.post('/sge-lapse-sweep', cronAuth, sgeLapseSweep);
+
 module.exports = router;

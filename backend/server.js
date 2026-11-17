@@ -80,6 +80,8 @@ app.use('/api/auth/forgot-password', limiter(60,  5, 'Too many password reset re
 app.use('/api/hotel/food/scan-menu', limiter(60, 30, 'Menu scan limit reached. Please try again later.'));
 // Sunver Growth Engine trial-status lookup (~60/min per the spec).
 app.use('/api/sge/account-status',   limiter(1, 60, 'Rate limit exceeded.'));
+// Sunver Growth Engine daily account list — polled hourly, paged; generous.
+app.use('/api/sge/accounts',         limiter(1, 60, 'Rate limit exceeded.'));
 // POS integration feed — a hotel's PMS polls every ~10s; allow generous headroom.
 app.use('/api/integration',          limiter(1, 120, 'Rate limit exceeded.'));
 

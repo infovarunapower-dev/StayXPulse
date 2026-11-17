@@ -26,6 +26,7 @@ const RegisterPage = () => {
 
   const [form, setForm] = useState({
     hotelName: '', phone: '', email: '', address: '', gstNumber: '', logo: null,
+    whatsappOptIn: false,
   });
 
   const set = (field) => (e) => {
@@ -73,6 +74,7 @@ const RegisterPage = () => {
       fd.append('address',   form.address);
       fd.append('gstNumber', form.gstNumber.toUpperCase());
       fd.append('intent', intent);
+      fd.append('whatsappOptIn', form.whatsappOptIn ? 'true' : 'false');
       // Sunver Growth Engine attribution: full tag set kept from the landing page
       // (session), plus the utm_* subset the existing columns use.
       const attr = readAttribution();
@@ -229,6 +231,17 @@ const RegisterPage = () => {
             </div>
           </>
         )}
+
+        {/* WhatsApp opt-in — unticked by default (WhatsApp policy). */}
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '16px 0 4px', cursor: 'pointer', fontSize: 13, color: 'var(--gray-600)' }}>
+          <input
+            type="checkbox"
+            checked={form.whatsappOptIn}
+            onChange={e => setForm(f => ({ ...f, whatsappOptIn: e.target.checked }))}
+            style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
+          />
+          <span>Send me setup help and updates on WhatsApp</span>
+        </label>
 
         <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 20 }} disabled={submitting}>
           {submitting ? <><span className="spinner" /> Registering…</> : '🏨 Register Hotel'}

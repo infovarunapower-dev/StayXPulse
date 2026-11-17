@@ -82,6 +82,9 @@ router.post('/register', optionalLogo, async (req, res) => {
       const raw = req.body.attribution;
       attribution = typeof raw === 'string' ? JSON.parse(raw) : (raw && typeof raw === 'object' ? raw : null);
     } catch (_) { attribution = null; }
+    // WhatsApp opt-in (Requirement 4): unticked by default, as WhatsApp's rules
+    // require. Only when the hotel ticks it may the engine message them.
+    const whatsappOptIn = ['true', 'on', '1', 'yes'].includes(String(req.body.whatsappOptIn || '').toLowerCase());
     if (!hotelName?.trim()) return res.status(400).json({ success: false, message: 'Hotel name is required.' });
     if (!phone?.trim()) return res.status(400).json({ success: false, message: 'Phone number is required.' });
     if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email address is required.' });
@@ -119,11 +122,11 @@ router.post('/register', optionalLogo, async (req, res) => {
       trial_end_date: trialEndDate.toISOString(),
     };
     const utmCols = { utm_source: u('utm_source'), utm_medium: u('utm_medium'), utm_campaign: u('utm_campaign'), utm_content: u('utm_content') };
-    const sgeCols = { sge_aid: sgeAid, attribution: attribution || null };
-    // Self-heal: if migrations 017 (utm_*) / 023 (sge_aid, attribution) haven't run
-    // yet, register still works.
+    const sgeCols = { sge_aid: sgeAid, attribution: attribution || null, whatsapp_opt_in: whatsappOptIn };
+    // Self-heal: if migrations 017 (utm_*) / 023 (sge_aid, attribution) / 026
+    // (whatsapp_opt_in) haven't run yet, register still works.
     let { data: hotel, error: hotelError } = await supabase.from('hotels').insert({ ...baseHotel, ...utmCols, ...sgeCols }).select().single();
-    if (hotelError && /column|schema cache|utm_|sge_|attribution/i.test(hotelError.message || '')) {
+    if (hotelError && /column|schema cache|utm_|sge_|attribution|whatsapp/i.test(hotelError.message || '')) {
       ({ data: hotel, error: hotelError } = await supabase.from('hotels').insert(baseHotel).select().single());
     }
     if (hotelError) throw hotelError;
@@ -141,10 +144,11 @@ router.post('/register', optionalLogo, async (req, res) => {
       const sge = require('../utils/sge');
       const party = { ...sge.partyOf(hotel), channel: 'website' };
       const attr = sge.attributionOf(hotel);
-      await sge.enqueue('lead_created', `hotel-${hotel.id}`, { ...party, ...attr });
+      const optIn = { whatsapp_opt_in: whatsappOptIn };
+      await sge.enqueue('lead_created', `hotel-${hotel.id}`, { ...party, ...attr, ...optIn });
       if (!isBuy) {
         await sge.enqueue('trial_started', `hotel-${hotel.id}`, {
-          ...party, ...attr, trial_days: 14, trial_ends_at: hotel.trial_end_date,
+          ...party, ...attr, ...optIn, trial_days: 14, trial_ends_at: hotel.trial_end_date,
         });
       }
     } catch (_) { /* never block signup */ }
