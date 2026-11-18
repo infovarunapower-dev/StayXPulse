@@ -218,7 +218,7 @@ const HotelList = () => {
     { label:'Phone',  sort: r => r.phone, render: r => r.phone },
     { label:'Status', sort: r => r.subscription_status, render: r => <Badge status={r.subscription_status} label={
       r.subscription_status === 'trial'
-        ? `Trial (${Math.max(0, Math.ceil((new Date(r.trial_end_date) - Date.now()) / 86400000))}d left)`
+        ? `Trial (${Math.max(0, Math.ceil((new Date(r.trial_end_date) - Date.now()) / 86400000)) || 0}d left)`
         : r.subscription_status
     } /> },
     { label:'Plan',   render: r => (r.currentPlan || r.plans) ? <Badge status="active" label={(r.currentPlan || r.plans).name} /> : <span style={{ color:'var(--gray-300)' }}>—</span> },

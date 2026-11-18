@@ -128,7 +128,7 @@ const FoodManagement = () => {
   };
   const slotsLabel = (slots) => (slots || []).filter(s=>s.open&&s.close).map(s => `${fmt12(s.open)}–${fmt12(s.close)}`).join(', ');
 
-  const categories = ['all', ...new Set(items.map(i => i.category))];
+  const categories = ['all', ...new Set(items.map(i => i.category).filter(Boolean))];
   const visible = items.filter(i => {
     if (catFilter !== 'all' && i.category !== catFilter) return false;
     if (search && !i.name.toLowerCase().includes(search.toLowerCase())) return false;

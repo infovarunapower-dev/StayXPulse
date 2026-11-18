@@ -113,6 +113,7 @@ const NativeBackButton = () => {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return undefined;
     let handle;
+    let removed = false;
     let lastBack = 0;
     CapacitorApp.addListener('backButton', () => {
       const atHome = HOME_ROUTES.includes(window.location.pathname);
@@ -130,9 +131,11 @@ const NativeBackButton = () => {
         lastBack = now;
         toast('Press back again to exit', { id: 'back-exit', icon: '👋' });
       }
-    }).then(h => { handle = h; });
-    return () => { if (handle) handle.remove(); };
-  }, [navigate, user]);
+    }).then(h => { handle = h; if (removed) handle.remove(); });   // if cleanup already ran, remove at once
+    return () => { removed = true; if (handle) handle.remove(); };
+    // Depend on the role only (stable): homeFor needs just the role, so we don't
+    // re-subscribe every time the user object identity changes on a refresh.
+  }, [navigate, user?.role]);
   return null;
 };
 

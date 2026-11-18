@@ -7,6 +7,7 @@ const { protect, authorize }     = require('../middleware/auth');
 const { logoUpload, uploadHotelLogo } = require('../utils/logoUpload');
 const { isValidGstin } = require('../utils/gst');
 const supabase = require('../utils/supabase');
+const { fetchAll } = require('../utils/fetchAll');
 const { sendPushToHotel, vapidPublicKey } = require('../utils/push');
 
 // Sunver Growth Engine (Requirement 3): the FIRST guest request a hotel ever
@@ -702,7 +703,9 @@ router.get('/service-requests', MW, async (req, res) => {
 
     if (filter === 'today') query = query.gte('created_at', today);
     else if (filter === 'yesterday') query = query.gte('created_at', yesterday).lt('created_at', today);
-    if (from && to) query = query.gte('created_at', from).lte('created_at', new Date(new Date(to).setHours(23, 59, 59)).toISOString());
+    // Custom date range — apply whichever bound is set (works with just one).
+    if (from) query = query.gte('created_at', new Date(from).toISOString());
+    if (to)   query = query.lte('created_at', new Date(new Date(to).setHours(23, 59, 59, 999)).toISOString());
     if (status && status !== 'all') query = query.eq('status', status);
 
     query = query.order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
@@ -718,6 +721,8 @@ router.get('/service-requests', MW, async (req, res) => {
 
 router.patch('/service-requests/:id/status', MW, async (req, res) => {
   try {
+    const SR_STATUSES = ['pending', 'in-progress', 'completed', 'cancelled'];
+    if (!SR_STATUSES.includes(req.body.status)) return res.status(400).json({ success: false, message: 'Invalid status.' });
     const update = { status: req.body.status };
     if (req.body.status === 'completed') update.completed_at = new Date().toISOString();
     const { data, error } = await supabase.from('service_requests').update(update).eq('id', req.params.id).eq('hotel_id', req.hotelId).select().single();
@@ -757,6 +762,8 @@ router.get('/food-orders', MW, async (req, res) => {
 
 router.patch('/food-orders/:id/status', MW, async (req, res) => {
   try {
+    const FO_STATUSES = ['pending', 'preparing', 'delivered', 'cancelled'];
+    if (!FO_STATUSES.includes(req.body.status)) return res.status(400).json({ success: false, message: 'Invalid status.' });
     // updated_at lets the POS integration feed detect status changes (incl.
     // cancelled). Self-heals if migration 025 hasn't run (column absent).
     let { data, error } = await supabase.from('food_orders').update({ status: req.body.status, updated_at: new Date().toISOString() }).eq('id', req.params.id).eq('hotel_id', req.hotelId).select().single();
@@ -774,10 +781,13 @@ router.patch('/food-orders/:id/status', MW, async (req, res) => {
 router.get('/analytics', MW, async (req, res) => {
   try {
     const hotelId = req.hotelId;
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    // 7-day window for the daily charts (don't mutate `now`).
+    // IST day boundary so "Today" here matches the orders-list "Today" tab
+    // (both use istDayStartIso); otherwise 00:00–05:30 IST orders land on the
+    // wrong day.
+    const startOfToday = istDayStartIso(0);
+    // 7-day rolling window for the daily charts.
     const startOf7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const istDay = (ts) => new Date(new Date(ts).getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 
     const [
       { count: totalOrders },
@@ -793,7 +803,8 @@ router.get('/analytics', MW, async (req, res) => {
     ] = await Promise.all([
       supabase.from('food_orders').select('*', { count: 'exact', head: true }).eq('hotel_id', hotelId),
       supabase.from('food_orders').select('*', { count: 'exact', head: true }).eq('hotel_id', hotelId).gte('created_at', startOfToday),
-      supabase.from('food_orders').select('total_amount, status').eq('hotel_id', hotelId).neq('status', 'cancelled'),
+      // Sum EVERY non-cancelled order (paged past the 1000-row cap) for lifetime revenue.
+      fetchAll(() => supabase.from('food_orders').select('total_amount, status').eq('hotel_id', hotelId).neq('status', 'cancelled').order('id', { ascending: true })).then(data => ({ data })),
       supabase.from('food_orders').select('total_amount').eq('hotel_id', hotelId).gte('created_at', startOfToday).neq('status', 'cancelled'),
       supabase.from('service_requests').select('*', { count: 'exact', head: true }).eq('hotel_id', hotelId),
       supabase.from('service_requests').select('*', { count: 'exact', head: true }).eq('hotel_id', hotelId).eq('status', 'pending'),
@@ -812,8 +823,8 @@ router.get('/analytics', MW, async (req, res) => {
     // Daily orders + revenue, grouped by calendar day (the UI fills gaps to 0).
     const dailyMap = {};
     (weekOrders || []).forEach(o => {
-      const day = String(o.created_at || '').slice(0, 10);   // 'YYYY-MM-DD'
-      if (!day) return;
+      if (!o.created_at) return;
+      const day = istDay(o.created_at);   // IST calendar day 'YYYY-MM-DD'
       if (!dailyMap[day]) dailyMap[day] = { count: 0, revenue: 0 };
       dailyMap[day].count += 1;
       dailyMap[day].revenue += (o.total_amount || 0);
@@ -1051,9 +1062,11 @@ router.post('/guest/:qrToken/order', async (req, res) => {
     // missing the whole query failed and the gate wrongly read the hotel as
     // inactive, blocking food orders while service requests — which use this
     // same lean query — kept working. Keep the two reads separate.)
-    const { data: subH } = await supabase.from('hotels')
+    const { data: subH, error: subErr } = await supabase.from('hotels')
       .select('subscription_status, plan_valid_to, trial_end_date').eq('id', room.hotel_id).single();
-    if (!isHotelSubActive(subH)) {
+    // Block ONLY when we actually read the hotel and it is genuinely lapsed — a
+    // transient query error must not masquerade as "inactive" and refuse orders.
+    if (!subErr && subH && !isHotelSubActive(subH)) {
       return res.status(403).json({ success: false, code: 'HOTEL_INACTIVE',
         message: 'Online ordering is temporarily unavailable right now. Please contact the front desk.' });
     }
@@ -1124,9 +1137,11 @@ router.post('/guest/:qrToken/service', async (req, res) => {
     if (error || !room) return res.status(404).json({ success: false, message: 'Invalid QR' });
 
     // Subscription gate: lapsed hotels can't take new service requests either.
-    const { data: subH } = await supabase.from('hotels')
+    const { data: subH, error: subErr } = await supabase.from('hotels')
       .select('subscription_status, plan_valid_to, trial_end_date').eq('id', room.hotel_id).single();
-    if (!isHotelSubActive(subH)) {
+    // Block ONLY when we actually read the hotel and it is genuinely lapsed — a
+    // transient query error must not masquerade as "inactive" and refuse requests.
+    if (!subErr && subH && !isHotelSubActive(subH)) {
       return res.status(403).json({ success: false, code: 'HOTEL_INACTIVE',
         message: 'Service requests are temporarily unavailable right now. Please contact the front desk.' });
     }

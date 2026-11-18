@@ -20,7 +20,8 @@ const Analytics = () => {
   // Build 7-day chart (fill gaps with 0)
   const dayLabels = [];
   for (let i=6;i>=0;i--) {
-    const d = new Date(); d.setDate(d.getDate()-i);
+    // IST calendar day, matching the backend's IST bucketing (shift +5:30 then take the date).
+    const d = new Date(Date.now() + 5.5*3600*1000 - i*86400000);
     dayLabels.push(d.toISOString().split('T')[0]);
   }
   const dailyMap = {};

@@ -4,6 +4,7 @@ const bcrypt  = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const { protect, authorize }     = require('../middleware/auth');
 const supabase = require('../utils/supabase');
+const { fetchAll } = require('../utils/fetchAll');
 const { sendTrialReminderEmail, sendExpiryReminderEmail, sendPasswordResetByAdminEmail, sendAppUpdateEmail } = require('../utils/email');
 const { generateOrderRecordPDF, generateInvoicePDF } = require('../utils/invoice');
 const { computeGst } = require('../utils/gstCalc');
@@ -34,6 +35,31 @@ const mapHotel = (h) => ({
   isActive: h.is_active,
 });
 
+// Revenue grouped by month (IST), last 12 months oldest→newest, for the admin
+// dashboard chart. Returns [{ month:1-12, year, revenue }]. Falls back to
+// created_at when a payment has no paid_at (e.g. a manual activation).
+const IST_MS = 5.5 * 3600 * 1000;
+function buildMonthlyRevenue(payments) {
+  const nowIst = new Date(Date.now() + IST_MS);
+  const key = (y, m) => `${y}-${m}`;
+  const buckets = [];
+  const map = {};
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth() - i, 1));
+    const b = { month: d.getUTCMonth() + 1, year: d.getUTCFullYear(), revenue: 0 };
+    buckets.push(b);
+    map[key(b.year, b.month)] = b;
+  }
+  (payments || []).forEach(p => {
+    const when = p.paid_at || p.created_at;
+    if (!when) return;
+    const d = new Date(new Date(when).getTime() + IST_MS);
+    const b = map[key(d.getUTCFullYear(), d.getUTCMonth() + 1)];
+    if (b) b.revenue += (p.amount || 0);
+  });
+  return buckets;
+}
+
 // ─── DASHBOARD SUMMARY ────────────────────────────────────────────────────────
 router.get('/summary', SA, async (req, res) => {
   try {
@@ -49,11 +75,13 @@ router.get('/summary', SA, async (req, res) => {
       supabase.from('hotels').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active'),
       supabase.from('hotels').select('*', { count: 'exact', head: true }).eq('subscription_status', 'trial'),
       supabase.from('hotels').select('*', { count: 'exact', head: true }).eq('subscription_status', 'expired'),
-      supabase.from('payments').select('amount'),
+      // Sum EVERY payment (paged past PostgREST's 1000-row cap), not just the first 1000.
+      fetchAll(() => supabase.from('payments').select('amount, paid_at, created_at').order('id', { ascending: true })).then(data => ({ data })),
       supabase.from('payments').select('*, hotels(hotel_name, email), plans(name)').order('paid_at', { ascending: false }).limit(5),
     ]);
 
     const totalRevenue = (allPayments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+    const monthlyRevenue = buildMonthlyRevenue(allPayments);
 
     const in7 = new Date(); in7.setDate(in7.getDate() + 7);
     const { data: expiringSoon } = await supabase.from('hotels')
@@ -93,7 +121,7 @@ router.get('/summary', SA, async (req, res) => {
         stats: { totalHotels, activeHotels, trialHotels, expiredHotels, totalRevenue },
         visitors,
         activeHotels: activeHotelsList,
-        monthlyRevenue: [],
+        monthlyRevenue,
         recentPayments: (recentPayments || []).map(p => ({
           ...p,
           hotel: p.hotels ? { hotelName: p.hotels.hotel_name, email: p.hotels.email } : null,
@@ -293,7 +321,8 @@ router.get('/payments', SA, async (req, res) => {
       .range((page - 1) * limit, page * limit - 1);
     if (error) throw error;
 
-    const { data: allPayments } = await supabase.from('payments').select('amount');
+    // Sum EVERY payment (paged past the 1000-row cap), not just the first 1000.
+    const allPayments = await fetchAll(() => supabase.from('payments').select('amount').order('id', { ascending: true }));
     const totalRevenue = (allPayments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
 
     const mapped = (payments || []).map(p => ({
@@ -380,12 +409,18 @@ router.get('/invoices/zip', SA, async (req, res) => {
     const { from, to } = req.query;
     const col = req.query.dateField === 'created_at' ? 'created_at' : 'paid_at';
 
-    let q = supabase.from('payments').select('*, hotels(*), plans(name)').order(col, { ascending: true });
-    if (from) q = q.gte(col, new Date(from).toISOString());
-    if (to)   q = q.lte(col, new Date(new Date(to).getTime() + 86400000 - 1).toISOString()); // inclusive end-of-day
-    const { data: payments, error } = await q;
-    if (error) throw error;
-    if (!payments || !payments.length) return res.status(404).json({ success: false, message: 'No invoices found in this period.' });
+    // Page through EVERY invoice in the period — a GST register that silently
+    // stops at 1000 rows would under-state tax liability. Secondary sort on id
+    // keeps paging deterministic when the date column ties or is null.
+    const payments = await fetchAll(() => {
+      let q = supabase.from('payments').select('*, hotels(*), plans(name)')
+        .order(col, { ascending: true }).order('id', { ascending: true });
+      // IST day boundaries so invoices near midnight fall in the correct GST month.
+      if (from) q = q.gte(col, new Date(`${String(from).slice(0, 10)}T00:00:00.000+05:30`).toISOString());
+      if (to)   q = q.lte(col, new Date(`${String(to).slice(0, 10)}T23:59:59.999+05:30`).toISOString());
+      return q;
+    });
+    if (!payments.length) return res.status(404).json({ success: false, message: 'No invoices found in this period.' });
 
     const zip = new JSZip();
     const esc = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;

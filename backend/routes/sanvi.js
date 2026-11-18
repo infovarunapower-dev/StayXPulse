@@ -2,6 +2,7 @@ const express = require('express');
 const crypto  = require('crypto');
 const router  = express.Router();
 const supabase = require('../utils/supabase');
+const { fetchAll } = require('../utils/fetchAll');
 
 const PRODUCT = 'Stay-X-Pulse';
 
@@ -69,7 +70,7 @@ router.get('/events', sanviAuth, async (req, res) => {
       }, 'created_at'),
       (since ? supabase.from('payment_orders').select('id, hotel_id, amount, initiated_at, created_at').gt('initiated_at', since) : supabase.from('payment_orders').select('id, hotel_id, amount, initiated_at, created_at')).order('initiated_at', { ascending: true }).limit(limit),
       (since ? supabase.from('payments').select('id, hotel_id, payment_id, amount, paid_at').gt('paid_at', since) : supabase.from('payments').select('id, hotel_id, payment_id, amount, paid_at')).order('paid_at', { ascending: true }).limit(limit),
-      supabase.from('rooms').select('hotel_id'),
+      fetchAll(() => supabase.from('rooms').select('hotel_id').order('id', { ascending: true })).then(data => ({ data })),
     ]);
 
     const hotelMap = Object.fromEntries((hotels || []).map(h => [h.id, h]));
@@ -123,7 +124,7 @@ router.get('/orders', sanviAuth, async (req, res) => {
     const [{ data: plans }, hotels, { data: roomRows }] = await Promise.all([
       planIds.length  ? supabase.from('plans').select('id, name').in('id', planIds) : Promise.resolve({ data: [] }),
       hotelIds.length ? selectHotels((cols) => supabase.from('hotels').select(cols).in('id', hotelIds)) : Promise.resolve([]),
-      supabase.from('rooms').select('hotel_id'),
+      fetchAll(() => supabase.from('rooms').select('hotel_id').order('id', { ascending: true })).then(data => ({ data })),
     ]);
     const planMap  = Object.fromEntries((plans || []).map(p => [p.id, p.name]));
     const hotelMap = Object.fromEntries((hotels || []).map(h => [h.id, h]));

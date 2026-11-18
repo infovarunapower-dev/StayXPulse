@@ -20,7 +20,11 @@ export const useFetch = (url, deps = []) => {
     }
   }, [url]);
 
-  useEffect(() => { fetch(); }, deps);
+  // Refetch when the URL changes (through `fetch`'s own [url] memo) OR when a
+  // caller dependency changes. Depending only on `deps` silently missed URL
+  // changes; depending only on [fetch] would miss constant-URL callers (e.g.
+  // HotelList) that drive refetch via deps. Include both.
+  useEffect(() => { fetch(); }, [fetch, ...deps]);
 
   return { data, loading, error, refetch: fetch };
 };

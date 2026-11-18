@@ -23,7 +23,7 @@ const TrialBanner = ({ hotel }) => {
     );
   }
   if (hotel.subscriptionStatus === 'trial') {
-    const days = Math.max(0,Math.ceil((new Date(hotel.trialEndDate)-Date.now())/86400000));
+    const days = Math.max(0,Math.ceil((new Date(hotel.trialEndDate)-Date.now())/86400000)) || 0;
     return (
       <div className="trial-banner">
         <span style={{fontSize:20}}>⏰</span>

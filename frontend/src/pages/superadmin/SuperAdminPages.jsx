@@ -609,7 +609,7 @@ export const EmailReminders = () => {
   const trialHotels  = (data?.data   || []).filter(h => h.subscriptionStatus === 'trial');
   const expiringHotels = (expData?.data || []).filter(h => {
     if (!h.planValidTo) return false;
-    const days = Math.ceil((new Date(h.planValidTo)-Date.now())/86400000);
+    const days = Math.ceil((new Date(h.planValidTo)-Date.now())/86400000) || 0;
     return days <= 7 && days >= 0;
   });
 
@@ -641,7 +641,7 @@ export const EmailReminders = () => {
               { label:'Hotel',       render: r => <strong>{r.hotelName}</strong> },
               { label:'Email',       render: r => r.email },
               { label:'Trial Ends',  render: r => {
-                const d = Math.max(0,Math.ceil((new Date(r.trialEndDate)-Date.now())/86400000));
+                const d = Math.max(0,Math.ceil((new Date(r.trialEndDate)-Date.now())/86400000)) || 0;
                 return <span style={{color:d<=1?'var(--danger)':'var(--warning)',fontWeight:700}}>{d} days left</span>;
               }},
               { label:'Action', render: r => <button className="btn btn-sm btn-brand" onClick={()=>sendReminder(r)}>Send Reminder</button> },
@@ -663,7 +663,7 @@ export const EmailReminders = () => {
             { label:'Email',      render: r => r.email },
             { label:'Plan',       render: r => r.currentPlan?.name || '—' },
             { label:'Expires',    render: r => {
-              const d = Math.max(0,Math.ceil((new Date(r.planValidTo)-Date.now())/86400000));
+              const d = Math.max(0,Math.ceil((new Date(r.planValidTo)-Date.now())/86400000)) || 0;
               return <span style={{color:d<=3?'var(--danger)':'var(--warning)',fontWeight:700}}>{d} days left</span>;
             }},
             { label:'Action', render: r => <button className="btn btn-sm btn-brand" onClick={()=>sendReminder(r)}>Send Reminder</button> },
@@ -684,7 +684,7 @@ export const OverallSummary = () => {
   const s = data?.data?.stats || {};
   const monthly = data?.data?.monthlyRevenue || [];
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const chartData = monthly.map(m => ({ label: MONTHS[m._id.month-1], label2: `₹${Math.round(m.revenue/1000)}k`, value: m.revenue }));
+  const chartData = monthly.map(m => ({ label: MONTHS[m.month-1], label2: `₹${Math.round(m.revenue/1000)}k`, value: m.revenue }));
 
   return (
     <div>

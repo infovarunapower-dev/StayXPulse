@@ -55,11 +55,12 @@ export const ServiceRequests = () => {
     try {
       let url = `/hotel/service-requests?filter=${dateFilter}`;
       if (statusFilter !== 'all') url += `&status=${statusFilter}`;
-      if (customFrom && customTo)  url += `&from=${customFrom}&to=${customTo}`;
+      if (customFrom) url += `&from=${customFrom}`;
+      if (customTo)   url += `&to=${customTo}`;
       const r = await api.get(url);
-      setData(r.data.data);
-      setTotal(r.data.total);
-      setPending(r.data.pendingCount);
+      setData(r.data?.data || []);
+      setTotal(r.data?.total || 0);
+      setPending(r.data?.pendingCount || 0);
     } catch { /* silent on auto-refresh */ }
     finally { setLoading(false); }
   }, [dateFilter, statusFilter, customFrom, customTo]);
@@ -185,9 +186,9 @@ export const FoodOrders = () => {
   const load = useCallback(async () => {
     try {
       const r = await api.get(buildQuery());
-      setData(r.data.data);
-      setTotal(r.data.total);
-      setPending(r.data.pendingCount);
+      setData(r.data?.data || []);
+      setTotal(r.data?.total || 0);
+      setPending(r.data?.pendingCount || 0);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, [buildQuery]);

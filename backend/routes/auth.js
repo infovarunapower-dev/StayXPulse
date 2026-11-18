@@ -135,7 +135,12 @@ router.post('/register', optionalLogo, async (req, res) => {
       name: hotelName.trim(), email: cleanEmail, password_hash: hashedPassword,
       role: 'hoteladmin', hotel_id: hotel.id, is_active: true,
     }).select('id').single();
-    if (userError) throw userError;
+    if (userError) {
+      // Roll back the just-created hotel so a failed user insert doesn't leave an
+      // orphan hotel row and consume the email with no way to log in.
+      await supabase.from('hotels').delete().eq('id', hotel.id);
+      throw userError;
+    }
 
     // Sunver Growth Engine (Requirement 3): lead_created on signup, and
     // trial_started when a free trial begins. Error-safe; no-ops until the

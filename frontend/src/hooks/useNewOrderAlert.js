@@ -108,7 +108,9 @@ export default function useNewOrderAlert(enabled) {
         }
       } catch (e) {
         const status = e?.response?.status;
-        if (status === 401 || status === 402 || status === 403) stopped = true;
+        // Auth/subscription stop: halt for good AND stop the interval (it used to
+        // keep firing a no-op tick every few seconds until unmount).
+        if (status === 401 || status === 402 || status === 403) { stopped = true; clearInterval(id); }
         /* other errors are transient: stay silent, try again next tick */
       }
     }

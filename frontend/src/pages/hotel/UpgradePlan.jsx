@@ -200,7 +200,7 @@ const UpgradePlan = () => {
         <div className="current-banner expired"><span>🔒</span><div>Choose a plan below to <strong>activate your account</strong> and unlock all features.</div></div>
       )}
       {hotel?.subscriptionStatus === 'trial' && (() => {
-        const daysLeft = Math.ceil((new Date(hotel.trialEndDate) - Date.now()) / 86400000);
+        const daysLeft = Math.ceil((new Date(hotel.trialEndDate) - Date.now()) / 86400000) || 0;
         return daysLeft > 0 ? (
           <div className="current-banner trial">
             <span>⏰</span>
