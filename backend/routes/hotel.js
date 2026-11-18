@@ -991,17 +991,28 @@ router.post('/guest/:qrToken/order', async (req, res) => {
     const { data: room, error } = await supabase.from('rooms').select('*').eq('qr_token', req.params.qrToken).eq('is_active', true).single();
     if (error || !room) return res.status(404).json({ success: false, message: 'Invalid QR' });
 
-    // Kitchen hours gate: outside serving hours, no new food orders. Fetched
-    // defensively so that if migration 015 hasn't run yet (columns absent) the
-    // kitchen is simply treated as open rather than breaking ordering.
-    const { data: kh } = await supabase.from('hotels')
-      .select('kitchen_hours_enabled, kitchen_slots, kitchen_open, kitchen_close, subscription_status, plan_valid_to, trial_end_date').eq('id', room.hotel_id).single();
     // Subscription gate: once a hotel's trial/plan has lapsed, guests can no
     // longer place food orders (the hotel's dashboard is already blocked).
-    if (!isHotelSubActive(kh)) {
+    // Read ONLY the subscription columns here — these always exist. (This query
+    // used to also pull the kitchen-hours columns; if a kitchen column was
+    // missing the whole query failed and the gate wrongly read the hotel as
+    // inactive, blocking food orders while service requests — which use this
+    // same lean query — kept working. Keep the two reads separate.)
+    const { data: subH } = await supabase.from('hotels')
+      .select('subscription_status, plan_valid_to, trial_end_date').eq('id', room.hotel_id).single();
+    if (!isHotelSubActive(subH)) {
       return res.status(403).json({ success: false, code: 'HOTEL_INACTIVE',
         message: 'Online ordering is temporarily unavailable right now. Please contact the front desk.' });
     }
+    // Kitchen hours gate: outside serving hours, no new food orders. Read
+    // defensively and in its OWN query — if migration 015/016 hasn't run yet
+    // (columns absent) the kitchen is simply treated as open rather than
+    // breaking ordering. A failure here can never block an order.
+    let kh = null;
+    try {
+      ({ data: kh } = await supabase.from('hotels')
+        .select('kitchen_hours_enabled, kitchen_slots, kitchen_open, kitchen_close').eq('id', room.hotel_id).single());
+    } catch (_) { /* kitchen columns absent ⇒ treat kitchen as open */ }
     const ks = kitchenStatus(kh || {});
     if (ks.enabled && !ks.isOpen) {
       const windows = (ks.slots || []).map(s => `${s.open}–${s.close}`).join(', ');
