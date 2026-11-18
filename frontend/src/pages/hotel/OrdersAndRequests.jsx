@@ -170,20 +170,27 @@ export const FoodOrders = () => {
   const [pending,     setPending]  = useState(0);
   const [total,       setTotal]    = useState(0);
   const [expanded,    setExpanded] = useState(null);
+  const [exporting,   setExporting]= useState(false);
   const REFRESH_MS = 30000;
+
+  // Build the query string from the active filters (shared by load + export).
+  const buildQuery = useCallback((extra = '') => {
+    let url = `/hotel/food-orders?filter=${dateFilter}`;
+    if (statusFilter !== 'all') url += `&status=${statusFilter}`;
+    if (customFrom) url += `&from=${customFrom}`;
+    if (customTo)   url += `&to=${customTo}`;
+    return url + extra;
+  }, [dateFilter, statusFilter, customFrom, customTo]);
 
   const load = useCallback(async () => {
     try {
-      let url = `/hotel/food-orders?filter=${dateFilter}`;
-      if (statusFilter !== 'all') url += `&status=${statusFilter}`;
-      if (customFrom && customTo)  url += `&from=${customFrom}&to=${customTo}`;
-      const r = await api.get(url);
+      const r = await api.get(buildQuery());
       setData(r.data.data);
       setTotal(r.data.total);
       setPending(r.data.pendingCount);
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, [dateFilter, statusFilter, customFrom, customTo]);
+  }, [buildQuery]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { const id = setInterval(load, REFRESH_MS); return () => clearInterval(id); }, [load]);
@@ -194,6 +201,38 @@ export const FoodOrders = () => {
       toast.success(`Order marked as ${status}`);
       load();
     } catch { toast.error('Failed to update'); }
+  };
+
+  // Export the CURRENTLY FILTERED orders to CSV (fetches up to 1000 matching
+  // rows, not just the page on screen). Opens cleanly in Excel / Sheets.
+  const exportCSV = async () => {
+    setExporting(true);
+    try {
+      const r = await api.get(buildQuery('&limit=1000'));
+      const rows = r.data.data || [];
+      if (!rows.length) { toast.error('No orders to export for these filters.'); return; }
+      const esc = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+      const header = ['Order Ref','Room','Items','Amount (INR)','Status','Date','Time','Guest Note'];
+      const lines = rows.map(o => [
+        o.id,
+        o.room_number,
+        (o.items || []).map(i => `${i.name} x${i.quantity}`).join('; '),
+        o.total_amount,
+        o.status,
+        fmtDate(o.created_at),
+        fmtTime(o.created_at),
+        o.guest_note || '',
+      ].map(esc).join(','));
+      const csv = ['﻿' + header.join(','), ...lines].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `food-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      toast.success(`Exported ${rows.length} order${rows.length > 1 ? 's' : ''}`);
+    } catch { toast.error('Export failed'); }
+    finally { setExporting(false); }
   };
 
   const STATUS_OPTS = ['pending','preparing','delivered','cancelled'];
@@ -235,14 +274,17 @@ export const FoodOrders = () => {
         subtitle={<span>Auto-refreshes every 30s &nbsp;·&nbsp; <span style={{color:pending>0?'var(--danger)':'var(--success)',fontWeight:700}}>{pending} pending</span></span>}
         action={<button className="btn btn-sm btn-outline" onClick={load}>↻ Refresh</button>}
       />
-      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:16}}>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:16}}>
         <FilterBar filters={DATE_FILTERS}   active={dateFilter}   onChange={v=>{setDateF(v);setFrom('');setTo('');}} />
         <FilterBar filters={FOOD_STATUS_FILTERS} active={statusFilter} onChange={setStatusF} />
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
-          <input type="date" className="form-control" style={{width:140,padding:'6px 10px',fontSize:13}} value={customFrom} onChange={e=>{setFrom(e.target.value);setDateF('custom');}} />
+          <input type="date" className="form-control" style={{width:150,padding:'6px 10px',fontSize:13}} value={customFrom} onChange={e=>{setFrom(e.target.value);setDateF('custom');}} />
           <span style={{color:'var(--gray-400)',fontSize:13}}>to</span>
-          <input type="date" className="form-control" style={{width:140,padding:'6px 10px',fontSize:13}} value={customTo} onChange={e=>{setTo(e.target.value);setDateF('custom');}} />
+          <input type="date" className="form-control" style={{width:150,padding:'6px 10px',fontSize:13}} value={customTo} onChange={e=>{setTo(e.target.value);setDateF('custom');}} />
         </div>
+        <button className="btn btn-sm btn-outline" style={{marginLeft:'auto'}} onClick={exportCSV} disabled={exporting || loading}>
+          {exporting ? 'Exporting…' : '⬇ Export CSV'}
+        </button>
       </div>
       <Card>{loading ? <TableSkeleton cols={columns.length} /> : (
         <>

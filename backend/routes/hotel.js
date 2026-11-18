@@ -739,7 +739,9 @@ router.get('/food-orders', MW, async (req, res) => {
 
     if (filter === 'today') query = query.gte('created_at', today);
     else if (filter === 'yesterday') query = query.gte('created_at', yesterday).lt('created_at', today);
-    if (from && to) query = query.gte('created_at', from).lte('created_at', new Date(new Date(to).setHours(23, 59, 59)).toISOString());
+    // Custom date range — apply whichever bound is set (works with just one).
+    if (from) query = query.gte('created_at', new Date(from).toISOString());
+    if (to)   query = query.lte('created_at', new Date(new Date(to).setHours(23, 59, 59, 999)).toISOString());
     if (status && status !== 'all') query = query.eq('status', status);
 
     query = query.order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
