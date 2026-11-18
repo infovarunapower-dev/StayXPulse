@@ -774,7 +774,8 @@ router.get('/analytics', MW, async (req, res) => {
     const hotelId = req.hotelId;
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    const startOf7 = new Date(now.setDate(now.getDate() - 7)).toISOString();
+    // 7-day window for the daily charts (don't mutate `now`).
+    const startOf7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
     const [
       { count: totalOrders },
@@ -784,6 +785,9 @@ router.get('/analytics', MW, async (req, res) => {
       { count: totalRequests },
       { count: pendingRequests },
       { data: recentOrders },
+      { data: weekOrders },
+      { data: itemOrders },
+      { data: menuItems },
     ] = await Promise.all([
       supabase.from('food_orders').select('*', { count: 'exact', head: true }).eq('hotel_id', hotelId),
       supabase.from('food_orders').select('*', { count: 'exact', head: true }).eq('hotel_id', hotelId).gte('created_at', startOfToday),
@@ -792,18 +796,65 @@ router.get('/analytics', MW, async (req, res) => {
       supabase.from('service_requests').select('*', { count: 'exact', head: true }).eq('hotel_id', hotelId),
       supabase.from('service_requests').select('*', { count: 'exact', head: true }).eq('hotel_id', hotelId).eq('status', 'pending'),
       supabase.from('food_orders').select('*').eq('hotel_id', hotelId).order('created_at', { ascending: false }).limit(5),
+      // Last 7 days → Daily Orders + Daily Revenue charts.
+      supabase.from('food_orders').select('created_at, total_amount').eq('hotel_id', hotelId).neq('status', 'cancelled').gte('created_at', startOf7),
+      // Recent orders WITH line items → Top Items + Revenue by Category.
+      supabase.from('food_orders').select('items, total_amount').eq('hotel_id', hotelId).neq('status', 'cancelled').order('created_at', { ascending: false }).limit(1000),
+      // Menu → map each line item to its category.
+      supabase.from('food_items').select('id, name, category').eq('hotel_id', hotelId),
     ]);
 
     const totalRevenue = (allOrders || []).reduce((sum, o) => sum + (o.total_amount || 0), 0);
     const todayRevenue = (todayOrdersData || []).reduce((sum, o) => sum + (o.total_amount || 0), 0);
 
+    // Daily orders + revenue, grouped by calendar day (the UI fills gaps to 0).
+    const dailyMap = {};
+    (weekOrders || []).forEach(o => {
+      const day = String(o.created_at || '').slice(0, 10);   // 'YYYY-MM-DD'
+      if (!day) return;
+      if (!dailyMap[day]) dailyMap[day] = { count: 0, revenue: 0 };
+      dailyMap[day].count += 1;
+      dailyMap[day].revenue += (o.total_amount || 0);
+    });
+    const dailyOrders = Object.keys(dailyMap).map(day => ({ _id: day, count: dailyMap[day].count, revenue: dailyMap[day].revenue }));
+
+    // Category lookup by menu-item id (fall back to item name for older rows).
+    const catById = new Map();
+    const catByName = new Map();
+    (menuItems || []).forEach(m => {
+      if (m.id)   catById.set(m.id, m.category || 'Other');
+      if (m.name) catByName.set(m.name, m.category || 'Other');
+    });
+
+    // Top items (by quantity ordered) + revenue by category, from the line items.
+    const itemQty = {};   // item name -> total quantity
+    const catRev  = {};   // category  -> total revenue
+    (itemOrders || []).forEach(o => {
+      const items = Array.isArray(o.items) ? o.items : [];
+      items.forEach(it => {
+        const name  = it.name || 'Item';
+        const qty   = Number(it.quantity) || 0;
+        const price = Number(it.price) || 0;
+        itemQty[name] = (itemQty[name] || 0) + qty;
+        const cat = catById.get(it.foodItem) || catByName.get(name) || 'Other';
+        catRev[cat] = (catRev[cat] || 0) + price * qty;
+      });
+    });
+    const topItems = Object.keys(itemQty)
+      .map(name => ({ _id: name, total: itemQty[name] }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+    const categoryRevenue = Object.keys(catRev)
+      .map(cat => ({ _id: cat, revenue: catRev[cat] }))
+      .sort((a, b) => b.revenue - a.revenue);
+
     res.json({
       success: true,
       data: {
         stats: { totalOrders, todayOrders, totalRevenue, todayRevenue, totalRequests, pendingRequests },
-        topItems: [],
-        dailyOrders: [],
-        categoryRevenue: [],
+        topItems,
+        dailyOrders,
+        categoryRevenue,
         recentOrders: recentOrders || [],
       }
     });

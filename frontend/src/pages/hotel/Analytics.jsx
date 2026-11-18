@@ -26,7 +26,8 @@ const Analytics = () => {
   const dailyMap = {};
   daily.forEach(d => { dailyMap[d._id] = { count:d.count, revenue:d.revenue }; });
   const ordersChart  = dayLabels.map(d => ({ label: d.slice(5).replace('-','/'), label2: String(dailyMap[d]?.count||0), value: dailyMap[d]?.count||0 }));
-  const revenueChart = dayLabels.map(d => ({ label: d.slice(5).replace('-','/'), label2: dailyMap[d]?.revenue ? `₹${Math.round(dailyMap[d].revenue/1000)}k` : '₹0', value: dailyMap[d]?.revenue||0 }));
+  const fmtK = r => r >= 1000 ? `₹${Math.round(r/1000)}k` : `₹${r||0}`;
+  const revenueChart = dayLabels.map(d => ({ label: d.slice(5).replace('-','/'), label2: fmtK(dailyMap[d]?.revenue||0), value: dailyMap[d]?.revenue||0 }));
 
   return (
     <div>
