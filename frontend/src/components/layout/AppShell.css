@@ -162,19 +162,28 @@
   color: var(--gray-500); padding: 4px 8px;
 }
 
-.shell-header-info { flex: 1; display: flex; align-items: center; gap: 10px; }
+.shell-header-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
 
 .shell-hotel-badge {
-  display: flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; gap: 8px;
   padding: 5px 14px;
   background: var(--brand-light);
   color: var(--brand);
   border-radius: 20px;
   font-size: 13px; font-weight: 600;
+  min-width: 0;          /* allow the name to ellipsis instead of stretching */
+  max-width: 320px;
+}
+.shell-hotel-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;   /* never wrap the hotel name inside the pill */
+  min-width: 0;
 }
 .shell-hotel-logo {
   width: 20px; height: 20px;
   border-radius: 4px; object-fit: contain;
+  flex-shrink: 0;
 }
 .shell-role-pill {
   padding: 4px 12px;
@@ -220,4 +229,13 @@
   .shell-menu-btn { display: block; }
   .shell-overlay { display: block; }
   .shell-content { padding: 20px 16px; }
+
+  /* Declutter the top bar on phones: the hotel name is already shown large on
+     the dashboard welcome card, so the header pill is redundant and only
+     wraps/cramps here. Drop it, tighten spacing, and compact the Upgrade CTA. */
+  .shell-header { padding: 0 14px; gap: 8px; }
+  .shell-hotel-badge { display: none; }
+  .shell-header-right { gap: 8px; }
+  .shell-upgrade-word { display: none; }        /* "⬆ Upgrade" instead of "Upgrade Plan" */
+  .shell-upgrade-btn { padding: 7px 12px; font-size: 12px; }
 }

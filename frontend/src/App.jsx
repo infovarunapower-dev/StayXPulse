@@ -8,6 +8,8 @@ import AppShell from './components/layout/AppShell';
 import PushManager from './components/PushManager';
 import VisitTracker from './components/VisitTracker';
 import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 import LoginPage          from './pages/auth/LoginPage';
 import RegisterPage       from './pages/auth/RegisterPage';
@@ -100,6 +102,40 @@ const AuthGuard = () => {
   return null;
 };
 
+// Android hardware back button. Without this, Capacitor's default fires and the
+// app EXITS on every back press. Instead: navigate back through the app, and
+// only on a top-level "home" screen ask to exit (double-press, so a stray tap
+// never closes the app). Web/PWA is unaffected (guarded to native only).
+const HOME_ROUTES = ['/hotel/dashboard', '/admin/dashboard', '/login'];
+const NativeBackButton = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let handle;
+    let lastBack = 0;
+    CapacitorApp.addListener('backButton', () => {
+      const atHome = HOME_ROUTES.includes(window.location.pathname);
+      if (!atHome) {
+        // Somewhere inside the app → go back one screen (or home if no history).
+        if (window.history.length > 1) navigate(-1);
+        else navigate(homeFor(user), { replace: true });
+        return;
+      }
+      // On a home screen → confirm before exiting.
+      const now = Date.now();
+      if (now - lastBack < 2000) {
+        CapacitorApp.exitApp();
+      } else {
+        lastBack = now;
+        toast('Press back again to exit', { id: 'back-exit', icon: '👋' });
+      }
+    }).then(h => { handle = h; });
+    return () => { if (handle) handle.remove(); };
+  }, [navigate, user]);
+  return null;
+};
+
 // AuthProvider wraps BrowserRouter so auth state survives route changes
 const App = () => (
   <AuthProvider>
@@ -110,6 +146,7 @@ const App = () => (
       />
       <AccessGuard />
       <AuthGuard />
+      <NativeBackButton />
       <PushManager />
       <VisitTracker />
       <VercelAnalytics />

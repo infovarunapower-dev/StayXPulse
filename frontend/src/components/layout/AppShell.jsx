@@ -120,7 +120,7 @@ const AppShell = ({ children }) => {
             {user?.hotel && (
               <span className="shell-hotel-badge">
                 {user.hotel.logoUrl && <img src={user.hotel.logoUrl} alt="logo" className="shell-hotel-logo" />}
-                {user.hotel.hotelName}
+                <span className="shell-hotel-name">{user.hotel.hotelName}</span>
               </span>
             )}
             {user?.role === 'superadmin' && (
@@ -130,7 +130,7 @@ const AppShell = ({ children }) => {
           <div className="shell-header-right">
             {user?.role === 'hoteladmin' && (
               <button className="shell-upgrade-btn" onClick={() => navigate('/hotel/upgrade')}>
-                ⬆ Upgrade Plan
+                ⬆ Upgrade<span className="shell-upgrade-word">&nbsp;Plan</span>
               </button>
             )}
             <ThemeToggle />
