@@ -8,10 +8,14 @@
 //  no one has to click "Add version".
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
-  version:     '3.5',
-  versionCode: 26,
-  releasedAt:  '2026-10-12T00:00:00Z',
+  version:     '3.6',
+  versionCode: 27,
+  releasedAt:  '2026-11-18T00:00:00Z',
   notes: [
-    'Per-room WiFi: set it on a room and guests see it on their page; simpler 1-page signup',
+    'Back button now goes back instead of closing the app',
+    'Cleaner header on mobile',
+    'Analytics now show real order data',
+    'Food Orders: export to CSV and improved date filters',
+    'Fixed guest food ordering',
   ],
 };
